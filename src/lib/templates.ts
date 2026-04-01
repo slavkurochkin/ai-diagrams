@@ -480,26 +480,26 @@ nodes:
     label: Query Embedder
     note: "Converts the agent's retrieval request into a vector embedding"
     position:
-      x: 770
-      y: 170
+      x: 760
+      y: 145
   - id: vector_db
     type: vectorDB
     label: Vector Store
     config:
       provider: pinecone
-    note: "Pre-indexed knowledge base storing embeddings for similarity search"
+    note: "Persistent vector index that backs the retriever's similarity search"
     position:
-      x: 1080
-      y: 170
+      x: 1070
+      y: 315
   - id: retriever
     type: retriever
     label: Retriever
     config:
       topK: 5
-    note: "Pulls the most relevant context for the current retrieval request"
+    note: "Queries the connected vector store for the most relevant context"
     position:
-      x: 770
-      y: 300
+      x: 760
+      y: 315
   - id: toolcall
     type: toolCall
     label: Code Executor
@@ -508,7 +508,7 @@ nodes:
       timeout: 30
     note: "Executes Python code and returns stdout"
     position:
-      x: 770
+      x: 800
       y: 430
   - id: guardrails
     type: guardrails
@@ -549,10 +549,6 @@ edges:
     fromHandle: toolRequests
     toHandle: text
   - from: agent
-    to: retriever
-    fromHandle: toolRequests
-    toHandle: query
-  - from: agent
     to: toolcall
     fromHandle: toolRequests
     toHandle: call
@@ -560,6 +556,10 @@ edges:
     to: vector_db
     fromHandle: embedding
     toHandle: embedding
+  - from: vector_db
+    to: retriever
+    fromHandle: store
+    toHandle: store
   - from: embedding
     to: retriever
     fromHandle: embedding
@@ -652,26 +652,26 @@ nodes:
     label: Query Embedder
     note: "Converts the agent's retrieval request into a vector embedding"
     position:
-      x: 770
-      y: 170
+      x: 760
+      y: 145
   - id: vector_db
     type: vectorDB
     label: Vector Store
     config:
       provider: pinecone
-    note: "Pre-indexed knowledge base storing embeddings for similarity search"
+    note: "Persistent vector index that backs the retriever's similarity search"
     position:
-      x: 1080
-      y: 170
+      x: 1070
+      y: 315
   - id: retriever
     type: retriever
     label: Retriever
     config:
       topK: 5
-    note: "Pulls the most relevant context for the current retrieval request"
+    note: "Queries the connected vector store for the most relevant context"
     position:
-      x: 770
-      y: 300
+      x: 760
+      y: 315
   - id: toolcall
     type: toolCall
     label: Code Executor
@@ -680,7 +680,7 @@ nodes:
       timeout: 30
     note: "Executes Python code and returns stdout"
     position:
-      x: 770
+      x: 800
       y: 430
   - id: guardrails
     type: guardrails
@@ -842,10 +842,6 @@ edges:
     fromHandle: toolRequests
     toHandle: text
   - from: agent
-    to: retriever
-    fromHandle: toolRequests
-    toHandle: query
-  - from: agent
     to: toolcall
     fromHandle: toolRequests
     toHandle: call
@@ -853,6 +849,10 @@ edges:
     to: vector_db
     fromHandle: embedding
     toHandle: embedding
+  - from: vector_db
+    to: retriever
+    fromHandle: store
+    toHandle: store
   - from: embedding
     to: retriever
     fromHandle: embedding

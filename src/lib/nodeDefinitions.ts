@@ -150,13 +150,14 @@ const VectorDBNodeDefinition: NodeDefinition = {
   label: 'Vector DB',
   accentColor: '#0891B2',
   icon: VectorDBIcon,
-  description: 'Semantic similarity search over a vector store index.',
+  description: 'Vector store index used as persistent retrieval backing storage.',
   category: 'data',
   inputs: [
     { id: 'query', label: 'Query', type: 'text' },
     { id: 'embedding', label: 'Embedding', type: 'embedding' },
   ],
   outputs: [
+    { id: 'store', label: 'Store', type: 'any' },
     { id: 'documents', label: 'Documents', type: 'text' },
     { id: 'scores', label: 'Scores', type: 'structured' },
   ],
@@ -473,6 +474,7 @@ const RetrieverNodeDefinition: NodeDefinition = {
   description: 'Fetches the most relevant document chunks from a vector store.',
   category: 'data',
   inputs: [
+    { id: 'store', label: 'Store', type: 'any' },
     { id: 'query', label: 'Query', type: 'text' },
     { id: 'embedding', label: 'Embedding', type: 'embedding' },
   ],

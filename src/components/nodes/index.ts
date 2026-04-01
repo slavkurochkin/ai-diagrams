@@ -14,6 +14,8 @@ import CacheNode from './CacheNode'
 import RouterNode from './RouterNode'
 import AggregatorNode from './AggregatorNode'
 import ClassifierNode from './ClassifierNode'
+import FrameNode from './FrameNode'
+import TextNode from './TextNode'
 import ToolCallNode from './ToolCallNode'
 import WebSearchNode from './WebSearchNode'
 import OutputParserNode from './OutputParserNode'
@@ -63,6 +65,8 @@ export const nodeTypes: NodeTypes = {
   router: RouterNode,
   aggregator: AggregatorNode,
   classifier: ClassifierNode,
+  frame: FrameNode,
+  text: TextNode,
   // Tools
   toolCall: ToolCallNode,
   webSearch: WebSearchNode,

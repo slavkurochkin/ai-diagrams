@@ -183,6 +183,8 @@ export default function ConfigPanel() {
     : null
 
   const def = selectedNode ? getNodeDefinition(selectedNode.data.nodeType) : null
+  const isFrameNode = selectedNode?.data.nodeType === 'frame'
+  const isTextNode = selectedNode?.data.nodeType === 'text'
   const accentColor = selectedNode?.data.accentColor ?? def?.accentColor ?? '#2563EB'
 
   const handleChange = useCallback(
@@ -281,7 +283,7 @@ export default function ConfigPanel() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
-                  Card Color
+                  {isFrameNode ? 'Frame Color' : isTextNode ? 'Text Color' : 'Card Color'}
                 </label>
                 <button
                   type="button"
@@ -313,11 +315,16 @@ export default function ConfigPanel() {
                 />
               </div>
               <p className="text-[10px] text-white/30 leading-relaxed">
-                Override this node’s accent color without changing the default color for the whole component type.
+                {isFrameNode
+                  ? 'Override this frame’s tint without changing the default color for all frame nodes.'
+                  : isTextNode
+                  ? 'Override this text annotation color without changing the default color for all text nodes.'
+                  : 'Override this node’s accent color without changing the default color for the whole component type.'}
               </p>
             </div>
 
             {/* ── Note (markdown) ──────────────────────────────────────── */}
+            {!isFrameNode && !isTextNode && (
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
                 <StickyNote size={11} className="text-white/30" />
@@ -384,6 +391,7 @@ export default function ConfigPanel() {
                 </p>
               </div>
             </div>
+            )}
           </div>
 
           {/* ── RAG Eval Visualizer button ───────────────────────────────── */}

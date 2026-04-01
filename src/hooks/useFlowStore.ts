@@ -80,6 +80,26 @@ function generateNodeId(type: string): string {
   return `${type}-${nodeCounter++}`
 }
 
+function getFrameDimension(value: string | number | boolean | undefined, fallback: number) {
+  return typeof value === 'number' ? value : fallback
+}
+
+function getSizedNodeStyle(type: string, config: Record<string, string | number | boolean>) {
+  if (type === 'frame') {
+    return {
+      width: getFrameDimension(config.width, 420),
+      height: getFrameDimension(config.height, 260),
+    }
+  }
+  if (type === 'text') {
+    return {
+      width: getFrameDimension(config.width, 320),
+      height: getFrameDimension(config.height, 160),
+    }
+  }
+  return undefined
+}
+
 export const useFlowStore = create<FlowStore>((set) => ({
   // ── Initial state ─────────────────────────────────────────────────────────
   nodes: [],
@@ -142,14 +162,23 @@ export const useFlowStore = create<FlowStore>((set) => ({
     }
 
     const id = generateNodeId(type)
+    const defaultConfig = buildDefaultConfig(type)
+    const isFrameNode = type === 'frame'
+    const sizedStyle = getSizedNodeStyle(type, defaultConfig)
     const newNode: Node<BaseNodeData> = {
       id,
       type,
       position,
+      ...(isFrameNode || sizedStyle
+        ? {
+            ...(isFrameNode ? { zIndex: -1 } : {}),
+            ...(sizedStyle ? { style: sizedStyle } : {}),
+          }
+        : {}),
       data: {
         nodeType: type,
         label: def.label,
-        config: buildDefaultConfig(type),
+        config: defaultConfig,
         animationState: 'idle',
       },
     }

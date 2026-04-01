@@ -13,6 +13,8 @@ export {
   RouterIcon,
   AggregatorIcon,
   ClassifierIcon,
+  FrameIcon,
+  TextIcon,
   ToolCallIcon,
   WebSearchIcon,
   OutputParserIcon,

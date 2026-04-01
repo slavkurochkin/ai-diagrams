@@ -30,6 +30,7 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Square,
   UserRoundCheck,
   Waypoints,
   Workflow,
@@ -73,6 +74,8 @@ export const CacheIcon = createIcon(DatabaseZap)
 export const RouterIcon = createIcon(Route)
 export const AggregatorIcon = createIcon(Combine)
 export const ClassifierIcon = createIcon(Filter)
+export const FrameIcon = createIcon(Square)
+export const TextIcon = createIcon(MessageSquareText)
 
 export const ToolCallIcon = createIcon(Wrench)
 export const WebSearchIcon = createIcon(Globe)

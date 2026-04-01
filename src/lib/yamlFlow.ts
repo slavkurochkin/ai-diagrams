@@ -21,6 +21,25 @@ interface YAMLNodeSpec {
   }
 }
 
+function getSizedNodeStyle(
+  type: string,
+  config?: Record<string, string | number | boolean>,
+): { width: number; height: number } | undefined {
+  if (type === 'frame') {
+    return {
+      width: typeof config?.width === 'number' ? config.width : 420,
+      height: typeof config?.height === 'number' ? config.height : 260,
+    }
+  }
+  if (type === 'text') {
+    return {
+      width: typeof config?.width === 'number' ? config.width : 320,
+      height: typeof config?.height === 'number' ? config.height : 160,
+    }
+  }
+  return undefined
+}
+
 interface YAMLEdgeSpec {
   from: string
   to: string
@@ -98,10 +117,13 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
     const rfId = `${n.type}-${_counter++}`
     idMap.set(n.id, rfId)
     if (n.position) hasExplicitPositions = true
+    const sizedStyle = getSizedNodeStyle(n.type, n.config)
     nodes.push({
       id: rfId,
       type: n.type,
       position: n.position ?? { x: 0, y: 0 }, // auto-layout will position nodes without explicit coords
+      ...(n.type === 'frame' ? { zIndex: -1 } : {}),
+      ...(sizedStyle ? { style: sizedStyle } : {}),
       data: {
         nodeType: n.type,
         label: n.label ?? getNodeDefinition(n.type)!.label,

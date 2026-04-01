@@ -286,7 +286,7 @@ export default function TemplatesPanel({ open, onClose }: TemplatesPanelProps) {
                     <textarea
                       value={yamlText}
                       onChange={(e) => { setYamlText(e.target.value); setError(null) }}
-                      placeholder={`name: My Flow\nnodes:\n  - id: llm\n    type: llm\n  - id: parser\n    type: outputParser\nedges:\n  - from: llm\n    to: parser\n    fromHandle: response\n    toHandle: text`}
+                      placeholder={`name: My Flow\nnodes:\n  - id: llm\n    type: llm\n  - id: section\n    type: frame\n    config:\n      title: Retrieval\n      width: 420\n      height: 260\n  - id: note\n    type: text\n    config:\n      content: "Explain what happens here"\n      width: 320\n      height: 160\n  - id: parser\n    type: outputParser\nedges:\n  - from: llm\n    to: parser\n    fromHandle: response\n    toHandle: text`}
                       spellCheck={false}
                       className="
                         w-full h-64 p-3 rounded-xl font-mono text-[11px] leading-relaxed
@@ -328,7 +328,7 @@ export default function TemplatesPanel({ open, onClose }: TemplatesPanelProps) {
                       <pre className="mt-2 p-3 rounded-lg bg-white/5 text-white/60 leading-relaxed overflow-x-auto">{`name: "My Flow"          # flow title
 nodes:
   - id: myNode           # short id (used in edges)
-    type: llm            # node type (see sidebar)
+    type: llm            # node type (see sidebar); use "frame" or "text" for annotations
     label: "My LLM"      # optional label override
     config:              # optional config overrides
       model: gpt-4o
@@ -336,6 +336,24 @@ nodes:
     position:            # optional explicit canvas position
       x: 320
       y: 160
+  - id: retrievalBand
+    type: frame
+    config:
+      title: "Retrieval"
+      width: 420
+      height: 260
+    position:
+      x: 120
+      y: 80
+  - id: explainer
+    type: text
+    config:
+      content: "## Retrieval notes\n\n- fetch top-k chunks\n- optional reranking before generation"
+      width: 320
+      height: 150
+    position:
+      x: 580
+      y: 120
 edges:
   - from: myNode         # source node id
     to: otherNode        # target node id

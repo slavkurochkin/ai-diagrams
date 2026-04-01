@@ -108,3 +108,16 @@ export interface VectorDBNodeConfig {
   topK: number
   similarityThreshold: number
 }
+
+export interface FrameNodeConfig {
+  title: string
+  width: number
+  height: number
+}
+
+export interface TextNodeConfig {
+  content: string
+  width: number
+  height: number
+  fontSize: number
+}

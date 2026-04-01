@@ -148,7 +148,7 @@ export default function Sidebar() {
       {/* Footer hint */}
       <div className="px-4 py-2.5 border-t border-white/5">
         <p className="text-[10px] text-white/20 text-center">
-          20 node types
+          {defs.length} node types
         </p>
       </div>
     </aside>

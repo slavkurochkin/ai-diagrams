@@ -13,21 +13,27 @@ export type LayoutDirection = 'LR' | 'TB'
 export function applyAutoLayout(nodes: Node[], edges: Edge[], direction: LayoutDirection = 'TB'): Node[] {
   if (nodes.length === 0) return nodes
 
+  const layoutNodes = nodes.filter((node) => node.type !== 'frame' && node.type !== 'text')
+  const layoutNodeIds = new Set(layoutNodes.map((node) => node.id))
+  if (layoutNodes.length === 0) return nodes
+
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
   g.setGraph({ rankdir: direction, nodesep: 60, ranksep: 80, marginx: 40, marginy: 40 })
 
-  nodes.forEach((node) => {
+  layoutNodes.forEach((node) => {
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
   })
 
   edges.forEach((edge) => {
+    if (!layoutNodeIds.has(edge.source) || !layoutNodeIds.has(edge.target)) return
     g.setEdge(edge.source, edge.target)
   })
 
   dagre.layout(g)
 
   return nodes.map((node) => {
+    if (!layoutNodeIds.has(node.id)) return node
     const { x, y } = g.node(node.id)
     // dagre returns center x/y — React Flow uses top-left corner
     return {

@@ -1,0 +1,366 @@
+import { useEffect, useCallback, useState } from 'react'
+import { ReactFlowProvider } from 'reactflow'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Minimize2 } from 'lucide-react'
+import FlowCanvas from './components/canvas/FlowCanvas'
+import Sidebar from './components/panels/Sidebar'
+import Toolbar from './components/toolbar/Toolbar'
+import ConfigPanel from './components/panels/ConfigPanel'
+import ExplainPanel from './components/panels/ExplainPanel'
+import TemplatesPanel from './components/panels/TemplatesPanel'
+import FlowContextModal from './components/panels/FlowContextModal'
+import AnimationControls from './components/animation/AnimationControls'
+import { useFlowStore } from './hooks/useFlowStore'
+import { useFlowAnimation } from './hooks/useFlowAnimation'
+import { streamExplain } from './lib/api/explain'
+import { streamEvalSuggestions } from './lib/api/evalSuggestions'
+import { streamDesignReview } from './lib/api/designReview'
+import { saveFlow } from './lib/flowSerializer'
+import { applyAutoLayout } from './lib/autoLayout'
+import type { Node } from 'reactflow'
+import type { BaseNodeData } from './types/nodes'
+import type { FlowContext } from './types/flow'
+
+const CONTEXT_PROMPT_KEY = 'agentflow:contextPromptSeen'
+
+// Inner component — needs to be inside ReactFlowProvider to use useFlowAnimation
+function AppInner() {
+  const theme              = useFlowStore((s) => s.theme)
+  const presentationMode   = useFlowStore((s) => s.presentationMode)
+  const togglePresentation = useFlowStore((s) => s.togglePresentationMode)
+  const nodes              = useFlowStore((s) => s.nodes)
+  const edges              = useFlowStore((s) => s.edges)
+  const flowName           = useFlowStore((s) => s.flowName)
+  const selectedNodeId     = useFlowStore((s) => s.selectedNodeId)
+  const removeNode         = useFlowStore((s) => s.removeNode)
+  const setNodes           = useFlowStore((s) => s.setNodes)
+  const setEdges           = useFlowStore((s) => s.setEdges)
+  const setFlowName        = useFlowStore((s) => s.setFlowName)
+  const layoutDirection    = useFlowStore((s) => s.layoutDirection)
+  const flowContext        = useFlowStore((s) => s.flowContext)
+  const setFlowContext     = useFlowStore((s) => s.setFlowContext)
+
+  const animation = useFlowAnimation()
+
+  // ── Panel state ─────────────────────────────────────────────────────────────
+
+  const [templatesOpen, setTemplatesOpen] = useState(false)
+
+  // Flow context modal
+  const [contextModalOpen, setContextModalOpen] = useState(false)
+  const [contextModalMode, setContextModalMode] = useState<'new' | 'edit'>('new')
+
+  type PanelStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error'
+
+  // AI panel (explain + review + eval tabs)
+  const [aiPanelOpen, setAiPanelOpen]         = useState(false)
+  const [aiPanelTab, setAiPanelTab]           = useState<'explain' | 'review' | 'eval'>('explain')
+
+  const [explainText, setExplainText]         = useState('')
+  const [explainStatus, setExplainStatus]     = useState<PanelStatus>('idle')
+
+  const [reviewText, setReviewText]           = useState('')
+  const [reviewStatus, setReviewStatus]       = useState<PanelStatus>('idle')
+
+  const [evalText, setEvalText]               = useState('')
+  const [evalStatus, setEvalStatus]           = useState<PanelStatus>('idle')
+
+  const handleExplain = useCallback(async (nodeId?: string) => {
+    setAiPanelOpen(true)
+    setAiPanelTab('explain')
+    setExplainText('')
+    setExplainStatus('loading')
+
+    // When called for a single node, pass only that node (no edges needed)
+    const targetNodes = nodeId
+      ? (nodes as Parameters<typeof streamExplain>[0]).filter((n) => n.id === nodeId)
+      : nodes as Parameters<typeof streamExplain>[0]
+    const targetEdges = nodeId ? [] : edges
+    const targetName = nodeId
+      ? (nodes.find((n) => n.id === nodeId)?.data.label ?? flowName)
+      : flowName
+
+    try {
+      await streamExplain(
+        targetNodes,
+        targetEdges,
+        targetName,
+        (chunk) => {
+          setExplainText((t) => t + chunk)
+          setExplainStatus('streaming')
+        },
+        () => setExplainStatus('done'),
+        (msg) => {
+          setExplainText(msg)
+          setExplainStatus('error')
+        },
+      )
+    } catch (err) {
+      setExplainText(err instanceof Error ? err.message : 'Unexpected error')
+      setExplainStatus('error')
+    }
+  }, [nodes, edges, flowName])
+
+  const handleReview = useCallback(async () => {
+    setAiPanelOpen(true)
+    setAiPanelTab('review')
+    setReviewText('')
+    setReviewStatus('loading')
+    try {
+      await streamDesignReview(
+        nodes as Parameters<typeof streamDesignReview>[0],
+        edges,
+        flowName,
+        flowContext,
+        (chunk) => {
+          setReviewText((t) => t + chunk)
+          setReviewStatus('streaming')
+        },
+        () => setReviewStatus('done'),
+        (msg) => {
+          setReviewText(msg)
+          setReviewStatus('error')
+        },
+      )
+    } catch (err) {
+      setReviewText(err instanceof Error ? err.message : 'Unexpected error')
+      setReviewStatus('error')
+    }
+  }, [nodes, edges, flowName, flowContext])
+
+  const handleEval = useCallback(async () => {
+    setAiPanelOpen(true)
+    setAiPanelTab('eval')
+    setEvalText('')
+    setEvalStatus('loading')
+    try {
+      await streamEvalSuggestions(
+        nodes as Parameters<typeof streamEvalSuggestions>[0],
+        edges,
+        flowName,
+        flowContext,
+        (chunk) => {
+          setEvalText((t) => t + chunk)
+          setEvalStatus('streaming')
+        },
+        () => setEvalStatus('done'),
+        (msg) => {
+          setEvalText(msg)
+          setEvalStatus('error')
+        },
+      )
+    } catch (err) {
+      setEvalText(err instanceof Error ? err.message : 'Unexpected error')
+      setEvalStatus('error')
+    }
+  }, [nodes, edges, flowName, flowContext])
+
+  // Apply dark/light class to <html>
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+  }, [theme])
+
+  // Auto-open context modal once on first visit with empty canvas
+  useEffect(() => {
+    const seen = localStorage.getItem(CONTEXT_PROMPT_KEY)
+    if (!seen && nodes.length === 0 && !flowContext) {
+      setContextModalMode('new')
+      setContextModalOpen(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally runs once on mount
+
+  // Load flow from URL hash on mount (#flow=<base64>)
+  useEffect(() => {
+    const hash = window.location.hash
+    if (!hash.startsWith('#flow=')) return
+    try {
+      const json = atob(hash.slice('#flow='.length))
+      const doc = JSON.parse(json)
+      if (!Array.isArray(doc.nodes) || !Array.isArray(doc.edges)) return
+      const laid = applyAutoLayout(doc.nodes, doc.edges, layoutDirection)
+      setNodes(laid as Node<BaseNodeData>[])
+      setEdges(doc.edges)
+      if (doc.name) setFlowName(doc.name)
+      // Clean up the hash without triggering a reload
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    } catch {
+      // ignore malformed hash
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally runs once on mount
+
+  // Keyboard shortcuts
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      // P — toggle presentation mode
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault()
+        togglePresentation()
+      }
+      // Space — play/pause animation
+      if (e.key === ' ') {
+        e.preventDefault()
+        if (animation.status === 'playing') animation.pause()
+        else animation.play()
+      }
+      // Delete / Backspace — remove selected node
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+        e.preventDefault()
+        removeNode(selectedNodeId)
+      }
+      // Ctrl+S / Cmd+S — save to localStorage
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        saveFlow(nodes as Node<BaseNodeData>[], edges, { x: 0, y: 0, zoom: 1 }, flowName, flowContext)
+      }
+    },
+    [togglePresentation, animation, selectedNodeId, removeNode, nodes, edges, flowName, flowContext],
+  )
+
+  const handleContextSave = useCallback((
+    newName: string,
+    newContext: FlowContext,
+    clearCanvas: boolean,
+  ) => {
+    setFlowName(newName)
+    setFlowContext(newContext)
+    if (clearCanvas) {
+      setNodes([])
+      setEdges([])
+    }
+    localStorage.setItem(CONTEXT_PROMPT_KEY, '1')
+    setContextModalOpen(false)
+  }, [setFlowName, setFlowContext, setNodes, setEdges])
+
+  const handleContextClose = useCallback(() => {
+    localStorage.setItem(CONTEXT_PROMPT_KEY, '1')
+    setContextModalOpen(false)
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
+
+  const animControls = (
+    <AnimationControls
+      status={animation.status}
+      speed={animation.speed}
+      disabled={nodes.length === 0}
+      onPlay={animation.play}
+      onPause={animation.pause}
+      onReset={animation.reset}
+      onSpeedChange={animation.setSpeed}
+    />
+  )
+
+  return (
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0F1117] text-white">
+
+      {/* Normal layout */}
+      {!presentationMode && (
+        <>
+          <Toolbar
+            animControls={animControls}
+            onExplain={handleExplain}
+            explainDisabled={nodes.length === 0 || explainStatus === 'loading' || explainStatus === 'streaming'}
+            onTemplates={() => setTemplatesOpen(true)}
+            onNewFlow={() => { setContextModalMode('new'); setContextModalOpen(true) }}
+            onEditContext={() => { setContextModalMode('edit'); setContextModalOpen(true) }}
+            onReview={handleReview}
+            onEval={handleEval}
+            hasContext={!!flowContext}
+            reviewDisabled={nodes.length === 0 || reviewStatus === 'loading' || reviewStatus === 'streaming'}
+            evalDisabled={nodes.length === 0 || evalStatus === 'loading' || evalStatus === 'streaming'}
+          />
+          <div className="flex flex-1 overflow-hidden">
+            <Sidebar />
+            <FlowCanvas
+              activeEdges={animation.activeEdges}
+              onOpenTemplates={() => setTemplatesOpen(true)}
+              onExplainNode={(id) => handleExplain(id)}
+            />
+            <ConfigPanel />
+            <ExplainPanel
+              open={aiPanelOpen}
+              onClose={() => setAiPanelOpen(false)}
+              activeTab={aiPanelTab}
+              onTabChange={setAiPanelTab}
+              explainText={explainText}
+              explainStatus={explainStatus}
+              reviewText={reviewText}
+              reviewStatus={reviewStatus}
+              reviewDisabled={nodes.length === 0 || reviewStatus === 'loading' || reviewStatus === 'streaming'}
+              onGenerateReview={handleReview}
+              evalText={evalText}
+              evalStatus={evalStatus}
+              evalDisabled={nodes.length === 0 || evalStatus === 'loading' || evalStatus === 'streaming'}
+              onGenerateEval={handleEval}
+            />
+            <TemplatesPanel
+              open={templatesOpen}
+              onClose={() => setTemplatesOpen(false)}
+            />
+            <FlowContextModal
+              open={contextModalOpen}
+              mode={contextModalMode}
+              initialName={flowName}
+              initialContext={flowContext}
+              hasNodes={nodes.length > 0}
+              onSave={handleContextSave}
+              onClose={handleContextClose}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Presentation mode — canvas only */}
+      {presentationMode && (
+        <div className="flex-1 relative">
+          <FlowCanvas activeEdges={animation.activeEdges} />
+
+          {/* Playback controls overlay */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black/50 backdrop-blur-sm border border-white/10">
+              {animControls}
+            </div>
+          </div>
+
+          {/* Exit hint */}
+          <AnimatePresence>
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={togglePresentation}
+              className="
+                absolute top-4 right-4 z-50
+                flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                bg-black/40 backdrop-blur-sm
+                text-white/50 text-[11px] font-medium
+                border border-white/10
+                hover:text-white/80 hover:bg-black/60
+                transition-all duration-200
+              "
+            >
+              <Minimize2 size={12} />
+              Press P to exit
+            </motion.button>
+          </AnimatePresence>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function App() {
+  return (
+    <ReactFlowProvider>
+      <AppInner />
+    </ReactFlowProvider>
+  )
+}

@@ -1,0 +1,445 @@
+import { useCallback, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { X, Trash2, StickyNote, BarChart2 } from 'lucide-react'
+import { useFlowStore } from '../../hooks/useFlowStore'
+import { getNodeDefinition } from '../../lib/nodeDefinitions'
+import type { NotePlacement } from '../../types/nodes'
+import type { ConfigField } from '../../types/nodes'
+import RAGEvalPanel from './RAGEvalPanel'
+
+// ── Individual field renderers ─────────────────────────────────────────────────
+
+interface FieldProps {
+  field: ConfigField
+  value: string | number | boolean
+  onChange: (val: string | number | boolean) => void
+}
+
+function TextField({ field, value, onChange }: FieldProps) {
+  return (
+    <input
+      type="text"
+      value={String(value)}
+      placeholder={field.placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      className="
+        w-full px-2.5 py-1.5 rounded-md text-[12px]
+        bg-white/5 border border-white/10
+        text-white/80 placeholder-white/25
+        focus:outline-none focus:border-white/30 focus:bg-white/10
+        transition-colors duration-150
+      "
+    />
+  )
+}
+
+function TextareaField({ field, value, onChange }: FieldProps) {
+  return (
+    <textarea
+      value={String(value)}
+      placeholder={field.placeholder}
+      rows={4}
+      onChange={(e) => onChange(e.target.value)}
+      className="
+        w-full px-2.5 py-1.5 rounded-md text-[12px] resize-none
+        bg-white/5 border border-white/10
+        text-white/80 placeholder-white/25
+        focus:outline-none focus:border-white/30 focus:bg-white/10
+        transition-colors duration-150 font-mono leading-relaxed
+      "
+    />
+  )
+}
+
+function NumberField({ field, value, onChange }: FieldProps) {
+  return (
+    <input
+      type="number"
+      value={Number(value)}
+      min={field.min}
+      max={field.max}
+      step={field.step}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="
+        w-full px-2.5 py-1.5 rounded-md text-[12px]
+        bg-white/5 border border-white/10
+        text-white/80
+        focus:outline-none focus:border-white/30 focus:bg-white/10
+        transition-colors duration-150
+      "
+    />
+  )
+}
+
+function SelectField({ field, value, onChange }: FieldProps) {
+  return (
+    <select
+      value={String(value)}
+      onChange={(e) => onChange(e.target.value)}
+      className="
+        w-full px-2.5 py-1.5 rounded-md text-[12px]
+        bg-gray-800 border border-white/10
+        text-white/80
+        focus:outline-none focus:border-white/30
+        transition-colors duration-150 cursor-pointer
+      "
+    >
+      {field.options?.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function SliderField({ field, value, onChange }: FieldProps) {
+  const num = Number(value)
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="range"
+        value={num}
+        min={field.min}
+        max={field.max}
+        step={field.step}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="flex-1 accent-violet-500 cursor-pointer"
+      />
+      <span className="text-[11px] font-mono text-white/60 w-10 text-right shrink-0">
+        {num}
+      </span>
+    </div>
+  )
+}
+
+function BooleanField({ value, onChange }: FieldProps) {
+  const on = Boolean(value)
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!on)}
+      className={`
+        relative inline-flex h-5 w-9 items-center rounded-full
+        transition-colors duration-200 focus:outline-none
+        ${on ? 'bg-violet-600' : 'bg-white/15'}
+      `}
+    >
+      <span
+        className={`
+          inline-block h-3.5 w-3.5 rounded-full bg-white
+          shadow transition-transform duration-200
+          ${on ? 'translate-x-4' : 'translate-x-0.5'}
+        `}
+      />
+    </button>
+  )
+}
+
+function FieldRenderer(props: FieldProps) {
+  switch (props.field.type) {
+    case 'text':     return <TextField {...props} />
+    case 'textarea': return <TextareaField {...props} />
+    case 'number':   return <NumberField {...props} />
+    case 'select':   return <SelectField {...props} />
+    case 'slider':   return <SliderField {...props} />
+    case 'boolean':  return <BooleanField {...props} />
+  }
+}
+
+// ── Config field row ───────────────────────────────────────────────────────────
+
+function FieldRow({ field, value, onChange }: FieldProps) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+          {field.label}
+        </label>
+        {field.type === 'boolean' && (
+          <BooleanField field={field} value={value} onChange={onChange} />
+        )}
+      </div>
+      {field.type !== 'boolean' && (
+        <FieldRenderer field={field} value={value} onChange={onChange} />
+      )}
+      {field.description && (
+        <p className="text-[10px] text-white/30 leading-relaxed">
+          {field.description}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ── Config Panel ───────────────────────────────────────────────────────────────
+
+export default function ConfigPanel() {
+  const { selectedNodeId, nodes, updateNodeConfig, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, removeNode, setSelectedNode } =
+    useFlowStore()
+
+  const selectedNode = selectedNodeId
+    ? nodes.find((n) => n.id === selectedNodeId)
+    : null
+
+  const def = selectedNode ? getNodeDefinition(selectedNode.data.nodeType) : null
+  const accentColor = selectedNode?.data.accentColor ?? def?.accentColor ?? '#2563EB'
+
+  const handleChange = useCallback(
+    (key: string, value: string | number | boolean) => {
+      if (!selectedNodeId) return
+      updateNodeConfig(selectedNodeId, { [key]: value })
+    },
+    [selectedNodeId, updateNodeConfig],
+  )
+
+  const handleDelete = useCallback(() => {
+    if (!selectedNodeId) return
+    removeNode(selectedNodeId)
+    setSelectedNode(null)
+  }, [selectedNodeId, removeNode, setSelectedNode])
+
+  const [ragEvalOpen, setRagEvalOpen] = useState(false)
+
+  return (
+    <AnimatePresence>
+      {selectedNode && def && (
+        <motion.aside
+          key="config-panel"
+          initial={{ x: 280, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: 280, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+          className="
+            w-72 h-full flex flex-col shrink-0
+            bg-gray-950/90 border-l border-white/5
+            backdrop-blur-sm overflow-hidden
+          "
+        >
+          {/* ── Header ──────────────────────────────────────────────────── */}
+          <div
+            className="flex items-center gap-2 px-4 py-3 border-b border-white/5"
+            style={{
+              background: `linear-gradient(135deg, ${accentColor}20 0%, transparent 100%)`,
+            }}
+          >
+            {/* Icon */}
+            <div className="shrink-0" style={{ color: accentColor }}>
+              <def.icon size={16} />
+            </div>
+
+            {/* Node label */}
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-white/90 truncate">
+                {selectedNode.data.label}
+              </p>
+              <p className="text-[10px] text-white/45 mt-0.5 leading-snug">
+                {def.description}
+              </p>
+            </div>
+
+            {/* Delete */}
+            <button
+              type="button"
+              onClick={handleDelete}
+              title="Delete node"
+              className="
+                shrink-0 p-1.5 rounded-md text-white/30
+                hover:text-red-400 hover:bg-red-500/10
+                transition-colors duration-150
+              "
+            >
+              <Trash2 size={13} />
+            </button>
+
+            {/* Close */}
+            <button
+              type="button"
+              onClick={() => setSelectedNode(null)}
+              title="Close panel"
+              className="
+                shrink-0 p-1.5 rounded-md text-white/30
+                hover:text-white/70 hover:bg-white/10
+                transition-colors duration-150
+              "
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          {/* ── Scrollable fields ────────────────────────────────────────── */}
+          <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5">
+            {def.configFields.map((field) => (
+              <FieldRow
+                key={field.key}
+                field={field}
+                value={selectedNode.data.config[field.key] ?? field.defaultValue}
+                onChange={(val) => handleChange(field.key, val)}
+              />
+            ))}
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                  Card Color
+                </label>
+                <button
+                  type="button"
+                  onClick={() => updateNodeAccentColor(selectedNode.id, undefined)}
+                  className="text-[10px] text-white/35 hover:text-white/65 transition-colors"
+                >
+                  Use default
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={accentColor}
+                  onChange={(e) => updateNodeAccentColor(selectedNode.id, e.target.value)}
+                  className="h-9 w-12 rounded border border-white/10 bg-transparent cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={selectedNode.data.accentColor ?? ''}
+                  placeholder={def.accentColor}
+                  onChange={(e) => updateNodeAccentColor(selectedNode.id, e.target.value || undefined)}
+                  className="
+                    flex-1 px-2.5 py-1.5 rounded-md text-[12px] font-mono
+                    bg-white/5 border border-white/10
+                    text-white/80 placeholder-white/25
+                    focus:outline-none focus:border-white/30 focus:bg-white/10
+                    transition-colors duration-150
+                  "
+                />
+              </div>
+              <p className="text-[10px] text-white/30 leading-relaxed">
+                Override this node’s accent color without changing the default color for the whole component type.
+              </p>
+            </div>
+
+            {/* ── Note (markdown) ──────────────────────────────────────── */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <StickyNote size={11} className="text-white/30" />
+                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                  Note
+                </label>
+                <div className="flex items-center gap-1.5 ml-auto">
+                <span className="text-[10px] text-white/25">
+                  {selectedNode.data.noteAlwaysVisible ? 'always visible' : 'playback only'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleNodeNoteVisible(selectedNode.id)}
+                  className={`
+                    relative inline-flex h-4 w-7 items-center rounded-full
+                    transition-colors duration-200 focus:outline-none shrink-0
+                    ${selectedNode.data.noteAlwaysVisible ? 'bg-violet-600' : 'bg-white/15'}
+                  `}
+                >
+                  <span
+                    className={`
+                      inline-block h-3 w-3 rounded-full bg-white shadow
+                      transition-transform duration-200
+                      ${selectedNode.data.noteAlwaysVisible ? 'translate-x-3.5' : 'translate-x-0.5'}
+                    `}
+                  />
+                </button>
+              </div>
+              </div>
+              <textarea
+                value={selectedNode.data.note ?? ''}
+                placeholder={'Add a **markdown** note...\n\n- Bullet points work\n- So does **bold**'}
+                rows={5}
+                onChange={(e) => updateNodeNote(selectedNode.id, e.target.value)}
+                className="
+                  w-full px-2.5 py-1.5 rounded-md text-[12px] resize-none
+                  bg-white/5 border border-white/10
+                  text-white/80 placeholder-white/20
+                  focus:outline-none focus:border-white/30 focus:bg-white/10
+                  transition-colors duration-150 font-mono leading-relaxed
+                "
+              />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                  Note Placement
+                </label>
+                <select
+                  value={selectedNode.data.notePlacement ?? 'auto'}
+                  onChange={(e) => updateNodeNotePlacement(selectedNode.id, e.target.value as NotePlacement)}
+                  className="
+                    w-full px-2.5 py-1.5 rounded-md text-[12px]
+                    bg-gray-800 border border-white/10
+                    text-white/80
+                    focus:outline-none focus:border-white/30
+                    transition-colors duration-150 cursor-pointer
+                  "
+                >
+                  <option value="auto">Auto (current default)</option>
+                  <option value="right">Right</option>
+                  <option value="bottom">Bottom</option>
+                </select>
+                <p className="text-[10px] text-white/30 leading-relaxed">
+                  Auto keeps the existing behavior. Override it only when a note reads better on one side.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── RAG Eval Visualizer button ───────────────────────────────── */}
+          {selectedNode.data.nodeType === 'ragEvaluator' && (
+            <div className="px-4 pb-3">
+              <button
+                type="button"
+                onClick={() => setRagEvalOpen(true)}
+                className="
+                  w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
+                  text-[12px] font-medium
+                  bg-cyan-900/40 border border-cyan-700/40 text-cyan-300
+                  hover:bg-cyan-800/50 hover:text-white transition-colors
+                "
+              >
+                <BarChart2 size={13} />
+                Visualize Precision / Recall
+              </button>
+            </div>
+          )}
+
+          {/* ── Port reference ────────────────────────────────────────────── */}
+          {(def.inputs.length > 0 || def.outputs.length > 0) && (
+            <div className="px-4 py-3 border-t border-white/5 space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-white/25">
+                Ports
+              </p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {def.inputs.map((p) => (
+                  <div key={p.id} className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-slate-400" />
+                    <span className="text-[10px] text-white/40 truncate">{p.label}</span>
+                  </div>
+                ))}
+                {def.outputs.map((p) => (
+                  <div key={p.id} className="flex items-center gap-1.5 justify-end">
+                    <span className="text-[10px] text-white/40 truncate">{p.label}</span>
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-emerald-400" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.aside>
+      )}
+
+      {/* RAG Eval Visualizer — mounted outside the aside so it covers full viewport */}
+      <RAGEvalPanel
+        open={ragEvalOpen}
+        onClose={() => setRagEvalOpen(false)}
+        initialK={
+          selectedNode?.data.nodeType === 'ragEvaluator'
+            ? Number(selectedNode.data.config.k ?? 5)
+            : 5
+        }
+      />
+    </AnimatePresence>
+  )
+}

@@ -1,0 +1,176 @@
+import * as yaml from 'js-yaml'
+import type { Node, Edge } from 'reactflow'
+import type { BaseNodeData } from '../types/nodes'
+import type { NotePlacement } from '../types/nodes'
+import { buildDefaultConfig, getNodeDefinition } from './nodeDefinitions'
+
+// ── YAML schema types ─────────────────────────────────────────────────────────
+
+interface YAMLNodeSpec {
+  id: string
+  type: string
+  label?: string
+  accentColor?: string
+  config?: Record<string, string | number | boolean>
+  note?: string
+  noteAlwaysVisible?: boolean
+  notePlacement?: NotePlacement
+  position?: {
+    x: number
+    y: number
+  }
+}
+
+interface YAMLEdgeSpec {
+  from: string
+  to: string
+  fromHandle?: string
+  toHandle?: string
+  kind?: 'default' | 'loopback' | 'eval'
+  lane?: 'top' | 'bottom' | 'left' | 'right'
+}
+
+interface FlowYAMLDoc {
+  name?: string
+  description?: string
+  nodes: YAMLNodeSpec[]
+  edges?: YAMLEdgeSpec[]
+}
+
+// ── Parse ─────────────────────────────────────────────────────────────────────
+
+export interface ParsedFlow {
+  name: string
+  nodes: Node<BaseNodeData>[]
+  edges: Edge[]
+  hasExplicitPositions: boolean
+}
+
+let _counter = 2000
+
+/**
+ * Parses a YAML string into React Flow nodes and edges.
+ * Returns `{ error }` on failure.
+ *
+ * Schema:
+ * ```yaml
+ * name: My Flow
+ * nodes:
+ *   - id: loader          # short id used in edge references
+ *     type: dataLoader    # must match a registered NodeDefinition type
+ *     label: Doc Loader   # optional label override
+ *     config:             # optional config overrides
+ *       source: local
+ *     note: "Markdown note"
+ * edges:
+ *   - from: loader
+ *     to: chunker
+ *     fromHandle: documents   # optional handle id
+ *     toHandle: text          # optional handle id
+ * ```
+ */
+export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
+  let doc: FlowYAMLDoc
+  try {
+    doc = yaml.load(yamlStr) as FlowYAMLDoc
+  } catch (e) {
+    return { error: `YAML parse error: ${e instanceof Error ? e.message : String(e)}` }
+  }
+
+  if (!doc || typeof doc !== 'object') {
+    return { error: 'Invalid YAML: expected a mapping at the top level' }
+  }
+  if (!Array.isArray(doc.nodes) || doc.nodes.length === 0) {
+    return { error: '"nodes" must be a non-empty array' }
+  }
+
+  const idMap = new Map<string, string>() // yaml id → react flow id
+
+  const nodes: Node<BaseNodeData>[] = []
+  let hasExplicitPositions = false
+  for (const n of doc.nodes) {
+    if (!n.id || !n.type) {
+      return { error: `Every node must have both "id" and "type" fields` }
+    }
+    if (!getNodeDefinition(n.type)) {
+      return { error: `Unknown node type: "${n.type}"` }
+    }
+    const rfId = `${n.type}-${_counter++}`
+    idMap.set(n.id, rfId)
+    if (n.position) hasExplicitPositions = true
+    nodes.push({
+      id: rfId,
+      type: n.type,
+      position: n.position ?? { x: 0, y: 0 }, // auto-layout will position nodes without explicit coords
+      data: {
+        nodeType: n.type,
+        label: n.label ?? getNodeDefinition(n.type)!.label,
+        ...(n.accentColor !== undefined && { accentColor: n.accentColor }),
+        config: { ...buildDefaultConfig(n.type), ...(n.config ?? {}) },
+        animationState: 'idle',
+        ...(n.note !== undefined && { note: n.note }),
+        ...(n.noteAlwaysVisible !== undefined && { noteAlwaysVisible: n.noteAlwaysVisible }),
+        ...(n.notePlacement !== undefined && { notePlacement: n.notePlacement }),
+      },
+    })
+  }
+
+  const edges: Edge[] = []
+  for (let i = 0; i < (doc.edges ?? []).length; i++) {
+    const e = doc.edges![i]
+    const source = idMap.get(e.from)
+    const target = idMap.get(e.to)
+    if (!source) return { error: `Edge references unknown source node: "${e.from}"` }
+    if (!target) return { error: `Edge references unknown target node: "${e.to}"` }
+    edges.push({
+      id: `yaml-edge-${i}-${_counter++}`,
+      source,
+      target,
+      sourceHandle: e.fromHandle ?? null,
+      targetHandle: e.toHandle ?? null,
+      type: 'smoothstep',
+      ...((e.kind || e.lane) ? { data: { kind: e.kind, lane: e.lane } } : {}),
+    })
+  }
+
+  return { name: doc.name ?? 'Imported Flow', nodes, edges, hasExplicitPositions }
+}
+
+// ── Serialize ─────────────────────────────────────────────────────────────────
+
+/**
+ * Serializes current flow nodes + edges back to a YAML string.
+ * Uses node IDs directly as the short ids.
+ */
+export function serializeFlowToYAML(
+  name: string,
+  nodes: Node<BaseNodeData>[],
+  edges: Edge[],
+): string {
+  const doc = {
+    name,
+    nodes: nodes.map((n) => {
+      const defLabel = getNodeDefinition(n.data.nodeType)?.label
+      const defAccent = getNodeDefinition(n.data.nodeType)?.accentColor
+      const entry: Record<string, unknown> = { id: n.id, type: n.data.nodeType }
+      if (n.data.label !== defLabel) entry.label = n.data.label
+      if (n.data.accentColor && n.data.accentColor !== defAccent) entry.accentColor = n.data.accentColor
+      const cfg = n.data.config
+      if (cfg && Object.keys(cfg).length > 0) entry.config = cfg
+      if (n.data.note) entry.note = n.data.note
+      if (n.data.noteAlwaysVisible) entry.noteAlwaysVisible = true
+      if (n.data.notePlacement && n.data.notePlacement !== 'auto') entry.notePlacement = n.data.notePlacement
+      if (n.position.x !== 0 || n.position.y !== 0) entry.position = n.position
+      return entry
+    }),
+    edges: edges.map((e) => {
+      const entry: Record<string, unknown> = { from: e.source, to: e.target }
+      if (e.sourceHandle) entry.fromHandle = e.sourceHandle
+      if (e.targetHandle) entry.toHandle = e.targetHandle
+      if (typeof e.data === 'object' && e.data && 'kind' in e.data) entry.kind = e.data.kind
+      if (typeof e.data === 'object' && e.data && 'lane' in e.data) entry.lane = e.data.lane
+      return entry
+    }),
+  }
+  return yaml.dump(doc, { lineWidth: 100, noRefs: true })
+}

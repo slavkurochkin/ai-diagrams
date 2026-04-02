@@ -29,7 +29,7 @@ export default function NodePort({ port, side, index, total }: NodePortProps) {
   const [hovered, setHovered] = useState(false)
   const theme = useFlowStore((s) => s.theme)
   const layoutDirection = useFlowStore((s) => s.layoutDirection)
-  const color = PORT_COLORS[port.type]
+  const color = port.color ?? PORT_COLORS[port.type]
   const isInput = side === 'input'
   const isVerticalLayout = layoutDirection === 'TB'
   const position = isVerticalLayout

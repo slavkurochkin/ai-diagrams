@@ -104,7 +104,7 @@ function SliderField({ field, value, onChange }: FieldProps) {
         max={field.max}
         step={field.step}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 accent-violet-500 cursor-pointer"
+        className="flex-1 accent-sky-500 cursor-pointer"
       />
       <span className="text-[11px] font-mono text-white/60 w-10 text-right shrink-0">
         {num}
@@ -122,7 +122,7 @@ function BooleanField({ value, onChange }: FieldProps) {
       className={`
         relative inline-flex h-5 w-9 items-center rounded-full
         transition-colors duration-200 focus:outline-none
-        ${on ? 'bg-violet-600' : 'bg-white/15'}
+        ${on ? 'bg-sky-600' : 'bg-white/15'}
       `}
     >
       <span
@@ -341,7 +341,7 @@ export default function ConfigPanel() {
                   className={`
                     relative inline-flex h-4 w-7 items-center rounded-full
                     transition-colors duration-200 focus:outline-none shrink-0
-                    ${selectedNode.data.noteAlwaysVisible ? 'bg-violet-600' : 'bg-white/15'}
+                    ${selectedNode.data.noteAlwaysVisible ? 'bg-sky-600' : 'bg-white/15'}
                   `}
                 >
                   <span

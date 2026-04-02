@@ -78,7 +78,7 @@ export function sequenceFlow(
   const accentColor = new Map<string, string>()
   for (const n of nodes) {
     const def = getNodeDefinition(n.data.nodeType)
-    accentColor.set(n.id, n.data.accentColor ?? def?.accentColor ?? '#7C3AED')
+    accentColor.set(n.id, n.data.accentColor ?? def?.accentColor ?? '#14B8A6')
   }
 
   for (const nodeId of sorted) {
@@ -91,7 +91,7 @@ export function sequenceFlow(
         type: 'traverse-edge',
         edgeId: edge.id,
         duration: TRAVERSE_DURATION,
-        color: accentColor.get(nodeId) ?? '#7C3AED',
+        color: accentColor.get(nodeId) ?? '#14B8A6',
       })
 
       // When a loopback returns to a node, briefly pulse that node so the

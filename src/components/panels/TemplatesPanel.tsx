@@ -14,7 +14,7 @@ import type { BaseNodeData } from '../../types/nodes'
 const CATEGORY_COLORS: Record<string, string> = {
   rag: 'bg-cyan-900/60 text-cyan-300 border-cyan-700/40',
   agent: 'bg-rose-900/60 text-rose-300 border-rose-700/40',
-  eval: 'bg-violet-900/60 text-violet-300 border-violet-700/40',
+  eval: 'bg-sky-900/60 text-sky-300 border-sky-700/40',
   pipeline: 'bg-emerald-900/60 text-emerald-300 border-emerald-700/40',
 }
 
@@ -62,7 +62,7 @@ function TemplateCard({
       <p className="text-[11px] text-white/50 leading-relaxed">
         {template.description}
       </p>
-      <div className="flex items-center gap-1 text-[11px] text-violet-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1 text-[11px] text-sky-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
         Load template
         <ChevronRight size={11} />
       </div>
@@ -209,7 +209,7 @@ export default function TemplatesPanel({ open, onClose }: TemplatesPanelProps) {
                     className={`
                       px-3 py-1.5 rounded-t text-[12px] font-medium capitalize transition-colors
                       ${tab === t
-                        ? 'text-white border-b-2 border-violet-500 -mb-px'
+                        ? 'text-white border-b-2 border-sky-500 -mb-px'
                         : 'text-white/40 hover:text-white/70'
                       }
                     `}
@@ -236,7 +236,7 @@ export default function TemplatesPanel({ open, onClose }: TemplatesPanelProps) {
                             px-2.5 py-1 rounded-full text-[11px] font-medium capitalize
                             border transition-colors
                             ${selectedCategory === cat
-                              ? 'bg-violet-700/80 border-violet-500/40 text-white'
+                              ? 'bg-teal-700/80 border-teal-500/40 text-white'
                               : 'bg-white/5 border-white/10 text-white/50 hover:text-white/80'
                             }
                           `}
@@ -260,7 +260,7 @@ export default function TemplatesPanel({ open, onClose }: TemplatesPanelProps) {
                   <div className="flex flex-col gap-4">
                     <div className="flex items-center justify-between">
                       <p className="text-[12px] text-white/50">
-                        Paste a flow YAML or upload a <code className="text-violet-400">.yaml</code> file.
+                        Paste a flow YAML or upload a <code className="text-sky-400">.yaml</code> file.
                       </p>
                       <button
                         type="button"
@@ -292,7 +292,7 @@ export default function TemplatesPanel({ open, onClose }: TemplatesPanelProps) {
                         w-full h-64 p-3 rounded-xl font-mono text-[11px] leading-relaxed
                         bg-white/5 border border-white/10 text-white/80
                         placeholder:text-white/20
-                        focus:outline-none focus:border-violet-500/60
+                        focus:outline-none focus:border-sky-500/60
                         resize-none
                       "
                     />
@@ -311,8 +311,8 @@ export default function TemplatesPanel({ open, onClose }: TemplatesPanelProps) {
                       className="
                         flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
                         text-[13px] font-medium
-                        bg-violet-700/80 border border-violet-500/40 text-white
-                        hover:bg-violet-600/90 transition-colors
+                        bg-teal-700/80 border border-teal-500/40 text-white
+                        hover:bg-teal-600/90 transition-colors
                         disabled:opacity-40 disabled:pointer-events-none
                       "
                     >

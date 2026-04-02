@@ -77,13 +77,13 @@ const MD_COMPONENTS: Components = {
     const isBlock = className?.includes('language-')
     if (isBlock) {
       return (
-        <code className="block text-[11px] font-mono text-violet-300 leading-relaxed">
+        <code className="block text-[11px] font-mono text-sky-300 leading-relaxed">
           {children}
         </code>
       )
     }
     return (
-      <code className="font-mono text-[11px] text-violet-300 bg-violet-950/60 border border-violet-800/40 px-1 py-0.5 rounded">
+      <code className="font-mono text-[11px] text-sky-300 bg-sky-950/40 border border-sky-800/40 px-1 py-0.5 rounded">
         {children}
       </code>
     )
@@ -94,14 +94,14 @@ const MD_COMPONENTS: Components = {
     </pre>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="mb-3 pl-3 border-l-2 border-violet-500/60 text-white/50 italic last:mb-0">
+    <blockquote className="mb-3 pl-3 border-l-2 border-sky-500/60 text-white/50 italic last:mb-0">
       {children}
     </blockquote>
   ),
   hr: () => <hr className="my-4 border-white/10" />,
   a: ({ href, children }) => (
     <a href={href} target="_blank" rel="noopener noreferrer"
-      className="text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors">
+      className="text-sky-400 hover:text-sky-300 underline underline-offset-2 transition-colors">
       {children}
     </a>
   ),
@@ -188,7 +188,7 @@ function MarkdownContent({
 
             {status === 'streaming' && (
               <motion.span
-                className="inline-block w-1.5 h-3.5 bg-violet-400 rounded-sm ml-0.5 align-middle"
+                className="inline-block w-1.5 h-3.5 bg-sky-400 rounded-sm ml-0.5 align-middle"
                 animate={{ opacity: [1, 0, 1] }}
                 transition={{ repeat: Infinity, duration: 0.8 }}
               />
@@ -232,8 +232,8 @@ function GeneratePrompt({
         disabled={disabled}
         className="
           flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-medium
-          bg-violet-700/80 border border-violet-500/40 text-white
-          hover:bg-violet-600/90 transition-colors
+          bg-teal-700/80 border border-teal-500/40 text-white
+          hover:bg-teal-600/90 transition-colors
           disabled:opacity-40 disabled:pointer-events-none
         "
       >
@@ -276,9 +276,9 @@ function TabFooter({
 const TAB_LABELS: Record<PanelTab, string> = { explain: 'Explain', review: 'Review', eval: 'Eval' }
 
 const TAB_ICONS: Record<PanelTab, React.ReactNode> = {
-  explain: <Sparkles size={14} className="text-violet-400 shrink-0" />,
-  review:  <ClipboardCheck size={14} className="text-violet-400 shrink-0" />,
-  eval:    <FlaskConical size={14} className="text-violet-400 shrink-0" />,
+  explain: <Sparkles size={14} className="text-sky-400 shrink-0" />,
+  review:  <ClipboardCheck size={14} className="text-sky-400 shrink-0" />,
+  eval:    <FlaskConical size={14} className="text-sky-400 shrink-0" />,
 }
 
 const TAB_TITLES: Record<PanelTab, string> = {
@@ -318,7 +318,7 @@ export default function ExplainPanel({
             <span className="text-[13px] font-semibold text-white tracking-tight flex-1">
               {TAB_TITLES[activeTab]}
             </span>
-            {isLoading && <Loader2 size={13} className="text-violet-400 animate-spin shrink-0" />}
+            {isLoading && <Loader2 size={13} className="text-sky-400 animate-spin shrink-0" />}
             <button
               type="button"
               onClick={onClose}
@@ -338,7 +338,7 @@ export default function ExplainPanel({
                 className={`
                   px-3 py-1.5 text-[11px] font-medium transition-colors rounded-t
                   ${activeTab === tab
-                    ? 'text-white border-b-2 border-violet-500 -mb-px'
+                    ? 'text-white border-b-2 border-sky-500 -mb-px'
                     : 'text-white/40 hover:text-white/70'}
                 `}
               >

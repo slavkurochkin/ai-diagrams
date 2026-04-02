@@ -206,7 +206,7 @@ export default function CustomEdge({
                   ? '#94A3B866'
                   : '#94A3B833'
             : selected
-              ? '#7C3AEDcc'
+              ? '#14B8A6cc'
               : hovered
                 ? '#ffffff55'
                 : '#ffffff20',

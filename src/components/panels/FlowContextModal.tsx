@@ -43,7 +43,7 @@ function DocCard({
     <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
       {/* Card header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/8">
-        <FileText size={12} className="text-violet-400 shrink-0" />
+        <FileText size={12} className="text-sky-400 shrink-0" />
         <input
           value={doc.name}
           onChange={(e) => onChange({ ...doc, name: e.target.value })}
@@ -237,7 +237,7 @@ export default function FlowContextModal({
                           w-full px-3 py-2 rounded-lg text-[13px] text-white
                           bg-white/5 border border-white/10
                           placeholder:text-white/20
-                          focus:outline-none focus:border-violet-500/60
+                          focus:outline-none focus:border-sky-500/60
                         "
                       />
                     </div>
@@ -254,7 +254,7 @@ export default function FlowContextModal({
                           w-full px-3 py-2.5 rounded-lg text-[12px] text-white/80
                           bg-white/5 border border-white/10 leading-relaxed
                           placeholder:text-white/20
-                          focus:outline-none focus:border-violet-500/60
+                          focus:outline-none focus:border-sky-500/60
                           resize-none
                         "
                       />
@@ -274,7 +274,7 @@ export default function FlowContextModal({
                       w-full px-3 py-2.5 rounded-lg text-[12px] text-white/80
                       bg-white/5 border border-white/10 leading-relaxed
                       placeholder:text-white/20
-                      focus:outline-none focus:border-violet-500/60
+                      focus:outline-none focus:border-sky-500/60
                       resize-none
                     "
                   />
@@ -302,8 +302,8 @@ export default function FlowContextModal({
                         onClick={addDocument}
                         className="
                           flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium
-                          text-violet-400 hover:text-violet-300 hover:bg-violet-900/20
-                          border border-violet-700/30 transition-colors
+                          text-sky-400 hover:text-sky-300 hover:bg-sky-900/20
+                          border border-sky-700/30 transition-colors
                         "
                       >
                         <Plus size={11} />
@@ -366,7 +366,7 @@ export default function FlowContextModal({
                           value={opt}
                           checked={clearCanvas === (opt === 'clear')}
                           onChange={() => setClearCanvas(opt === 'clear')}
-                          className="accent-violet-500"
+                          className="accent-sky-500"
                         />
                         {opt === 'keep' ? 'Keep current canvas' : 'Start fresh'}
                       </label>
@@ -389,8 +389,8 @@ export default function FlowContextModal({
                   onClick={handleSave}
                   className="
                     px-4 py-1.5 rounded-lg text-[13px] font-medium
-                    bg-violet-700/80 border border-violet-500/40 text-white
-                    hover:bg-violet-600/90 transition-colors
+                    bg-teal-700/80 border border-teal-500/40 text-white
+                    hover:bg-teal-600/90 transition-colors
                   "
                 >
                   {isNew ? 'Create flow' : 'Save changes'}

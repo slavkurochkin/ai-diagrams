@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getAllNodeDefinitions } from '../../lib/nodeDefinitions'
 import type { NodeDefinition } from '../../types/nodes'
 
@@ -76,14 +76,44 @@ function PaletteCard({ def }: PaletteCardProps) {
 
 // ── Category header ───────────────────────────────────────────────────────────
 
-function CategoryHeader({ label }: { label: string }) {
+interface CategoryHeaderProps {
+  label: string
+  count: number
+  expanded: boolean
+  onToggle: () => void
+}
+
+function CategoryHeader({ label, count, expanded, onToggle }: CategoryHeaderProps) {
   return (
-    <div className="flex items-center gap-2 px-1 mt-4 mb-1.5 first:mt-0">
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
+    <button
+      type="button"
+      onClick={onToggle}
+      className="
+        w-full flex items-center gap-2 px-1 py-1 mt-4 mb-1 first:mt-0
+        rounded-md text-left
+        hover:bg-white/[0.03]
+        transition-colors duration-150
+      "
+      aria-expanded={expanded}
+    >
+      <svg
+        width="10"
+        height="10"
+        viewBox="0 0 10 10"
+        fill="none"
+        className="shrink-0 transition-transform duration-150"
+        style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+      >
+        <path d="M3 2 L7 5 L3 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-white/35">
         {label}
       </span>
+      <span className="text-[10px] text-white/20 tabular-nums">
+        {count}
+      </span>
       <div className="flex-1 h-px bg-white/5" />
-    </div>
+    </button>
   )
 }
 
@@ -99,19 +129,59 @@ const CATEGORY_LABELS: Record<string, string> = {
 }
 
 const CATEGORY_ORDER = ['core', 'data', 'flow', 'tool', 'output', 'eval']
+const SIDEBAR_STORAGE_KEY = 'agentflow.sidebar.sections'
+const DEFAULT_EXPANDED: Record<string, boolean> = {
+  core: true,
+  data: false,
+  flow: false,
+  tool: false,
+  output: false,
+  eval: false,
+}
 
 export default function Sidebar() {
   const defs = getAllNodeDefinitions()
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(DEFAULT_EXPANDED)
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SIDEBAR_STORAGE_KEY)
+      if (!raw) return
+
+      const parsed = JSON.parse(raw) as Record<string, boolean>
+      setExpandedSections((prev) => ({ ...prev, ...parsed }))
+    } catch {
+      // Ignore invalid persisted sidebar state.
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(expandedSections))
+    } catch {
+      // Ignore storage failures in restricted environments.
+    }
+  }, [expandedSections])
 
   // Group definitions by category, preserving the desired category order
-  const grouped = CATEGORY_ORDER.reduce<Record<string, NodeDefinition[]>>(
-    (acc, cat) => {
-      const items = defs.filter((d) => d.category === cat)
-      if (items.length > 0) acc[cat] = items
-      return acc
-    },
-    {},
+  const grouped = useMemo(
+    () => CATEGORY_ORDER.reduce<Record<string, NodeDefinition[]>>(
+      (acc, cat) => {
+        const items = defs.filter((d) => d.category === cat)
+        if (items.length > 0) acc[cat] = items
+        return acc
+      },
+      {},
+    ),
+    [defs],
   )
+
+  const toggleCategory = useCallback((category: string) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [category]: !(prev[category] ?? DEFAULT_EXPANDED[category] ?? true),
+    }))
+  }, [])
 
   return (
     <aside
@@ -135,12 +205,19 @@ export default function Sidebar() {
       <div className="flex-1 overflow-y-auto sidebar-scroll px-3 py-3 space-y-0.5">
         {Object.entries(grouped).map(([cat, items]) => (
           <div key={cat}>
-            <CategoryHeader label={CATEGORY_LABELS[cat] ?? cat} />
-            <div className="space-y-1">
-              {items.map((def) => (
-                <PaletteCard key={def.type} def={def} />
-              ))}
-            </div>
+            <CategoryHeader
+              label={CATEGORY_LABELS[cat] ?? cat}
+              count={items.length}
+              expanded={expandedSections[cat] ?? DEFAULT_EXPANDED[cat] ?? true}
+              onToggle={() => toggleCategory(cat)}
+            />
+            {(expandedSections[cat] ?? DEFAULT_EXPANDED[cat] ?? true) && (
+              <div className="space-y-1">
+                {items.map((def) => (
+                  <PaletteCard key={def.type} def={def} />
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>

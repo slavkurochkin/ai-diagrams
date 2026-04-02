@@ -549,6 +549,10 @@ edges:
     fromHandle: toolRequests
     toHandle: text
   - from: agent
+    to: retriever
+    fromHandle: toolRequests
+    toHandle: query
+  - from: agent
     to: toolcall
     fromHandle: toolRequests
     toHandle: call
@@ -581,6 +585,8 @@ edges:
     to: agent
     fromHandle: result
     toHandle: tools
+    kind: loopback
+    lane: right
   # Final answer is stored in memory and then sent through safety + formatting
   - from: agent
     to: memory
@@ -842,6 +848,10 @@ edges:
     fromHandle: toolRequests
     toHandle: text
   - from: agent
+    to: retriever
+    fromHandle: toolRequests
+    toHandle: query
+  - from: agent
     to: toolcall
     fromHandle: toolRequests
     toHandle: call
@@ -874,6 +884,8 @@ edges:
     to: agent
     fromHandle: result
     toHandle: tools
+    kind: loopback
+    lane: right
   # Final answer is stored in memory and then sent through safety + formatting
   - from: agent
     to: memory

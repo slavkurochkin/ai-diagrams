@@ -31,8 +31,8 @@ export default function AnimationControls({
         className="
           flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium
           border transition-all duration-150 select-none
-          bg-violet-700/80 border-violet-500/40 text-white
-          hover:bg-violet-600/90 hover:border-violet-400/60
+          bg-teal-700/80 border-teal-500/40 text-white
+          hover:bg-teal-600/90 hover:border-teal-400/60
           disabled:opacity-40 disabled:pointer-events-none
         "
       >

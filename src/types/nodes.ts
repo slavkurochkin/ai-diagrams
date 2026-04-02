@@ -15,6 +15,7 @@ export interface PortDefinition {
   id: string
   label: string
   type: PortType
+  color?: string
 }
 
 export type NotePlacement = 'auto' | 'right' | 'bottom'

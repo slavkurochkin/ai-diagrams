@@ -1,10 +1,10 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useReactFlow } from 'reactflow'
 import {
   Sun, Moon, Save, FolderOpen, LayoutDashboard,
   ImageDown, Copy, Maximize2, Check, Sparkles, FileCode, Share2,
   AlignVerticalJustifyStart, AlignHorizontalJustifyStart, Layers, LayoutTemplate,
-  FilePlus, BookOpen, FlaskConical, ClipboardCheck,
+  FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown,
 } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { saveFlow, loadFlow, exportFlowAsFile } from '../../lib/flowSerializer'
@@ -12,7 +12,7 @@ import { applyAutoLayout } from '../../lib/autoLayout'
 import { downloadAsPNG, copyAsPNG } from '../../lib/exportUtils'
 import { serializeFlowToYAML } from '../../lib/yamlFlow'
 import type { BaseNodeData } from '../../types/nodes'
-import type { Node } from 'reactflow'
+import type { Node as FlowNode } from 'reactflow'
 
 // ── Icon button ────────────────────────────────────────────────────────────────
 
@@ -20,11 +20,20 @@ interface IconButtonProps {
   onClick: () => void
   title: string
   children: React.ReactNode
-  variant?: 'default' | 'accent'
+  variant?: 'default' | 'accent' | 'ghost'
   disabled?: boolean
+  active?: boolean
 }
 
-function IconButton({ onClick, title, children, variant = 'default', disabled }: IconButtonProps) {
+function IconButton({ onClick, title, children, variant = 'default', disabled, active = false }: IconButtonProps) {
+  const classes = variant === 'accent'
+    ? 'bg-teal-700/80 border-teal-500/40 text-white hover:bg-teal-600/90 hover:border-teal-400/60'
+    : variant === 'ghost'
+      ? 'bg-transparent border-white/10 text-white/55 hover:bg-white/7 hover:text-white'
+      : active
+        ? 'bg-white/10 border-white/15 text-white'
+        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
+
   return (
     <button
       type="button"
@@ -35,14 +44,80 @@ function IconButton({ onClick, title, children, variant = 'default', disabled }:
         flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium
         border transition-all duration-150 select-none
         disabled:opacity-40 disabled:pointer-events-none
-        ${
-          variant === 'accent'
-            ? 'bg-violet-700/80 border-violet-500/40 text-white hover:bg-violet-600/90 hover:border-violet-400/60'
-            : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
-        }
+        ${classes}
       `}
     >
       {children}
+    </button>
+  )
+}
+
+interface ToolbarMenuProps {
+  label: string
+  title: string
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}
+
+function ToolbarMenu({ label, title, open, onToggle, children }: ToolbarMenuProps) {
+  return (
+    <div className="relative">
+      <IconButton onClick={onToggle} title={title} variant="default" active={open}>
+        {label}
+        <ChevronDown
+          size={13}
+          className="transition-transform duration-150"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        />
+      </IconButton>
+      {open && (
+        <div
+          className="
+            absolute top-[calc(100%+8px)] left-0 z-30 min-w-52
+            rounded-xl border border-white/10 bg-gray-950/98 shadow-2xl
+            backdrop-blur-md overflow-hidden
+          "
+        >
+          <div className="p-1.5 space-y-1">
+            {children}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface MenuActionProps {
+  onClick: () => void
+  icon: React.ReactNode
+  label: string
+  description: string
+  disabled?: boolean
+  tone?: 'default' | 'accent'
+}
+
+function MenuAction({ onClick, icon, label, description, disabled, tone = 'default' }: MenuActionProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`
+        w-full flex items-start gap-3 rounded-lg px-3 py-2.5 text-left
+        transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none
+        ${tone === 'accent'
+          ? 'bg-teal-950/60 text-white hover:bg-teal-900/45'
+          : 'text-white/75 hover:bg-white/6 hover:text-white'}
+      `}
+    >
+      <div className={`mt-0.5 shrink-0 ${tone === 'accent' ? 'text-cyan-300' : 'text-white/45'}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-[12px] font-medium leading-tight">{label}</div>
+        <div className="mt-0.5 text-[10px] leading-snug text-white/35">{description}</div>
+      </div>
     </button>
   )
 }
@@ -76,13 +151,26 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
   const [editingName, setEditingName] = useState(false)
   const [copied, setCopied] = useState(false)
   const [shared, setShared] = useState(false)
+  const [openMenu, setOpenMenu] = useState<'view' | 'export' | 'ai' | null>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const toolbarRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+  const handlePointerDown = (event: MouseEvent) => {
+      if (!toolbarRef.current?.contains(event.target as globalThis.Node)) {
+        setOpenMenu(null)
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown)
+    return () => window.removeEventListener('mousedown', handlePointerDown)
+  }, [])
 
   // ── Save ────────────────────────────────────────────────────────────────────
 
   const handleSave = useCallback(() => {
     const viewport = getViewport()
-    saveFlow(nodes as Node<BaseNodeData>[], edges, viewport, flowName, flowContext)
+    saveFlow(nodes as FlowNode<BaseNodeData>[], edges, viewport, flowName, flowContext)
   }, [nodes, edges, getViewport, flowName, flowContext])
 
   // ── Load ────────────────────────────────────────────────────────────────────
@@ -90,7 +178,7 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
   const handleLoad = useCallback(() => {
     const doc = loadFlow()
     if (!doc) return
-    setNodes(doc.nodes as Node<BaseNodeData>[])
+    setNodes(doc.nodes as FlowNode<BaseNodeData>[])
     setEdges(doc.edges)
     if (doc.viewport) setViewport(doc.viewport)
     if (doc.name) setFlowName(doc.name)
@@ -102,7 +190,7 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
   const handleTidy = useCallback(() => {
     if (nodes.length === 0) return
     const laid = applyAutoLayout(nodes, edges, layoutDirection)
-    setNodes(laid as Node<BaseNodeData>[])
+    setNodes(laid as FlowNode<BaseNodeData>[])
   }, [nodes, edges, setNodes, layoutDirection])
 
   const handleToggleLayoutDirection = useCallback(() => {
@@ -110,7 +198,7 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
     setLayoutDirection(nextDirection)
     if (nodes.length === 0) return
     const laid = applyAutoLayout(nodes, edges, nextDirection)
-    setNodes(laid as Node<BaseNodeData>[])
+    setNodes(laid as FlowNode<BaseNodeData>[])
   }, [layoutDirection, setLayoutDirection, nodes, edges, setNodes])
 
   // ── Export ──────────────────────────────────────────────────────────────────
@@ -121,7 +209,7 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
 
   const handleExportJSON = useCallback(() => {
     const viewport = getViewport()
-    exportFlowAsFile(nodes as Node<BaseNodeData>[], edges, viewport, flowName, flowContext)
+    exportFlowAsFile(nodes as FlowNode<BaseNodeData>[], edges, viewport, flowName, flowContext)
   }, [nodes, edges, getViewport, flowName, flowContext])
 
   const handleShare = useCallback(async () => {
@@ -144,7 +232,7 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
   }, [nodes, edges, flowName, getViewport])
 
   const handleExportYAML = useCallback(() => {
-    const yamlStr = serializeFlowToYAML(flowName, nodes as Node<BaseNodeData>[], edges)
+    const yamlStr = serializeFlowToYAML(flowName, nodes as FlowNode<BaseNodeData>[], edges)
     const blob = new Blob([yamlStr], { type: 'text/yaml' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -171,6 +259,15 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
     setTheme(theme === 'dark' ? 'light' : 'dark')
   }, [theme, setTheme])
 
+  const handleToggleMenu = useCallback((menu: 'view' | 'export' | 'ai') => {
+    setOpenMenu((prev) => (prev === menu ? null : menu))
+  }, [])
+
+  const handleMenuAction = useCallback((action: () => void) => {
+    action()
+    setOpenMenu(null)
+  }, [])
+
   // ── Diagram name ─────────────────────────────────────────────────────────────
 
   const handleNameBlur = useCallback(() => {
@@ -185,13 +282,19 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
   }, [])
 
   return (
-    <header className="flex items-center gap-2 px-4 h-12 shrink-0 bg-gray-950/95 border-b border-white/5 backdrop-blur-sm z-10">
+    <header
+      ref={toolbarRef}
+      className="
+        flex items-center gap-3 px-4 h-14 shrink-0
+        bg-[#0A0F14]/95 border-b border-white/5 backdrop-blur-md z-10
+      "
+    >
 
       {/* App logo + name */}
       <div className="flex items-center gap-2 shrink-0">
         <div
           className="w-5 h-5 rounded flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #7C3AED, #2563EB)' }}
+          style={{ background: 'linear-gradient(135deg, #0F766E, #1D4ED8)' }}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="white">
             <circle cx="2" cy="5" r="1.5" />
@@ -241,7 +344,7 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
       <div className="w-px h-5 bg-white/10 shrink-0" />
 
       {/* Primary actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <IconButton onClick={onNewFlow} title="Start a new flow">
           <FilePlus size={13} />
           New Flow
@@ -266,133 +369,135 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
         </IconButton>
       </div>
 
-      <div className="w-px h-5 bg-white/10 shrink-0" />
-
-      {/* Layout + export */}
-      <div className="flex items-center gap-1">
-        <IconButton
-          onClick={handleToggleLayoutDirection}
-          title={`Switch to ${layoutDirection === 'TB' ? 'horizontal' : 'vertical'} layout`}
+      {/* Grouped menus */}
+      <div className="flex items-center gap-1 shrink-0">
+        <ToolbarMenu
+          label="View"
+          title="Layout and view options"
+          open={openMenu === 'view'}
+          onToggle={() => handleToggleMenu('view')}
         >
-          {layoutDirection === 'TB'
-            ? <AlignVerticalJustifyStart size={13} />
-            : <AlignHorizontalJustifyStart size={13} />}
-        </IconButton>
-        <IconButton
-          onClick={handleTidy}
-          title="Auto-layout nodes (dagre)"
-          disabled={nodes.length === 0}
-        >
-          <LayoutDashboard size={13} />
-          Tidy
-        </IconButton>
+          <MenuAction
+            onClick={() => handleMenuAction(handleToggleLayoutDirection)}
+            icon={layoutDirection === 'TB' ? <AlignVerticalJustifyStart size={14} /> : <AlignHorizontalJustifyStart size={14} />}
+            label={layoutDirection === 'TB' ? 'Horizontal layout' : 'Vertical layout'}
+            description={`Switch to ${layoutDirection === 'TB' ? 'left-to-right' : 'top-to-bottom'} auto layout`}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(handleTidy)}
+            icon={<LayoutDashboard size={14} />}
+            label="Tidy canvas"
+            description="Auto-arrange nodes with the current layout direction"
+            disabled={nodes.length === 0}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(toggleCompactMode)}
+            icon={<Layers size={14} />}
+            label={compactMode ? 'Switch to full view' : 'Switch to compact view'}
+            description="Change how nodes render on the canvas"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(togglePresentationMode)}
+            icon={<Maximize2 size={14} />}
+            label="Presentation mode"
+            description="Focus on the canvas with minimal chrome"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(handleThemeToggle)}
+            icon={theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            description="Toggle the overall application theme"
+          />
+        </ToolbarMenu>
 
-        <IconButton
-          onClick={handleExportYAML}
-          title="Export flow as YAML"
-          disabled={nodes.length === 0}
+        <ToolbarMenu
+          label="Export"
+          title="Export and sharing options"
+          open={openMenu === 'export'}
+          onToggle={() => handleToggleMenu('export')}
         >
-          <FileCode size={13} />
-          YAML
-        </IconButton>
+          <MenuAction
+            onClick={() => handleMenuAction(handleExportYAML)}
+            icon={<FileCode size={14} />}
+            label="Export YAML"
+            description="Download the flow as editable YAML"
+            disabled={nodes.length === 0}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(handleExportJSON)}
+            icon={<Save size={14} />}
+            label="Export JSON"
+            description="Download the full flow document with viewport state"
+            disabled={nodes.length === 0}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(handleDownload)}
+            icon={<ImageDown size={14} />}
+            label="Export PNG"
+            description="Render the current canvas as an image"
+            disabled={nodes.length === 0}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(handleCopy)}
+            icon={copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+            label={copied ? 'Copied image' : 'Copy image'}
+            description="Copy a PNG snapshot to the clipboard"
+            disabled={nodes.length === 0}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(handleShare)}
+            icon={shared ? <Check size={14} className="text-green-400" /> : <Share2 size={14} />}
+            label={shared ? 'Copied share URL' : 'Copy share URL'}
+            description="Copy a shareable link with the flow encoded in the URL"
+            disabled={nodes.length === 0}
+          />
+        </ToolbarMenu>
 
-        <IconButton
-          onClick={handleExportJSON}
-          title="Export flow as JSON"
-          disabled={nodes.length === 0}
+        <ToolbarMenu
+          label="AI"
+          title="AI-assisted actions"
+          open={openMenu === 'ai'}
+          onToggle={() => handleToggleMenu('ai')}
         >
-          <Save size={13} />
-          JSON
-        </IconButton>
-
-        <IconButton
-          onClick={handleDownload}
-          title="Export as PNG"
-          disabled={nodes.length === 0}
-        >
-          <ImageDown size={13} />
-          PNG
-        </IconButton>
-
-        <IconButton
-          onClick={handleCopy}
-          title="Copy to clipboard"
-          disabled={nodes.length === 0}
-        >
-          {copied ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
-          {copied ? 'Copied!' : 'Copy'}
-        </IconButton>
-
-        <IconButton
-          onClick={handleShare}
-          title="Copy shareable URL to clipboard"
-          disabled={nodes.length === 0}
-        >
-          {shared ? <Check size={13} className="text-green-400" /> : <Share2 size={13} />}
-          {shared ? 'Copied!' : 'Share'}
-        </IconButton>
-      </div>
-
-      <div className="w-px h-5 bg-white/10 shrink-0" />
-
-      {/* Animation controls */}
-      {animControls}
-
-      <div className="w-px h-5 bg-white/10 shrink-0" />
-
-      {/* AI actions */}
-      <div className="flex items-center gap-1">
-        <IconButton
-          onClick={onExplain}
-          title="Explain pipeline with AI"
-          variant="accent"
-          disabled={explainDisabled}
-        >
-          <Sparkles size={13} />
-          Explain
-        </IconButton>
-        <IconButton
-          onClick={onReview}
-          title="Review design — missing components and improvements"
-          variant="accent"
-          disabled={reviewDisabled}
-        >
-          <ClipboardCheck size={13} />
-          Review
-        </IconButton>
-        <IconButton
-          onClick={onEval}
-          title="Get evaluation suggestions for this flow"
-          variant="accent"
-          disabled={evalDisabled}
-        >
-          <FlaskConical size={13} />
-          Eval
-        </IconButton>
+          <MenuAction
+            onClick={() => handleMenuAction(onExplain)}
+            icon={<Sparkles size={14} />}
+            label="Explain"
+            description="Generate an explanation of the current pipeline"
+            disabled={explainDisabled}
+            tone="accent"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(onReview)}
+            icon={<ClipboardCheck size={14} />}
+            label="Review"
+            description="Find missing pieces, risks, and design issues"
+            disabled={reviewDisabled}
+            tone="accent"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(onEval)}
+            icon={<FlaskConical size={14} />}
+            label="Eval"
+            description="Suggest evaluation coverage for the flow"
+            disabled={evalDisabled}
+            tone="accent"
+          />
+        </ToolbarMenu>
       </div>
 
       {/* Spacer */}
       <div className="flex-1" />
 
       {/* Right side */}
-      <div className="flex items-center gap-1">
-        <IconButton
-          onClick={toggleCompactMode}
-          title={compactMode ? 'Switch to full view' : 'Switch to compact view'}
-          variant={compactMode ? 'accent' : 'default'}
-        >
-          <Layers size={13} />
-        </IconButton>
-        <IconButton
-          onClick={togglePresentationMode}
-          title="Presentation mode (P)"
-        >
-          <Maximize2 size={13} />
-        </IconButton>
-
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="px-1.5 py-1 rounded-lg border border-white/8 bg-white/[0.03]">
+          {animControls}
+        </div>
         <IconButton
           onClick={handleThemeToggle}
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          variant="ghost"
         >
           {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
         </IconButton>

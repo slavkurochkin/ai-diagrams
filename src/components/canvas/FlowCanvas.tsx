@@ -124,7 +124,7 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-4 text-center pointer-events-auto">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center border border-white/10"
-              style={{ background: 'linear-gradient(135deg, #7C3AED22, #2563EB22)' }}>
+              style={{ background: 'linear-gradient(135deg, #0F766E22, #1D4ED822)' }}>
               <MousePointerClick size={24} className="text-white/30" />
             </div>
             <div>
@@ -137,8 +137,8 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
                 onClick={onOpenTemplates}
                 className="
                   flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium
-                  bg-violet-700/40 border border-violet-500/30 text-violet-300
-                  hover:bg-violet-700/60 hover:text-white transition-colors
+                  bg-teal-700/35 border border-teal-500/30 text-cyan-200
+                  hover:bg-teal-700/55 hover:text-white transition-colors
                 "
               >
                 <LayoutTemplate size={13} />

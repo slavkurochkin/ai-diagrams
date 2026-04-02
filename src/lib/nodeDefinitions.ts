@@ -46,7 +46,7 @@ import type { NodeDefinition } from '../types/nodes'
 const LLMNodeDefinition: NodeDefinition = {
   type: 'llm',
   label: 'LLM',
-  accentColor: '#7C3AED',
+  accentColor: '#0F766E',
   icon: LLMIcon,
   description: 'Large language model call with configurable provider and parameters.',
   category: 'core',
@@ -868,7 +868,7 @@ const WebSearchNodeDefinition: NodeDefinition = {
     { id: 'query', label: 'Query', type: 'text' },
   ],
   outputs: [
-    { id: 'results', label: 'Results', type: 'text' },
+    { id: 'results', label: 'Results', type: 'text', color: '#16A34A' },
   ],
   configFields: [
     {
@@ -904,7 +904,7 @@ const WebSearchNodeDefinition: NodeDefinition = {
 const OutputParserNodeDefinition: NodeDefinition = {
   type: 'outputParser',
   label: 'Output Parser',
-  accentColor: '#7C3AED',
+  accentColor: '#0F766E',
   icon: OutputParserIcon,
   description: 'Parses raw LLM text into structured JSON, YAML, or CSV.',
   category: 'output',
@@ -998,8 +998,8 @@ const GuardrailsNodeDefinition: NodeDefinition = {
     { id: 'input', label: 'Input', type: 'text' },
   ],
   outputs: [
-    { id: 'passed', label: 'Passed', type: 'text' },
-    { id: 'blocked', label: 'Blocked', type: 'structured' },
+    { id: 'passed', label: 'Passed', type: 'text', color: '#16A34A' },
+    { id: 'blocked', label: 'Blocked', type: 'structured', color: '#DC2626' },
   ],
   configFields: [
     {
@@ -1513,7 +1513,7 @@ const RAGEvaluatorNodeDefinition: NodeDefinition = {
 const SingleTurnEvalNodeDefinition: NodeDefinition = {
   type: 'singleTurnEval',
   label: 'Single-Turn Eval',
-  accentColor: '#7C3AED',
+  accentColor: '#0F766E',
   icon: SingleTurnEvalIcon,
   description: 'Evaluates one query-response exchange on relevance, correctness, and helpfulness.',
   category: 'eval',

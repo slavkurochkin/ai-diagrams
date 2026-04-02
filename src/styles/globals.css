@@ -10,13 +10,13 @@
 /* ── CSS custom properties ──────────────────────────────────────────────── */
 :root {
   /* Node accent colors */
-  --node-llm:       #7C3AED;
+  --node-llm:       #0F766E;
   --node-prompt:    #2563EB;
   --node-vectordb:  #0891B2;
   --node-agent:     #059669;
   --node-retriever: #D97706;
   --node-chunker:   #DC2626;
-  --node-embedding: #7C3AED;
+  --node-embedding: #0F766E;
   --node-router:    #DB2777;
   --node-tool:      #EA580C;
   --node-memory:    #CA8A04;
@@ -98,20 +98,20 @@
 
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:hover .react-flow__edge-path {
-  stroke: #7C3AED;
+  stroke: #14B8A6;
   stroke-width: 2px;
 }
 
 /* Connection line while dragging */
 .react-flow__connection-path {
-  stroke: #7C3AED80;
+  stroke: #14B8A680;
   stroke-width: 1.5px;
   stroke-dasharray: 5 3;
 }
 
 /* Node selection ring */
 .react-flow__node.selected > div {
-  outline: 2px solid #7C3AED80;
+  outline: 2px solid #14B8A680;
   outline-offset: 2px;
 }
 

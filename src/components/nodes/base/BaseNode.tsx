@@ -11,7 +11,7 @@ import NodePort from './NodePort'
 
 const ANIM_RING: Record<string, string> = {
   idle:       'transparent',
-  active:     '#7C3AED80',
+  active:     '#14B8A680',
   processing: '#D97706aa',
   done:       '#16A34Aaa',
   error:      '#DC2626aa',
@@ -186,7 +186,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
             >
               <div className="rounded-xl border border-white/10 shadow-2xl overflow-hidden" style={{ background: `${accentHex}18`, backdropFilter: 'blur(8px)' }}>
                 <div className="h-0.5" style={{ background: `linear-gradient(90deg, ${accentHex}, transparent)` }} />
-                <div className="px-3 py-2.5 text-[12px] leading-relaxed text-white/80 prose prose-invert prose-sm max-w-none [&_strong]:text-white [&_ul]:my-1 [&_ul]:pl-4 [&_li]:my-0.5 [&_p]:my-1 [&_code]:text-violet-300 [&_code]:bg-white/10 [&_code]:px-1 [&_code]:rounded">
+                <div className="px-3 py-2.5 text-[12px] leading-relaxed text-white/80 prose prose-invert prose-sm max-w-none [&_strong]:text-white [&_ul]:my-1 [&_ul]:pl-4 [&_li]:my-0.5 [&_p]:my-1 [&_code]:text-sky-300 [&_code]:bg-white/10 [&_code]:px-1 [&_code]:rounded">
                   <ReactMarkdown>{data.note}</ReactMarkdown>
                 </div>
               </div>
@@ -349,7 +349,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
                   [&_ol]:my-1 [&_ol]:pl-4
                   [&_h1]:text-[13px] [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-1
                   [&_h2]:text-[12px] [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-1
-                  [&_p]:my-1 [&_code]:text-violet-300 [&_code]:bg-white/10 [&_code]:px-1 [&_code]:rounded
+                  [&_p]:my-1 [&_code]:text-sky-300 [&_code]:bg-white/10 [&_code]:px-1 [&_code]:rounded
                 "
               >
                 <ReactMarkdown>{data.note}</ReactMarkdown>

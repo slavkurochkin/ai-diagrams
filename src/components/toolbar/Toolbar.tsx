@@ -75,11 +75,11 @@ function ToolbarMenu({ label, title, open, onToggle, children }: ToolbarMenuProp
         <div
           className="
             absolute top-[calc(100%+8px)] left-0 z-30 min-w-52
-            rounded-xl border border-white/10 bg-gray-950/98 shadow-2xl
-            backdrop-blur-md overflow-hidden
+            rounded-xl border border-white/12 bg-[#0B1117]
+            shadow-[0_18px_42px_rgba(0,0,0,0.52)] overflow-hidden
           "
         >
-          <div className="p-1.5 space-y-1">
+          <div className="p-1.5 space-y-1 bg-[#0B1117]">
             {children}
           </div>
         </div>
@@ -107,8 +107,8 @@ function MenuAction({ onClick, icon, label, description, disabled, tone = 'defau
         w-full flex items-start gap-3 rounded-lg px-3 py-2.5 text-left
         transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none
         ${tone === 'accent'
-          ? 'bg-teal-950/60 text-white hover:bg-teal-900/45'
-          : 'text-white/75 hover:bg-white/6 hover:text-white'}
+          ? 'bg-teal-950/90 text-white hover:bg-teal-900/80'
+          : 'bg-[#0F1720] text-white/75 hover:bg-[#16212C] hover:text-white'}
       `}
     >
       <div className={`mt-0.5 shrink-0 ${tone === 'accent' ? 'text-cyan-300' : 'text-white/45'}`}>

@@ -7,16 +7,22 @@ import type { FlowContext } from '../types/flow'
 import { buildDefaultConfig, getNodeDefinition } from '../lib/nodeDefinitions'
 
 type Theme = 'dark' | 'light'
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
 interface FlowStore {
   // ── State ────────────────────────────────────────────────────────────────
   nodes: Node<BaseNodeData>[]
   edges: Edge[]
   selectedNodeId: string | null
+  selectedEdgeId: string | null
   theme: Theme
   flowName: string
   presentationMode: boolean
   flowContext: FlowContext | null
+  showExecutionPriorities: boolean
+  showAllNotes: boolean
+  globalPathThickness: number
+  globalPathColor: string
 
   // ── Graph mutations (React Flow-compatible) ───────────────────────────────
   setNodes: (nodes: Node<BaseNodeData>[]) => void
@@ -24,6 +30,10 @@ interface FlowStore {
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
   addEdge: (connection: Connection) => void
+  updateEdgePriority: (edgeId: string, priority: number) => void
+  updateEdgeTravelSpeed: (edgeId: string, speed: number) => void
+  updateEdgeThickness: (edgeId: string, thickness: number) => void
+  updateEdgeColor: (edgeId: string, color?: string) => void
 
   // ── Node management ───────────────────────────────────────────────────────
   /** Adds a new node of the given type at the given canvas position. */
@@ -45,6 +55,7 @@ interface FlowStore {
 
   // ── Selection ─────────────────────────────────────────────────────────────
   setSelectedNode: (nodeId: string | null) => void
+  setSelectedEdge: (edgeId: string | null) => void
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   setTheme: (theme: Theme) => void
@@ -52,6 +63,10 @@ interface FlowStore {
   // ── Flow metadata ─────────────────────────────────────────────────────────
   setFlowName: (name: string) => void
   setFlowContext: (context: FlowContext | null) => void
+  toggleExecutionPriorities: () => void
+  toggleShowAllNotes: () => void
+  setGlobalPathThickness: (thickness: number) => void
+  setGlobalPathColor: (color: string) => void
 
   // ── Presentation mode ─────────────────────────────────────────────────────
   togglePresentationMode: () => void
@@ -105,12 +120,17 @@ export const useFlowStore = create<FlowStore>((set) => ({
   nodes: [],
   edges: [],
   selectedNodeId: null,
+  selectedEdgeId: null,
   theme: 'dark',
   flowName: 'Untitled Flow',
   presentationMode: false,
   compactMode: false,
   layoutDirection: 'TB',
   flowContext: null,
+  showExecutionPriorities: false,
+  showAllNotes: false,
+  globalPathThickness: 1,
+  globalPathColor: '#FFFFFF',
 
   // ── Setters (used by load/restore) ────────────────────────────────────────
   setNodes: (nodes) => set({ nodes }),
@@ -148,9 +168,67 @@ export const useFlowStore = create<FlowStore>((set) => ({
         sourceHandle: connection.sourceHandle ?? null,
         targetHandle: connection.targetHandle ?? null,
         type: 'smoothstep',
+        data: { executionPriority: 1, travelSpeed: 1, pathThickness: 1 },
       }
       return { edges: [...state.edges, newEdge] }
     })
+  },
+
+  updateEdgePriority: (edgeId, priority) => {
+    const nextPriority = Math.max(1, Math.floor(priority) || 1)
+    set((state) => ({
+      edges: state.edges.map((edge) =>
+        edge.id === edgeId
+          ? {
+              ...edge,
+              data: { ...(edge.data ?? {}), executionPriority: nextPriority },
+            }
+          : edge,
+      ),
+    }))
+  },
+
+  updateEdgeTravelSpeed: (edgeId, speed) => {
+    const nextSpeed = Math.max(0.25, Math.min(3, Number.isFinite(speed) ? speed : 1))
+    set((state) => ({
+      edges: state.edges.map((edge) =>
+        edge.id === edgeId
+          ? {
+              ...edge,
+              data: { ...(edge.data ?? {}), travelSpeed: Number(nextSpeed.toFixed(2)) },
+            }
+          : edge,
+      ),
+    }))
+  },
+
+  updateEdgeThickness: (edgeId, thickness) => {
+    const nextThickness = Math.max(0.5, Math.min(4, Number.isFinite(thickness) ? thickness : 1))
+    set((state) => ({
+      edges: state.edges.map((edge) =>
+        edge.id === edgeId
+          ? {
+              ...edge,
+              data: { ...(edge.data ?? {}), pathThickness: Number(nextThickness.toFixed(2)) },
+            }
+          : edge,
+      ),
+    }))
+  },
+
+  updateEdgeColor: (edgeId, color) => {
+    const trimmed = typeof color === 'string' ? color.trim() : ''
+    const safeColor = HEX_COLOR_RE.test(trimmed) ? trimmed : undefined
+    set((state) => ({
+      edges: state.edges.map((edge) =>
+        edge.id === edgeId
+          ? {
+              ...edge,
+              data: { ...(edge.data ?? {}), pathColor: safeColor },
+            }
+          : edge,
+      ),
+    }))
   },
 
   // ── Node management ───────────────────────────────────────────────────────
@@ -266,6 +344,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
 
   // ── Selection ─────────────────────────────────────────────────────────────
   setSelectedNode: (nodeId) => set({ selectedNodeId: nodeId }),
+  setSelectedEdge: (edgeId) => set({ selectedEdgeId: edgeId }),
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   setTheme: (theme) => set({ theme }),
@@ -273,6 +352,20 @@ export const useFlowStore = create<FlowStore>((set) => ({
   // ── Flow metadata ─────────────────────────────────────────────────────────
   setFlowName: (flowName) => set({ flowName }),
   setFlowContext: (flowContext) => set({ flowContext }),
+  toggleExecutionPriorities: () =>
+    set((state) => ({ showExecutionPriorities: !state.showExecutionPriorities })),
+  toggleShowAllNotes: () =>
+    set((state) => ({ showAllNotes: !state.showAllNotes })),
+  setGlobalPathThickness: (thickness) => {
+    const nextThickness = Math.max(0.5, Math.min(4, Number.isFinite(thickness) ? thickness : 1))
+    set({ globalPathThickness: Number(nextThickness.toFixed(2)) })
+  },
+  setGlobalPathColor: (color) => {
+    if (typeof color !== 'string') return
+    const trimmed = color.trim()
+    if (!HEX_COLOR_RE.test(trimmed)) return
+    set({ globalPathColor: trimmed })
+  },
 
   // ── Presentation mode ─────────────────────────────────────────────────────
   togglePresentationMode: () =>
@@ -309,4 +402,5 @@ export const useFlowStore = create<FlowStore>((set) => ({
 export const selectNodes = (s: FlowStore) => s.nodes
 export const selectEdges = (s: FlowStore) => s.edges
 export const selectSelectedNodeId = (s: FlowStore) => s.selectedNodeId
+export const selectSelectedEdgeId = (s: FlowStore) => s.selectedEdgeId
 export const selectTheme = (s: FlowStore) => s.theme

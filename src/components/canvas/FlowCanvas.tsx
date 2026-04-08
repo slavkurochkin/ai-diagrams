@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -16,7 +16,6 @@ import { useFlowStore } from '../../hooks/useFlowStore'
 import { nodeTypes } from '../nodes'
 import { useFlowHandlers } from './useFlowHandlers'
 import Watermark from './Watermark'
-import FlowPlayer from '../animation/FlowPlayer'
 import NodeContextMenu from './NodeContextMenu'
 import CustomEdge from './CustomEdge'
 import type { BaseNodeData } from '../../types/nodes'
@@ -58,6 +57,7 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
   const nodes         = useFlowStore((s) => s.nodes)
   const edges         = useFlowStore((s) => s.edges)
   const theme         = useFlowStore((s) => s.theme)
+  const showExecutionPriorities = useFlowStore((s) => s.showExecutionPriorities)
   const removeNode    = useFlowStore((s) => s.removeNode)
   const duplicateNode = useFlowStore((s) => s.duplicateNode)
 
@@ -75,10 +75,28 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
     handleEdgesChange,
     handleConnect,
     handleNodeClick,
+    handleEdgeClick,
     handlePaneClick,
     handleDragOver,
     handleDrop,
   } = useFlowHandlers()
+
+  const edgesWithSignal = useMemo(() => {
+    const activeByEdgeId = new Map(activeEdges.map((edge) => [edge.edgeId, edge] as const))
+
+    return edges.map((edge) => {
+      const active = activeByEdgeId.get(edge.id)
+      return {
+        ...edge,
+        data: {
+          ...(edge.data ?? {}),
+          activeSignalColor: active?.color ?? null,
+          activeSignalDuration: active?.duration ?? null,
+          showExecutionPriority: showExecutionPriorities,
+        },
+      }
+    })
+  }, [edges, activeEdges, showExecutionPriorities])
 
   return (
     <div
@@ -89,13 +107,14 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
     >
       <ReactFlow
         nodes={nodes as Node<BaseNodeData>[]}
-        edges={edges}
+        edges={edgesWithSignal}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
         onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
         onPaneClick={() => { handlePaneClick(); setCtxMenu(null) }}
         onNodeContextMenu={handleNodeContextMenu}
         proOptions={{ hideAttribution: false }}
@@ -113,9 +132,6 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
           className="!bg-gray-900/80 !border-white/10 !shadow-xl [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!text-gray-400 [&_button:hover]:!bg-white/10 [&_button:hover]:!text-white"
         />
       </ReactFlow>
-
-      {/* Data token animation overlay */}
-      <FlowPlayer activeEdges={activeEdges} />
 
       <Watermark />
 

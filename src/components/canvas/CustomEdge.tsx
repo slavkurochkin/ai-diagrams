@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   EdgeLabelRenderer,
   BaseEdge,
@@ -6,6 +6,7 @@ import {
   getBezierPath,
   type EdgeProps,
 } from 'reactflow'
+import { useFlowStore } from '../../hooks/useFlowStore'
 
 interface Point {
   x: number
@@ -13,6 +14,36 @@ interface Point {
 }
 
 type LoopLane = 'top' | 'bottom' | 'left' | 'right'
+type SignalData = {
+  kind?: string
+  lane?: LoopLane
+  activeSignalColor?: string | null
+  activeSignalDuration?: number | null
+  executionPriority?: number | string
+  showExecutionPriority?: boolean
+  pathThickness?: number | string
+  pathColor?: string
+}
+
+function withOpacity(color: string, alpha: number): string {
+  const a = Math.max(0, Math.min(1, alpha))
+  const hex = color.trim()
+  if (hex.startsWith('#')) {
+    const normalized = hex.length === 4
+      ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
+      : hex
+    if (/^#[0-9a-fA-F]{6}$/.test(normalized)) {
+      const r = parseInt(normalized.slice(1, 3), 16)
+      const g = parseInt(normalized.slice(3, 5), 16)
+      const b = parseInt(normalized.slice(5, 7), 16)
+      return `rgba(${r}, ${g}, ${b}, ${a})`
+    }
+  }
+  if (color.startsWith('rgb(')) {
+    return color.replace('rgb(', 'rgba(').replace(')', `, ${a})`)
+  }
+  return color
+}
 
 function createRoundedOrthogonalPath(points: Point[], radius = 14): string {
   if (points.length === 0) return ''
@@ -123,10 +154,36 @@ export default function CustomEdge({
   markerEnd,
   data,
 }: EdgeProps) {
+  const globalPathThickness = useFlowStore((s) => s.globalPathThickness)
+  const globalPathColor = useFlowStore((s) => s.globalPathColor)
+  const edgeData = (data ?? {}) as SignalData
   const [hovered, setHovered] = useState(false)
-  const isLoopback = data?.kind === 'loopback'
-  const isEvalEdge = data?.kind === 'eval'
-  const loopLane: LoopLane = data?.lane ?? (sourceY <= targetY ? 'top' : 'bottom')
+  const isLoopback = edgeData.kind === 'loopback'
+  const isEvalEdge = edgeData.kind === 'eval'
+  const loopLane: LoopLane = edgeData.lane ?? (sourceY <= targetY ? 'top' : 'bottom')
+  const signalColor = edgeData.activeSignalColor ?? null
+  const [signalProgress, setSignalProgress] = useState(0)
+  const showExecutionPriority = Boolean(edgeData.showExecutionPriority)
+  const executionPriority = (() => {
+    const raw = edgeData.executionPriority
+    if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(1, Math.floor(raw))
+    if (typeof raw === 'string') {
+      const parsed = Number(raw)
+      if (Number.isFinite(parsed)) return Math.max(1, Math.floor(parsed))
+    }
+    return 1
+  })()
+  const pathThickness = (() => {
+    const raw = edgeData.pathThickness
+    if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(0.5, Math.min(4, raw))
+    if (typeof raw === 'string') {
+      const parsed = Number(raw)
+      if (Number.isFinite(parsed)) return Math.max(0.5, Math.min(4, parsed))
+    }
+    return 1
+  })()
+  const effectiveThickness = Math.max(0.5, Math.min(6, pathThickness * globalPathThickness))
+  const resolvedPathColor = edgeData.pathColor || globalPathColor || '#FFFFFF'
   const isVerticalLayout =
     (sourcePosition === Position.Top || sourcePosition === Position.Bottom) &&
     (targetPosition === Position.Top || targetPosition === Position.Bottom)
@@ -175,6 +232,47 @@ export default function CustomEdge({
 
   const showLabel = label && (hovered || selected)
 
+  const signalPathMetrics = useMemo(() => {
+    if (typeof document === 'undefined') return null
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('d', edgePath)
+    const totalLength = path.getTotalLength()
+    if (!Number.isFinite(totalLength) || totalLength <= 0) return null
+    return { path, totalLength }
+  }, [edgePath])
+
+  const signalPoint = useMemo(() => {
+    if (!signalColor || !signalPathMetrics) return null
+    const distance = signalPathMetrics.totalLength * signalProgress
+    const pt = signalPathMetrics.path.getPointAtLength(distance)
+    return { x: pt.x, y: pt.y }
+  }, [signalColor, signalPathMetrics, signalProgress])
+  const trailDashOffset = -136 * signalProgress
+  const trailOpacity = 0.14 + (0.32 * (1 - Math.abs(signalProgress - 0.5) * 2))
+
+  useEffect(() => {
+    if (!signalColor) {
+      setSignalProgress(0)
+      return
+    }
+
+    let rafId = 0
+    let startedAt: number | null = null
+    const durationMs = Math.max(edgeData.activeSignalDuration ?? 750, 120)
+
+    const tick = (now: number) => {
+      if (startedAt === null) startedAt = now
+      const elapsed = now - startedAt
+      const next = Math.min(elapsed / durationMs, 1)
+      setSignalProgress(next)
+      if (next < 1) rafId = requestAnimationFrame(tick)
+    }
+
+    setSignalProgress(0)
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [signalColor, edgeData.activeSignalDuration, edgePath])
+
   return (
     <>
       {/* Wide invisible hit area for easy hover detection */}
@@ -193,28 +291,40 @@ export default function CustomEdge({
         path={edgePath}
         markerEnd={markerEnd}
         style={{
-          stroke: isLoopback
-            ? selected
-              ? '#38BDF8dd'
-              : hovered
-                ? '#38BDF8aa'
-                : '#38BDF84d'
-            : isEvalEdge
-              ? selected
-                ? '#94A3B8aa'
-                : hovered
-                  ? '#94A3B866'
-                  : '#94A3B833'
-            : selected
-              ? '#14B8A6cc'
-              : hovered
-                ? '#ffffff55'
-                : '#ffffff20',
-          strokeWidth: hovered || selected ? 2 : isEvalEdge ? 1.15 : 1.5,
+          stroke: selected
+            ? withOpacity(resolvedPathColor, isLoopback ? 0.9 : isEvalEdge ? 0.75 : 0.8)
+            : hovered
+              ? withOpacity(resolvedPathColor, isLoopback ? 0.7 : isEvalEdge ? 0.55 : 0.55)
+              : withOpacity(resolvedPathColor, isLoopback ? 0.35 : isEvalEdge ? 0.2 : 0.2),
+          strokeWidth: (hovered || selected ? 2 : isEvalEdge ? 1.15 : 1.5) * effectiveThickness,
           strokeDasharray: isLoopback ? '5 6' : isEvalEdge ? '2 6' : undefined,
           transition: 'stroke 0.15s ease, stroke-width 0.15s ease, stroke-dasharray 0.15s ease',
         }}
       />
+
+      {signalColor && (
+        <>
+          {/* Animated lane overlay makes signal travel obvious during playback */}
+          <path
+            d={edgePath}
+            fill="none"
+            stroke={signalColor}
+            strokeWidth={4}
+            strokeOpacity={trailOpacity}
+            strokeDasharray="18 16"
+            strokeDashoffset={trailDashOffset}
+            strokeLinecap="round"
+          />
+
+          {signalPoint && (
+            <>
+              <circle cx={signalPoint.x} cy={signalPoint.y} r={14} fill={signalColor} fillOpacity={0.28} />
+              <circle cx={signalPoint.x} cy={signalPoint.y} r={8} fill={signalColor} fillOpacity={0.96} />
+              <circle cx={signalPoint.x} cy={signalPoint.y} r={4} fill="#FFFFFF" fillOpacity={0.98} />
+            </>
+          )}
+        </>
+      )}
 
       {showLabel && (
         <EdgeLabelRenderer>
@@ -241,6 +351,33 @@ export default function CustomEdge({
           </div>
         </EdgeLabelRenderer>
       )}
+
+      {showExecutionPriority && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY + 16}px)`,
+              pointerEvents: 'none',
+              zIndex: 11,
+            }}
+            className="nodrag nopan"
+          >
+            <div
+              className="
+                px-2 py-0.5 rounded-full
+                bg-cyan-950/95 border border-cyan-400/35
+                text-[10px] font-mono text-cyan-200
+                whitespace-nowrap backdrop-blur-sm
+                shadow-lg
+              "
+            >
+              {`P${executionPriority}`}
+            </div>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+
     </>
   )
 }

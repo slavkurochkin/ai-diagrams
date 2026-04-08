@@ -32,6 +32,7 @@ export function useFlowAnimation(): FlowAnimationAPI {
   const statusRef     = useRef<AnimationStatus>('idle')
   const speedRef      = useRef<AnimationSpeed>(1)
   const timerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const edgeTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   // Keep refs in sync
   useEffect(() => { statusRef.current = status }, [status])
@@ -56,6 +57,28 @@ export function useFlowAnimation(): FlowAnimationAPI {
     stepIndexRef.current = idx + 1
 
     const scaledDuration = (ms: number) => ms / speedRef.current
+    const clearEdgeTimers = () => {
+      for (const timer of edgeTimersRef.current) clearTimeout(timer)
+      edgeTimersRef.current = []
+    }
+    const markSignalReceived = (nodeId: string) => {
+      const node = useFlowStore.getState().nodes.find((n) => n.id === nodeId)
+      if (!node) return
+      const state = node.data.animationState ?? 'idle'
+      if (state === 'idle') setNodeAnimationState(nodeId, 'active')
+    }
+    const clearSignalReceived = (nodeId: string) => {
+      const node = useFlowStore.getState().nodes.find((n) => n.id === nodeId)
+      if (!node) return
+      const state = node.data.animationState ?? 'idle'
+      if (state === 'active') setNodeAnimationState(nodeId, 'idle')
+    }
+    const getEdgeDurationMs = (edgeId: string, fallbackMs: number) => {
+      const edge = useFlowStore.getState().edges.find((e) => e.id === edgeId)
+      const speed = typeof edge?.data?.travelSpeed === 'number' ? edge.data.travelSpeed : 1
+      const safeSpeed = Math.max(0.25, Math.min(3, speed))
+      return scaledDuration(fallbackMs / safeSpeed)
+    }
 
     switch (step.type) {
 
@@ -64,17 +87,54 @@ export function useFlowAnimation(): FlowAnimationAPI {
         timerRef.current = setTimeout(executeStep, scaledDuration(step.duration))
         break
 
+      case 'activate-nodes':
+        for (const nodeId of step.nodeIds) {
+          setNodeAnimationState(nodeId, 'processing')
+        }
+        timerRef.current = setTimeout(executeStep, scaledDuration(step.duration))
+        break
+
       case 'traverse-edge': {
+        markSignalReceived(step.targetNodeId)
+        const duration = getEdgeDurationMs(step.edgeId, step.duration)
         const entry: ActiveEdge = {
           edgeId:   step.edgeId,
           color:    step.color,
-          duration: scaledDuration(step.duration),
+          duration,
         }
         setActiveEdges((prev) => [...prev, entry])
+        clearEdgeTimers()
         timerRef.current = setTimeout(() => {
           setActiveEdges((prev) => prev.filter((e) => e.edgeId !== step.edgeId))
+          clearSignalReceived(step.targetNodeId)
           executeStep()
-        }, scaledDuration(step.duration))
+        }, duration)
+        break
+      }
+
+      case 'traverse-edges': {
+        clearEdgeTimers()
+        const entries: ActiveEdge[] = step.edges.map((edge) => ({
+          edgeId: edge.edgeId,
+          color: edge.color,
+          duration: getEdgeDurationMs(edge.edgeId, step.duration),
+        }))
+        const maxDuration = entries.reduce((max, edge) => Math.max(max, edge.duration), 0)
+        const targetNodeIds = [...new Set(step.edges.map((edge) => edge.targetNodeId))]
+
+        for (const edge of step.edges) markSignalReceived(edge.targetNodeId)
+        setActiveEdges((prev) => [...prev, ...entries])
+        for (let i = 0; i < entries.length; i += 1) {
+          const edge = entries[i]
+          const removalTimer = setTimeout(() => {
+            setActiveEdges((prev) => prev.filter((existing) => existing.edgeId !== edge.edgeId))
+          }, edge.duration)
+          edgeTimersRef.current.push(removalTimer)
+        }
+        timerRef.current = setTimeout(() => {
+          for (const nodeId of targetNodeIds) clearSignalReceived(nodeId)
+          executeStep()
+        }, maxDuration)
         break
       }
 
@@ -106,12 +166,16 @@ export function useFlowAnimation(): FlowAnimationAPI {
 
   const pause = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    for (const timer of edgeTimersRef.current) clearTimeout(timer)
+    edgeTimersRef.current = []
     setStatus('paused')
     statusRef.current = 'paused'
   }, [])
 
   const reset = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    for (const timer of edgeTimersRef.current) clearTimeout(timer)
+    edgeTimersRef.current = []
     setStatus('idle')
     statusRef.current    = 'idle'
     stepIndexRef.current = 0
@@ -126,7 +190,10 @@ export function useFlowAnimation(): FlowAnimationAPI {
   }, [])
 
   // Cleanup on unmount
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    for (const timer of edgeTimersRef.current) clearTimeout(timer)
+  }, [])
 
   return { status, speed, activeEdges, play, pause, reset, setSpeed: handleSetSpeed }
 }

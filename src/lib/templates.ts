@@ -337,7 +337,7 @@ nodes:
       5. Repeat until the task is done
     position:
       x: 430
-      y: 260
+      y: 300
   - id: search
     type: webSearch
     label: Web Search
@@ -379,14 +379,17 @@ edges:
     to: agent
     fromHandle: prompt
     toHandle: prompt
+    executionPriority: 1
   - from: user_input
     to: memory
     fromHandle: prompt
     toHandle: input
+    executionPriority: 1
   - from: memory
     to: agent
     fromHandle: history
     toHandle: memory
+    executionPriority: 2
   # Agent dispatches tool requests (ReAct "Act" step)
   - from: agent
     to: search
@@ -474,14 +477,14 @@ nodes:
     note: "Used when the agent needs fresh or external information"
     position:
       x: 770
-      y: 40
+      y: 20
   - id: embedding
     type: embedding
     label: Query Embedder
     note: "Converts the agent's retrieval request into a vector embedding"
     position:
       x: 760
-      y: 145
+      y: 240
   - id: vector_db
     type: vectorDB
     label: Vector Store
@@ -489,8 +492,8 @@ nodes:
       provider: pinecone
     note: "Persistent vector index that backs the retriever's similarity search"
     position:
-      x: 1070
-      y: 315
+      x: 1140
+      y: 430
   - id: retriever
     type: retriever
     label: Retriever
@@ -499,7 +502,7 @@ nodes:
     note: "Queries the connected vector store for the most relevant context"
     position:
       x: 760
-      y: 315
+      y: 430
   - id: toolcall
     type: toolCall
     label: Code Executor
@@ -509,7 +512,7 @@ nodes:
     note: "Executes Python code and returns stdout"
     position:
       x: 800
-      y: 430
+      y: 620
   - id: guardrails
     type: guardrails
     config:
@@ -517,57 +520,67 @@ nodes:
     note: "PII detection + toxicity filter on the final answer"
     position:
       x: 770
-      y: 590
+      y: 810
   - id: parser
     type: outputParser
     config:
       format: markdown
     position:
-      x: 1080
-      y: 590
+      x: 1140
+      y: 810
 edges:
   # User input enters both the live prompt path and the conversation memory
   - from: user_input
     to: agent
     fromHandle: prompt
     toHandle: prompt
+    executionPriority: 1
   - from: user_input
     to: memory
     fromHandle: prompt
     toHandle: input
+    executionPriority: 1
   - from: memory
     to: agent
     fromHandle: history
     toHandle: memory
+    executionPriority: 2
   # Agent can choose between web search, retrieval, and code execution
   - from: agent
     to: search
     fromHandle: toolRequests
     toHandle: query
+    executionPriority: 3
   - from: agent
     to: embedding
     fromHandle: toolRequests
     toHandle: text
+    executionPriority: 1
   - from: agent
     to: retriever
     fromHandle: toolRequests
     toHandle: query
+    executionPriority: 2
   - from: agent
     to: toolcall
     fromHandle: toolRequests
     toHandle: call
+    executionPriority: 4
   - from: embedding
     to: vector_db
     fromHandle: embedding
     toHandle: embedding
+    executionPriority: 2
   - from: vector_db
     to: retriever
     fromHandle: store
     toHandle: store
+    executionPriority: 3
   - from: embedding
     to: retriever
     fromHandle: embedding
     toHandle: embedding
+    executionPriority: 3
   # Tool observations loop back into the agent
   - from: search
     to: agent
@@ -575,31 +588,37 @@ edges:
     toHandle: tools
     kind: loopback
     lane: top
+    executionPriority: 1
   - from: retriever
     to: agent
     fromHandle: documents
     toHandle: tools
     kind: loopback
     lane: bottom
+    executionPriority: 1
   - from: toolcall
     to: agent
     fromHandle: result
     toHandle: tools
     kind: loopback
     lane: right
+    executionPriority: 1
   # Final answer is stored in memory and then sent through safety + formatting
   - from: agent
     to: memory
     fromHandle: response
     toHandle: input
+    executionPriority: 5
   - from: agent
     to: guardrails
     fromHandle: response
     toHandle: input
+    executionPriority: 5
   - from: guardrails
     to: parser
     fromHandle: passed
-    toHandle: text`,
+    toHandle: text
+    executionPriority: 6`,
   },
 
   {
@@ -843,30 +862,37 @@ edges:
     to: search
     fromHandle: toolRequests
     toHandle: query
+    executionPriority: 3
   - from: agent
     to: embedding
     fromHandle: toolRequests
     toHandle: text
+    executionPriority: 1
   - from: agent
     to: retriever
     fromHandle: toolRequests
     toHandle: query
+    executionPriority: 2
   - from: agent
     to: toolcall
     fromHandle: toolRequests
     toHandle: call
+    executionPriority: 4
   - from: embedding
     to: vector_db
     fromHandle: embedding
     toHandle: embedding
+    executionPriority: 2
   - from: vector_db
     to: retriever
     fromHandle: store
     toHandle: store
+    executionPriority: 3
   - from: embedding
     to: retriever
     fromHandle: embedding
     toHandle: embedding
+    executionPriority: 3
   # Tool observations loop back into the agent
   - from: search
     to: agent
@@ -874,31 +900,37 @@ edges:
     toHandle: tools
     kind: loopback
     lane: top
+    executionPriority: 1
   - from: retriever
     to: agent
     fromHandle: documents
     toHandle: tools
     kind: loopback
     lane: bottom
+    executionPriority: 1
   - from: toolcall
     to: agent
     fromHandle: result
     toHandle: tools
     kind: loopback
     lane: right
+    executionPriority: 1
   # Final answer is stored in memory and then sent through safety + formatting
   - from: agent
     to: memory
     fromHandle: response
     toHandle: input
+    executionPriority: 5
   - from: agent
     to: guardrails
     fromHandle: response
     toHandle: input
+    executionPriority: 5
   - from: guardrails
     to: parser
     fromHandle: passed
     toHandle: text
+    executionPriority: 6
   # Evaluation context derived from the same user task
   - from: user_input
     to: response_criteria

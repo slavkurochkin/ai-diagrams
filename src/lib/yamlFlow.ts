@@ -47,6 +47,7 @@ interface YAMLEdgeSpec {
   toHandle?: string
   kind?: 'default' | 'loopback' | 'eval'
   lane?: 'top' | 'bottom' | 'left' | 'right'
+  executionPriority?: number
 }
 
 interface FlowYAMLDoc {
@@ -151,7 +152,15 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
       sourceHandle: e.fromHandle ?? null,
       targetHandle: e.toHandle ?? null,
       type: 'smoothstep',
-      ...((e.kind || e.lane) ? { data: { kind: e.kind, lane: e.lane } } : {}),
+      ...((e.kind || e.lane || e.executionPriority !== undefined)
+        ? {
+            data: {
+              ...(e.kind !== undefined ? { kind: e.kind } : {}),
+              ...(e.lane !== undefined ? { lane: e.lane } : {}),
+              ...(e.executionPriority !== undefined ? { executionPriority: e.executionPriority } : {}),
+            },
+          }
+        : {}),
     })
   }
 
@@ -191,6 +200,12 @@ export function serializeFlowToYAML(
       if (e.targetHandle) entry.toHandle = e.targetHandle
       if (typeof e.data === 'object' && e.data && 'kind' in e.data) entry.kind = e.data.kind
       if (typeof e.data === 'object' && e.data && 'lane' in e.data) entry.lane = e.data.lane
+      if (typeof e.data === 'object' && e.data && 'executionPriority' in e.data) {
+        const raw = e.data.executionPriority
+        if (typeof raw === 'number' && Number.isFinite(raw)) {
+          entry.executionPriority = Math.max(1, Math.floor(raw))
+        }
+      }
       return entry
     }),
   }

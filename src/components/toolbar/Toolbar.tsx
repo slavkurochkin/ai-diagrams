@@ -3,7 +3,7 @@ import { useReactFlow } from 'reactflow'
 import {
   Sun, Moon, Save, FolderOpen, LayoutDashboard,
   ImageDown, Copy, Maximize2, Check, Sparkles, FileCode, Share2,
-  AlignVerticalJustifyStart, AlignHorizontalJustifyStart, Layers, LayoutTemplate,
+  AlignVerticalJustifyStart, AlignHorizontalJustifyStart, Layers, LayoutTemplate, ListOrdered,
   FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown,
 } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
@@ -145,6 +145,10 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
     compactMode, toggleCompactMode,
     layoutDirection, setLayoutDirection,
     flowContext, setFlowContext,
+    showExecutionPriorities, toggleExecutionPriorities,
+    showAllNotes, toggleShowAllNotes,
+    globalPathThickness, setGlobalPathThickness,
+    globalPathColor, setGlobalPathColor,
   } = useFlowStore()
   const { getViewport, setViewport } = useReactFlow()
 
@@ -403,11 +407,58 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
             description="Focus on the canvas with minimal chrome"
           />
           <MenuAction
+            onClick={() => handleMenuAction(toggleExecutionPriorities)}
+            icon={<ListOrdered size={14} />}
+            label={showExecutionPriorities ? 'Hide execution priorities' : 'Show execution priorities'}
+            description="Toggle P1/P2 priority badges on all paths"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(toggleShowAllNotes)}
+            icon={<BookOpen size={14} />}
+            label={showAllNotes ? 'Hide all notes' : 'Show all notes'}
+            description="Temporarily show every node note for layout tuning"
+          />
+          <MenuAction
             onClick={() => handleMenuAction(handleThemeToggle)}
             icon={theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
             label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             description="Toggle the overall application theme"
           />
+          <div className="px-3 py-2 rounded-lg bg-[#0F1720] border border-white/10">
+            <div className="text-[10px] uppercase tracking-wide text-white/45 mb-1.5">
+              Global Path Thickness
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0.5}
+                max={4}
+                step={0.25}
+                value={globalPathThickness}
+                onChange={(e) => setGlobalPathThickness(Number(e.target.value))}
+                className="
+                  w-20 px-2 py-1 rounded-md text-[11px]
+                  bg-white/5 border border-white/10 text-white/85
+                  focus:outline-none focus:border-white/30
+                "
+              />
+              <span className="text-[11px] text-white/45">x</span>
+            </div>
+          </div>
+          <div className="px-3 py-2 rounded-lg bg-[#0F1720] border border-white/10">
+            <div className="text-[10px] uppercase tracking-wide text-white/45 mb-1.5">
+              Global Path Color
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={globalPathColor}
+                onChange={(e) => setGlobalPathColor(e.target.value)}
+                className="h-8 w-10 rounded border border-white/10 bg-transparent cursor-pointer"
+              />
+              <span className="text-[11px] font-mono text-white/45">{globalPathColor}</span>
+            </div>
+          </div>
         </ToolbarMenu>
 
         <ToolbarMenu

@@ -11,7 +11,7 @@ import NodePort from './NodePort'
 
 const ANIM_RING: Record<string, string> = {
   idle:       'transparent',
-  active:     '#14B8A680',
+  active:     '#D97706aa',
   processing: '#D97706aa',
   done:       '#16A34Aaa',
   error:      '#DC2626aa',
@@ -57,6 +57,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
   const theme             = useFlowStore(selectTheme)
   const compactMode       = useFlowStore((s) => s.compactMode)
   const layoutDirection   = useFlowStore((s) => s.layoutDirection)
+  const showAllNotes      = useFlowStore((s) => s.showAllNotes)
   const isDark = theme === 'dark'
   const def = getNodeDefinition(data.nodeType)
 
@@ -67,8 +68,9 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
   if (!def) return null
 
   const animState  = data.animationState ?? 'idle'
+  const isActiveOrProcessing = animState === 'active' || animState === 'processing'
   const ringColor  = ANIM_RING[animState] ?? 'transparent'
-  const showNote   = !!data.note && (data.noteAlwaysVisible || animState === 'processing')
+  const showNote   = !!data.note && (showAllNotes || data.noteAlwaysVisible || animState === 'processing')
   const resolvedNotePlacement = data.notePlacement === 'right' || data.notePlacement === 'bottom'
     ? data.notePlacement
     : layoutDirection === 'LR'
@@ -106,7 +108,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
         <motion.div
           className="absolute inset-0 rounded-full pointer-events-none"
           animate={
-            animState === 'processing'
+            isActiveOrProcessing
               ? { boxShadow: [
                   `0 0 0 2px ${ringColor}, 0 0 10px 2px ${ringColor}`,
                   `0 0 0 3px ${ringColor}, 0 0 20px 4px ${ringColor}`,
@@ -120,7 +122,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
                 }
           }
           transition={
-            animState === 'processing'
+            isActiveOrProcessing
               ? { repeat: Infinity, duration: 1.2, ease: 'easeInOut' }
               : { duration: 0.2 }
           }
@@ -132,7 +134,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
           style={{ background: `linear-gradient(135deg, ${accentHex}dd 0%, ${accentHex}88 100%)` }}
         >
           {/* Shimmer when processing */}
-          {animState === 'processing' && (
+          {isActiveOrProcessing && (
             <motion.div
               className="absolute inset-0 pointer-events-none"
               style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)' }}
@@ -146,7 +148,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
         </div>
 
         {/* Status dot */}
-        {animState === 'processing' && (
+        {isActiveOrProcessing && (
           <motion.div
             className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-gray-950"
             animate={{ opacity: [1, 0.3, 1] }}
@@ -210,7 +212,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
       <motion.div
         className="absolute inset-0 rounded-xl pointer-events-none"
         animate={
-          animState === 'processing'
+          isActiveOrProcessing
             ? { boxShadow: [
                 `0 0 0 1.5px ${ringColor}, 0 0 8px 1px ${ringColor}`,
                 `0 0 0 2px ${ringColor}, 0 0 16px 3px ${ringColor}`,
@@ -224,7 +226,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
               }
         }
         transition={
-          animState === 'processing'
+          isActiveOrProcessing
             ? { repeat: Infinity, duration: 1.2, ease: 'easeInOut' }
             : { duration: 0.2 }
         }
@@ -250,7 +252,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
           }}
         >
           {/* Shimmer sweep when processing */}
-          {animState === 'processing' && (
+          {isActiveOrProcessing && (
             <motion.div
               className="absolute inset-0 pointer-events-none"
               style={{
@@ -268,7 +270,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
           </span>
 
           {/* Processing indicator dot */}
-          {animState === 'processing' && (
+          {isActiveOrProcessing && (
             <motion.div
               className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
               animate={{ opacity: [1, 0.3, 1] }}

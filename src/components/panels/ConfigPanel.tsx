@@ -7,6 +7,9 @@ import type { NotePlacement } from '../../types/nodes'
 import type { ConfigField } from '../../types/nodes'
 import RAGEvalPanel from './RAGEvalPanel'
 
+const EDGE_SPEED_PRESETS = [0.25, 0.5, 1, 2] as const
+const EDGE_THICKNESS_PRESETS = [0.75, 1, 1.5, 2, 3] as const
+
 // ── Individual field renderers ─────────────────────────────────────────────────
 
 interface FieldProps {
@@ -175,17 +178,23 @@ function FieldRow({ field, value, onChange }: FieldProps) {
 // ── Config Panel ───────────────────────────────────────────────────────────────
 
 export default function ConfigPanel() {
-  const { selectedNodeId, nodes, updateNodeConfig, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, removeNode, setSelectedNode } =
+  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, updateNodeConfig, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, removeNode, setSelectedNode, setSelectedEdge } =
     useFlowStore()
 
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId)
+    : null
+  const selectedEdge = selectedEdgeId
+    ? edges.find((e) => e.id === selectedEdgeId)
     : null
 
   const def = selectedNode ? getNodeDefinition(selectedNode.data.nodeType) : null
   const isFrameNode = selectedNode?.data.nodeType === 'frame'
   const isTextNode = selectedNode?.data.nodeType === 'text'
   const accentColor = selectedNode?.data.accentColor ?? def?.accentColor ?? '#2563EB'
+  const outgoingEdges = selectedNode
+    ? edges.filter((e) => e.source === selectedNode.id)
+    : []
 
   const handleChange = useCallback(
     (key: string, value: string | number | boolean) => {
@@ -323,6 +332,51 @@ export default function ConfigPanel() {
               </p>
             </div>
 
+            {/* ── Path priorities ───────────────────────────────────────── */}
+            {!isFrameNode && !isTextNode && outgoingEdges.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                  Path Priorities
+                </label>
+                <div className="space-y-2">
+                  {outgoingEdges.map((edge, idx) => {
+                    const targetNode = nodes.find((n) => n.id === edge.target)
+                    const sourceLabel = edge.sourceHandle || `path ${idx + 1}`
+                    const targetLabel = targetNode?.data.label ?? edge.target
+                    const priorityRaw = (edge.data as { executionPriority?: unknown } | undefined)?.executionPriority
+                    const priority =
+                      typeof priorityRaw === 'number' && Number.isFinite(priorityRaw)
+                        ? Math.max(1, Math.floor(priorityRaw))
+                        : 1
+
+                    return (
+                      <div key={edge.id} className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0 text-[11px] text-white/65 truncate">
+                          {sourceLabel} → {targetLabel}
+                        </div>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={priority}
+                          onChange={(e) => updateEdgePriority(edge.id, Number(e.target.value))}
+                          className="
+                            w-16 px-2 py-1 rounded-md text-[11px] text-right
+                            bg-white/5 border border-white/10 text-white/85
+                            focus:outline-none focus:border-white/30 focus:bg-white/10
+                            transition-colors duration-150
+                          "
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+                <p className="text-[10px] text-white/30 leading-relaxed">
+                  Same number runs in parallel. Lower numbers run first (1 → 2 → 3).
+                </p>
+              </div>
+            )}
+
             {/* ── Note (markdown) ──────────────────────────────────────── */}
             {!isFrameNode && !isTextNode && (
             <div className="space-y-1.5">
@@ -435,6 +489,198 @@ export default function ConfigPanel() {
               </div>
             </div>
           )}
+        </motion.aside>
+      )}
+
+      {!selectedNode && selectedEdge && (
+        <motion.aside
+          key="edge-config-panel"
+          initial={{ x: 280, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: 280, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+          className="
+            w-72 h-full flex flex-col shrink-0
+            bg-gray-950/90 border-l border-white/5
+            backdrop-blur-sm overflow-hidden
+          "
+        >
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-white/90 truncate">Path Settings</p>
+              <p className="text-[10px] text-white/45 mt-0.5 leading-snug truncate">
+                {`${selectedEdge.sourceHandle ?? 'source'} → ${selectedEdge.targetHandle ?? 'target'}`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedEdge(null)}
+              title="Close panel"
+              className="
+                shrink-0 p-1.5 rounded-md text-white/30
+                hover:text-white/70 hover:bg-white/10
+                transition-colors duration-150
+              "
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                Travel Speed
+              </label>
+              <div className="flex items-center gap-1.5">
+                {EDGE_SPEED_PRESETS.map((preset) => {
+                  const current = typeof selectedEdge.data?.travelSpeed === 'number' ? selectedEdge.data.travelSpeed : 1
+                  const active = Math.abs(current - preset) < 0.001
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => updateEdgeTravelSpeed(selectedEdge.id, preset)}
+                      className={`
+                        px-2 py-1 rounded-md text-[11px] font-medium
+                        border transition-colors
+                        ${active
+                          ? 'bg-cyan-800/40 border-cyan-400/50 text-cyan-200'
+                          : 'bg-white/5 border-white/10 text-white/65 hover:bg-white/10 hover:text-white'}
+                      `}
+                    >
+                      {preset}x
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0.25}
+                  max={3}
+                  step={0.25}
+                  value={typeof selectedEdge.data?.travelSpeed === 'number' ? selectedEdge.data.travelSpeed : 1}
+                  onChange={(e) => updateEdgeTravelSpeed(selectedEdge.id, Number(e.target.value))}
+                  className="
+                    w-full px-2.5 py-1.5 rounded-md text-[12px]
+                    bg-white/5 border border-white/10
+                    text-white/80
+                    focus:outline-none focus:border-white/30 focus:bg-white/10
+                    transition-colors duration-150
+                  "
+                />
+                <span className="text-[11px] text-white/45 shrink-0">x</span>
+              </div>
+              <p className="text-[10px] text-white/30 leading-relaxed">
+                Per-path speed multiplier. 1.00 = default, 0.50 = slower, 2.00 = faster.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                  Path Color
+                </label>
+                <button
+                  type="button"
+                  onClick={() => updateEdgeColor(selectedEdge.id, undefined)}
+                  className="text-[10px] text-white/35 hover:text-white/65 transition-colors"
+                >
+                  Use global
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={typeof selectedEdge.data?.pathColor === 'string' ? selectedEdge.data.pathColor : globalPathColor}
+                  onChange={(e) => updateEdgeColor(selectedEdge.id, e.target.value)}
+                  className="h-9 w-12 rounded border border-white/10 bg-transparent cursor-pointer"
+                />
+                <span className="text-[11px] font-mono text-white/45">
+                  {typeof selectedEdge.data?.pathColor === 'string' ? selectedEdge.data.pathColor : `${globalPathColor} (global)`}
+                </span>
+              </div>
+              <p className="text-[10px] text-white/30 leading-relaxed">
+                Override this path color or inherit the global path color.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                Path Thickness
+              </label>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {EDGE_THICKNESS_PRESETS.map((preset) => {
+                  const current = typeof selectedEdge.data?.pathThickness === 'number' ? selectedEdge.data.pathThickness : 1
+                  const active = Math.abs(current - preset) < 0.001
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => updateEdgeThickness(selectedEdge.id, preset)}
+                      className={`
+                        px-2 py-1 rounded-md text-[11px] font-medium
+                        border transition-colors
+                        ${active
+                          ? 'bg-sky-800/40 border-sky-400/50 text-sky-200'
+                          : 'bg-white/5 border-white/10 text-white/65 hover:bg-white/10 hover:text-white'}
+                      `}
+                    >
+                      {preset}x
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0.5}
+                  max={4}
+                  step={0.25}
+                  value={typeof selectedEdge.data?.pathThickness === 'number' ? selectedEdge.data.pathThickness : 1}
+                  onChange={(e) => updateEdgeThickness(selectedEdge.id, Number(e.target.value))}
+                  className="
+                    w-full px-2.5 py-1.5 rounded-md text-[12px]
+                    bg-white/5 border border-white/10
+                    text-white/80
+                    focus:outline-none focus:border-white/30 focus:bg-white/10
+                    transition-colors duration-150
+                  "
+                />
+                <span className="text-[11px] text-white/45 shrink-0">x</span>
+              </div>
+              <p className="text-[10px] text-white/30 leading-relaxed">
+                Adjust visual path thickness for readability.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                Execution Priority
+              </label>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={
+                  typeof (selectedEdge.data as { executionPriority?: unknown } | undefined)?.executionPriority === 'number'
+                    ? Math.max(1, Math.floor((selectedEdge.data as { executionPriority?: number }).executionPriority ?? 1))
+                    : 1
+                }
+                onChange={(e) => updateEdgePriority(selectedEdge.id, Number(e.target.value))}
+                className="
+                  w-full px-2.5 py-1.5 rounded-md text-[12px]
+                  bg-white/5 border border-white/10
+                  text-white/80
+                  focus:outline-none focus:border-white/30 focus:bg-white/10
+                  transition-colors duration-150
+                "
+              />
+              <p className="text-[10px] text-white/30 leading-relaxed">
+                Same priority runs in parallel. Lower numbers run first.
+              </p>
+            </div>
+          </div>
         </motion.aside>
       )}
 

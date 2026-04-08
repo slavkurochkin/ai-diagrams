@@ -33,7 +33,7 @@ function getNodeSize(compactMode: boolean) {
  * FlowCanvas.tsx lean. Also owns the drop-target logic for sidebar drag.
  */
 export function useFlowHandlers() {
-  const { onNodesChange, onEdgesChange, addEdge, addNode, setNodes, setSelectedNode } =
+  const { onNodesChange, onEdgesChange, addEdge, addNode, setNodes, setSelectedNode, setSelectedEdge } =
     useFlowStore()
   const { screenToFlowPosition } = useReactFlow()
 
@@ -153,13 +153,23 @@ export function useFlowHandlers() {
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
       setSelectedNode(node.id)
+      setSelectedEdge(null)
     },
-    [setSelectedNode],
+    [setSelectedNode, setSelectedEdge],
+  )
+
+  const handleEdgeClick = useCallback(
+    (_: React.MouseEvent, edge: { id: string }) => {
+      setSelectedEdge(edge.id)
+      setSelectedNode(null)
+    },
+    [setSelectedEdge, setSelectedNode],
   )
 
   const handlePaneClick = useCallback(() => {
     setSelectedNode(null)
-  }, [setSelectedNode])
+    setSelectedEdge(null)
+  }, [setSelectedNode, setSelectedEdge])
 
   // ── Sidebar drag-and-drop ─────────────────────────────────────────────────
 
@@ -191,6 +201,7 @@ export function useFlowHandlers() {
     handleEdgesChange,
     handleConnect,
     handleNodeClick,
+    handleEdgeClick,
     handlePaneClick,
     handleDragOver,
     handleDrop,

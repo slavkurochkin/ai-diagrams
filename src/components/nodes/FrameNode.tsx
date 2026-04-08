@@ -28,7 +28,7 @@ export default function FrameNode({ id, data, selected }: NodeProps<BaseNodeData
   const theme = useFlowStore(selectTheme)
   const def = getNodeDefinition(data.nodeType)
   const config = data.config as unknown as Partial<FrameNodeConfig>
-  const accentHex = data.accentColor ?? def?.accentColor ?? '#64748B'
+  const accentHex = data.accentColor ?? def?.accentColor ?? '#2664e8'
   const width = coerceSize(config.width, 420, MIN_FRAME_WIDTH)
   const height = coerceSize(config.height, 260, MIN_FRAME_HEIGHT)
   const title = typeof config.title === 'string' && config.title.trim() ? config.title.trim() : 'Section'

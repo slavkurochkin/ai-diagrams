@@ -394,7 +394,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
           label: 'Frame',
           animationState: 'idle',
           config: frameConfig,
-          accentColor: '#0EA5E9',
+          accentColor: '#2664e8',
         },
       }
 

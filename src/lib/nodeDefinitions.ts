@@ -724,7 +724,7 @@ const ClassifierNodeDefinition: NodeDefinition = {
 const FrameNodeDefinition: NodeDefinition = {
   type: 'frame',
   label: 'Frame',
-  accentColor: '#64748B',
+  accentColor: '#2664e8',
   icon: FrameIcon,
   description: 'Resizable background section for grouping related nodes on the canvas.',
   category: 'flow',

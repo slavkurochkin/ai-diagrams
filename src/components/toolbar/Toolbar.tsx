@@ -136,9 +136,31 @@ interface ToolbarProps {
   hasContext: boolean
   reviewDisabled?: boolean
   evalDisabled?: boolean
+  onExportGIF: () => void
+  exportGIFDisabled?: boolean
+  exportGIFBusy?: boolean
+  onExportGIFSelection: () => void
+  exportGIFSelectionDisabled?: boolean
 }
 
-export default function Toolbar({ animControls, onExplain, explainDisabled, onTemplates, onNewFlow, onEditContext, onReview, onEval, hasContext, reviewDisabled, evalDisabled }: ToolbarProps) {
+export default function Toolbar({
+  animControls,
+  onExplain,
+  explainDisabled,
+  onTemplates,
+  onNewFlow,
+  onEditContext,
+  onReview,
+  onEval,
+  hasContext,
+  reviewDisabled,
+  evalDisabled,
+  onExportGIF,
+  exportGIFDisabled,
+  exportGIFBusy,
+  onExportGIFSelection,
+  exportGIFSelectionDisabled,
+}: ToolbarProps) {
   const {
     nodes, edges, theme, setTheme, setNodes, setEdges,
     flowName, setFlowName, togglePresentationMode,
@@ -496,6 +518,20 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
             label="Export PNG"
             description="Render the current canvas as an image"
             disabled={nodes.length === 0}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(onExportGIF)}
+            icon={<ImageDown size={14} />}
+            label={exportGIFBusy ? 'Export GIF (recording...)' : 'Export GIF (1 cycle)'}
+            description="Record playback once and download an animated GIF"
+            disabled={exportGIFDisabled}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(onExportGIFSelection)}
+            icon={<ImageDown size={14} />}
+            label="Export GIF (selection)"
+            description="Export only currently selected nodes/frame"
+            disabled={exportGIFSelectionDisabled}
           />
           <MenuAction
             onClick={() => handleMenuAction(handleCopy)}

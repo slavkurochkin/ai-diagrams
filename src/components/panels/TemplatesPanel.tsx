@@ -9,6 +9,76 @@ import { useFlowStore } from '../../hooks/useFlowStore'
 import type { Node } from 'reactflow'
 import type { BaseNodeData } from '../../types/nodes'
 
+const DEFAULT_NODE_WIDTH = 220
+const DEFAULT_NODE_HEIGHT = 110
+const FRAME_PADDING_X = 64
+const FRAME_PADDING_Y = 72
+
+function getNodeSize(node: Node<BaseNodeData>): { width: number; height: number } {
+  const widthFromNode = typeof node.width === 'number' ? node.width : undefined
+  const heightFromNode = typeof node.height === 'number' ? node.height : undefined
+  const widthFromStyle = typeof node.style?.width === 'number' ? node.style.width : undefined
+  const heightFromStyle = typeof node.style?.height === 'number' ? node.style.height : undefined
+  const widthFromConfig = typeof node.data?.config?.width === 'number' ? node.data.config.width : undefined
+  const heightFromConfig = typeof node.data?.config?.height === 'number' ? node.data.config.height : undefined
+  return {
+    width: widthFromNode ?? widthFromStyle ?? widthFromConfig ?? DEFAULT_NODE_WIDTH,
+    height: heightFromNode ?? heightFromStyle ?? heightFromConfig ?? DEFAULT_NODE_HEIGHT,
+  }
+}
+
+function withDefaultTemplateFrame(
+  nodes: Node<BaseNodeData>[],
+  templateName: string,
+): Node<BaseNodeData>[] {
+  if (nodes.length === 0) return nodes
+  if (nodes.some((n) => n.type === 'frame')) return nodes
+
+  const contentNodes = nodes.filter((n) => n.type !== 'text')
+  const source = contentNodes.length > 0 ? contentNodes : nodes
+
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+
+  for (const node of source) {
+    const { width, height } = getNodeSize(node)
+    minX = Math.min(minX, node.position.x)
+    minY = Math.min(minY, node.position.y)
+    maxX = Math.max(maxX, node.position.x + width)
+    maxY = Math.max(maxY, node.position.y + height)
+  }
+
+  const frameNode: Node<BaseNodeData> = {
+    id: `template-frame-${Date.now()}`,
+    type: 'frame',
+    zIndex: -1,
+    position: {
+      x: Math.round(minX - FRAME_PADDING_X),
+      y: Math.round(minY - FRAME_PADDING_Y),
+    },
+    style: {
+      width: Math.round(Math.max(220, (maxX - minX) + FRAME_PADDING_X * 2)),
+      height: Math.round(Math.max(180, (maxY - minY) + FRAME_PADDING_Y * 2)),
+    },
+    data: {
+      nodeType: 'frame',
+      label: 'Frame',
+      animationState: 'idle',
+      accentColor: '#2664e8',
+      config: {
+        title: templateName,
+        width: Math.round(Math.max(220, (maxX - minX) + FRAME_PADDING_X * 2)),
+        height: Math.round(Math.max(180, (maxY - minY) + FRAME_PADDING_Y * 2)),
+        groupGlow: false,
+      },
+    },
+  }
+
+  return [...nodes, frameNode]
+}
+
 // ── Category badge ─────────────────────────────────────────────────────────────
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -106,7 +176,12 @@ export default function TemplatesPanel({ open, onClose }: TemplatesPanelProps) {
         ? result.nodes
         : applyAutoLayout(result.nodes, result.edges, nextLayoutDirection)
 
-      setNodes(finalNodes as Node<BaseNodeData>[])
+      const nodesWithFrame = withDefaultTemplateFrame(
+        finalNodes as Node<BaseNodeData>[],
+        name ?? result.name,
+      )
+
+      setNodes(nodesWithFrame)
       setEdges(result.edges)
       setFlowName(name ?? result.name)
       onClose()

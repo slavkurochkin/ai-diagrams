@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { ReactFlowProvider } from 'reactflow'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Minimize2 } from 'lucide-react'
@@ -17,6 +17,7 @@ import { streamEvalSuggestions } from './lib/api/evalSuggestions'
 import { streamDesignReview } from './lib/api/designReview'
 import { saveFlow } from './lib/flowSerializer'
 import { applyAutoLayout } from './lib/autoLayout'
+import { exportPlaybackAsGIF } from './lib/exportUtils'
 import type { Node } from 'reactflow'
 import type { BaseNodeData } from './types/nodes'
 import type { FlowContext } from './types/flow'
@@ -41,10 +42,12 @@ function AppInner() {
   const setFlowContext     = useFlowStore((s) => s.setFlowContext)
 
   const animation = useFlowAnimation()
+  const animationStatusRef = useRef(animation.status)
 
   // ── Panel state ─────────────────────────────────────────────────────────────
 
   const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [exportingGIF, setExportingGIF] = useState(false)
 
   // Flow context modal
   const [contextModalOpen, setContextModalOpen] = useState(false)
@@ -64,6 +67,10 @@ function AppInner() {
 
   const [evalText, setEvalText]               = useState('')
   const [evalStatus, setEvalStatus]           = useState<PanelStatus>('idle')
+
+  useEffect(() => {
+    animationStatusRef.current = animation.status
+  }, [animation.status])
 
   const handleExplain = useCallback(async (nodeId?: string) => {
     setAiPanelOpen(true)
@@ -258,6 +265,68 @@ function AppInner() {
     />
   )
 
+  const handleExportGIF = useCallback(async () => {
+    if (nodes.length === 0 || exportingGIF) return
+    setExportingGIF(true)
+
+    try {
+      await exportPlaybackAsGIF({
+        nodes: nodes as Node<BaseNodeData>[],
+        flowName,
+        isDark: theme === 'dark',
+        beforeCapture: async () => {
+          animation.reset()
+          await new Promise((r) => setTimeout(r, 50))
+          animation.play()
+        },
+        isPlaybackDone: () => animationStatusRef.current === 'done',
+        afterCapture: () => animation.reset(),
+      })
+    } catch (err) {
+      console.error('[AgentFlow] GIF export failed:', err)
+    } finally {
+      setExportingGIF(false)
+    }
+  }, [nodes, exportingGIF, flowName, theme, animation])
+
+  const handleExportGIFSelection = useCallback(async () => {
+    if (nodes.length === 0 || exportingGIF) return
+    const allNodes = nodes as Node<BaseNodeData>[]
+    const canvasSelected = allNodes.filter((n) => n.selected)
+    const focusedNode = selectedNodeId
+      ? allNodes.find((n) => n.id === selectedNodeId) ?? null
+      : null
+
+    let captureNodes = canvasSelected
+    if (focusedNode?.type === 'frame') {
+      captureNodes = [focusedNode]
+    } else if (focusedNode && !captureNodes.some((n) => n.id === focusedNode.id)) {
+      captureNodes = [focusedNode, ...captureNodes]
+    }
+
+    if (captureNodes.length === 0) return
+    setExportingGIF(true)
+
+    try {
+      await exportPlaybackAsGIF({
+        nodes: captureNodes,
+        flowName,
+        isDark: theme === 'dark',
+        beforeCapture: async () => {
+          animation.reset()
+          await new Promise((r) => setTimeout(r, 50))
+          animation.play()
+        },
+        isPlaybackDone: () => animationStatusRef.current === 'done',
+        afterCapture: () => animation.reset(),
+      })
+    } catch (err) {
+      console.error('[AgentFlow] GIF selection export failed:', err)
+    } finally {
+      setExportingGIF(false)
+    }
+  }, [nodes, selectedNodeId, exportingGIF, flowName, theme, animation])
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0F1117] text-white">
 
@@ -276,6 +345,11 @@ function AppInner() {
             hasContext={!!flowContext}
             reviewDisabled={nodes.length === 0 || reviewStatus === 'loading' || reviewStatus === 'streaming'}
             evalDisabled={nodes.length === 0 || evalStatus === 'loading' || evalStatus === 'streaming'}
+            onExportGIF={handleExportGIF}
+            exportGIFDisabled={nodes.length === 0 || exportingGIF}
+            exportGIFBusy={exportingGIF}
+            onExportGIFSelection={handleExportGIFSelection}
+            exportGIFSelectionDisabled={nodes.length === 0 || exportingGIF || !nodes.some((n) => n.selected)}
           />
           <div className="flex flex-1 overflow-hidden">
             <Sidebar />

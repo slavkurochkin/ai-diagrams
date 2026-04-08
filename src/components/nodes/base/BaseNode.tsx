@@ -58,6 +58,8 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
   const compactMode       = useFlowStore((s) => s.compactMode)
   const layoutDirection   = useFlowStore((s) => s.layoutDirection)
   const showAllNotes      = useFlowStore((s) => s.showAllNotes)
+  const hideNotesDuringPlayback = useFlowStore((s) => s.hideNotesDuringPlayback)
+  const isPlaybackRunning = useFlowStore((s) => s.isPlaybackRunning)
   const isDark = theme === 'dark'
   const def = getNodeDefinition(data.nodeType)
 
@@ -70,7 +72,8 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
   const animState  = data.animationState ?? 'idle'
   const isActiveOrProcessing = animState === 'active' || animState === 'processing'
   const ringColor  = ANIM_RING[animState] ?? 'transparent'
-  const showNote   = !!data.note && (showAllNotes || data.noteAlwaysVisible || animState === 'processing')
+  const hideNotesNow = hideNotesDuringPlayback && isPlaybackRunning
+  const showNote   = !!data.note && !hideNotesNow && (showAllNotes || data.noteAlwaysVisible || animState === 'processing')
   const resolvedNotePlacement = data.notePlacement === 'right' || data.notePlacement === 'bottom'
     ? data.notePlacement
     : layoutDirection === 'LR'

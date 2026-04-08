@@ -20,7 +20,13 @@ interface FlowAnimationAPI {
 }
 
 export function useFlowAnimation(): FlowAnimationAPI {
-  const { nodes, edges, setNodeAnimationState, resetAllAnimationStates } = useFlowStore()
+  const {
+    nodes,
+    edges,
+    setNodeAnimationState,
+    resetAllAnimationStates,
+    setPlaybackRunning,
+  } = useFlowStore()
 
   const [status, setStatus]           = useState<AnimationStatus>('idle')
   const [speed, setSpeed]             = useState<AnimationSpeed>(1)
@@ -49,6 +55,7 @@ export function useFlowAnimation(): FlowAnimationAPI {
     if (idx >= steps.length) {
       // Done
       setStatus('done')
+      setPlaybackRunning(false)
       setActiveEdges([])
       return
     }
@@ -161,8 +168,9 @@ export function useFlowAnimation(): FlowAnimationAPI {
     }
     setStatus('playing')
     statusRef.current = 'playing'
+    setPlaybackRunning(true)
     executeStep()
-  }, [nodes, edges, resetAllAnimationStates, executeStep])
+  }, [nodes, edges, resetAllAnimationStates, setPlaybackRunning, executeStep])
 
   const pause = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -170,7 +178,8 @@ export function useFlowAnimation(): FlowAnimationAPI {
     edgeTimersRef.current = []
     setStatus('paused')
     statusRef.current = 'paused'
-  }, [])
+    setPlaybackRunning(false)
+  }, [setPlaybackRunning])
 
   const reset = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -178,11 +187,12 @@ export function useFlowAnimation(): FlowAnimationAPI {
     edgeTimersRef.current = []
     setStatus('idle')
     statusRef.current    = 'idle'
+    setPlaybackRunning(false)
     stepIndexRef.current = 0
     stepsRef.current     = []
     setActiveEdges([])
     resetAllAnimationStates()
-  }, [resetAllAnimationStates])
+  }, [resetAllAnimationStates, setPlaybackRunning])
 
   const handleSetSpeed = useCallback((s: AnimationSpeed) => {
     setSpeed(s)

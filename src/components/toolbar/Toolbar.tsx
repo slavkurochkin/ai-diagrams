@@ -170,6 +170,7 @@ export default function Toolbar({
     createFrameFromSelection,
     showExecutionPriorities, toggleExecutionPriorities,
     showAllNotes, toggleShowAllNotes,
+    hideNotesDuringPlayback, toggleHideNotesDuringPlayback,
     globalPathThickness, setGlobalPathThickness,
     globalPathColor, setGlobalPathColor,
   } = useFlowStore()
@@ -448,6 +449,12 @@ export default function Toolbar({
             icon={<BookOpen size={14} />}
             label={showAllNotes ? 'Hide all notes' : 'Show all notes'}
             description="Temporarily show every node note for layout tuning"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(toggleHideNotesDuringPlayback)}
+            icon={<BookOpen size={14} />}
+            label={hideNotesDuringPlayback ? 'Show notes while playing' : 'Hide notes while playing'}
+            description="Automatically hide note cards during playback"
           />
           <MenuAction
             onClick={() => handleMenuAction(handleThemeToggle)}

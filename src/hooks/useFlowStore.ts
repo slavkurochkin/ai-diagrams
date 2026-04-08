@@ -21,6 +21,8 @@ interface FlowStore {
   flowContext: FlowContext | null
   showExecutionPriorities: boolean
   showAllNotes: boolean
+  hideNotesDuringPlayback: boolean
+  isPlaybackRunning: boolean
   globalPathThickness: number
   globalPathColor: string
 
@@ -71,6 +73,8 @@ interface FlowStore {
   setFlowContext: (context: FlowContext | null) => void
   toggleExecutionPriorities: () => void
   toggleShowAllNotes: () => void
+  toggleHideNotesDuringPlayback: () => void
+  setPlaybackRunning: (running: boolean) => void
   setGlobalPathThickness: (thickness: number) => void
   setGlobalPathColor: (color: string) => void
 
@@ -163,6 +167,8 @@ export const useFlowStore = create<FlowStore>((set) => ({
   flowContext: null,
   showExecutionPriorities: false,
   showAllNotes: false,
+  hideNotesDuringPlayback: false,
+  isPlaybackRunning: false,
   globalPathThickness: 1,
   globalPathColor: '#FFFFFF',
 
@@ -493,6 +499,9 @@ export const useFlowStore = create<FlowStore>((set) => ({
     set((state) => ({ showExecutionPriorities: !state.showExecutionPriorities })),
   toggleShowAllNotes: () =>
     set((state) => ({ showAllNotes: !state.showAllNotes })),
+  toggleHideNotesDuringPlayback: () =>
+    set((state) => ({ hideNotesDuringPlayback: !state.hideNotesDuringPlayback })),
+  setPlaybackRunning: (isPlaybackRunning) => set({ isPlaybackRunning }),
   setGlobalPathThickness: (thickness) => {
     const nextThickness = Math.max(0.5, Math.min(4, Number.isFinite(thickness) ? thickness : 1))
     set({ globalPathThickness: Number(nextThickness.toFixed(2)) })

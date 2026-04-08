@@ -76,16 +76,26 @@ function getExportBounds(nodes: Node[]) {
 /**
  * Builds the toPng options needed to frame the diagram tightly around nodes.
  */
-function getExportOptions(nodes: Node[], isDark: boolean) {
+function getExportOptions(
+  nodes: Node[],
+  isDark: boolean,
+  options?: { extraPaddingPercent?: number },
+) {
   const bounds = getExportBounds(nodes)
+  const extraPaddingPercent = Math.max(
+    0,
+    Math.min(0.4, options?.extraPaddingPercent ?? 0),
+  )
+  const dynamicPadding = Math.max(bounds.width, bounds.height) * extraPaddingPercent
+  const totalPadding = EXPORT_PADDING + dynamicPadding
 
   const imageWidth = Math.max(
     EXPORT_MIN_WIDTH,
-    bounds.width + EXPORT_PADDING * 2,
+    bounds.width + totalPadding * 2,
   )
   const imageHeight = Math.max(
     EXPORT_MIN_HEIGHT,
-    bounds.height + EXPORT_PADDING * 2,
+    bounds.height + totalPadding * 2,
   )
 
   const transform = getTransformForBounds(
@@ -152,6 +162,7 @@ interface ExportPlaybackGIFOptions {
   nodes: Node[]
   flowName: string
   isDark: boolean
+  paddingPercent?: number
   fps?: number
   maxDurationMs?: number
   beforeCapture?: () => Promise<void> | void
@@ -187,6 +198,7 @@ export async function exportPlaybackAsGIF({
   nodes,
   flowName,
   isDark,
+  paddingPercent = 10,
   fps = 12,
   maxDurationMs = 45_000,
   beforeCapture,
@@ -213,7 +225,9 @@ export async function exportPlaybackAsGIF({
 
   const GIF = (await import('gif.js.optimized')).default as unknown as GIFCtor
 
-  const options = getExportOptions(nodes, isDark)
+  const options = getExportOptions(nodes, isDark, {
+    extraPaddingPercent: Math.max(0, Math.min(40, paddingPercent)) / 100,
+  })
   const frameDelay = Math.max(60, Math.round(1000 / Math.max(1, fps)))
 
   if (beforeCapture) {

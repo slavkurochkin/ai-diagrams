@@ -57,6 +57,15 @@ interface FlowYAMLDoc {
   edges?: YAMLEdgeSpec[]
 }
 
+/** Matches BaseNode: auto/undefined → bottom for LR, right for TB. */
+function effectiveNotePlacementForExport(
+  notePlacement: NotePlacement | undefined,
+  layoutDirection: 'TB' | 'LR',
+): 'right' | 'bottom' {
+  if (notePlacement === 'right' || notePlacement === 'bottom') return notePlacement
+  return layoutDirection === 'LR' ? 'bottom' : 'right'
+}
+
 // ── Parse ─────────────────────────────────────────────────────────────────────
 
 export interface ParsedFlow {
@@ -107,7 +116,6 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
   const idMap = new Map<string, string>() // yaml id → react flow id
 
   const nodes: Node<BaseNodeData>[] = []
-  let hasExplicitPositions = false
   for (const n of doc.nodes) {
     if (!n.id || !n.type) {
       return { error: `Every node must have both "id" and "type" fields` }
@@ -117,7 +125,6 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
     }
     const rfId = `${n.type}-${_counter++}`
     idMap.set(n.id, rfId)
-    if (n.position) hasExplicitPositions = true
     const sizedStyle = getSizedNodeStyle(n.type, n.config)
     nodes.push({
       id: rfId,
@@ -164,6 +171,16 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
     })
   }
 
+  // Only skip auto-layout when every node has explicit x/y (avoids mixed 0,0 + real coords).
+  const hasExplicitPositions = doc.nodes.every(
+    (n) =>
+      n.position != null &&
+      typeof n.position.x === 'number' &&
+      Number.isFinite(n.position.x) &&
+      typeof n.position.y === 'number' &&
+      Number.isFinite(n.position.y),
+  )
+
   return { name: doc.name ?? 'Imported Flow', nodes, edges, hasExplicitPositions }
 }
 
@@ -177,6 +194,7 @@ export function serializeFlowToYAML(
   name: string,
   nodes: Node<BaseNodeData>[],
   edges: Edge[],
+  layoutDirection: 'TB' | 'LR',
 ): string {
   const doc = {
     name,
@@ -190,8 +208,13 @@ export function serializeFlowToYAML(
       if (cfg && Object.keys(cfg).length > 0) entry.config = cfg
       if (n.data.note) entry.note = n.data.note
       if (n.data.noteAlwaysVisible) entry.noteAlwaysVisible = true
-      if (n.data.notePlacement && n.data.notePlacement !== 'auto') entry.notePlacement = n.data.notePlacement
-      if (n.position.x !== 0 || n.position.y !== 0) entry.position = n.position
+      // Always persist effective placement for nodes with notes so YAML round-trip matches the canvas
+      // (auto/undefined is layout-dependent in the UI but was previously omitted from YAML).
+      if (n.data.note) {
+        entry.notePlacement = effectiveNotePlacementForExport(n.data.notePlacement, layoutDirection)
+      }
+      // Always persist position (including 0,0) so reimport matches the canvas.
+      entry.position = { x: n.position.x, y: n.position.y }
       return entry
     }),
     edges: edges.map((e) => {

@@ -4,7 +4,7 @@ import {
   Sun, Moon, Save, FolderOpen, LayoutDashboard,
   ImageDown, Copy, Maximize2, Check, Sparkles, FileCode, Share2,
   AlignVerticalJustifyStart, AlignHorizontalJustifyStart, Layers, LayoutTemplate, ListOrdered,
-  FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown,
+  FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown, AlertCircle,
 } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { saveFlow, loadFlow, exportFlowAsFile } from '../../lib/flowSerializer'
@@ -97,6 +97,10 @@ interface MenuActionProps {
   tone?: 'default' | 'accent'
 }
 
+function MenuDivider() {
+  return <div className="my-1 border-t border-white/10" role="separator" />
+}
+
 function MenuAction({ onClick, icon, label, description, disabled, tone = 'default' }: MenuActionProps) {
   return (
     <button
@@ -128,7 +132,8 @@ interface ToolbarProps {
   animControls: React.ReactNode
   onExplain: () => void
   explainDisabled?: boolean
-  onTemplates: () => void
+  /** Open templates panel; `import` opens the Import YAML tab. */
+  onOpenTemplates: (tab?: 'templates' | 'import') => void
   onNewFlow: () => void
   onEditContext: () => void
   onReview: () => void
@@ -147,7 +152,7 @@ export default function Toolbar({
   animControls,
   onExplain,
   explainDisabled,
-  onTemplates,
+  onOpenTemplates,
   onNewFlow,
   onEditContext,
   onReview,
@@ -173,32 +178,52 @@ export default function Toolbar({
     hideNotesDuringPlayback, toggleHideNotesDuringPlayback,
     globalPathThickness, setGlobalPathThickness,
     globalPathColor, setGlobalPathColor,
+    gifCapturePaddingPercent, setGifCapturePaddingPercent,
   } = useFlowStore()
   const { getViewport, setViewport } = useReactFlow()
 
   const [editingName, setEditingName] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [saveFailed, setSaveFailed] = useState(false)
   const [copied, setCopied] = useState(false)
   const [shared, setShared] = useState(false)
-  const [openMenu, setOpenMenu] = useState<'view' | 'export' | 'ai' | null>(null)
+  const [openMenu, setOpenMenu] = useState<'flow' | 'view' | 'export' | 'ai' | null>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const toolbarRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
-  const handlePointerDown = (event: MouseEvent) => {
-      if (!toolbarRef.current?.contains(event.target as globalThis.Node)) {
+    const handlePointerDown = (event: PointerEvent) => {
+      const toolbarEl = toolbarRef.current
+      if (!toolbarEl) return
+
+      const path = event.composedPath?.() ?? []
+      const clickedInsideToolbar = path.includes(toolbarEl)
+
+      if (!clickedInsideToolbar) {
         setOpenMenu(null)
       }
     }
 
-    window.addEventListener('mousedown', handlePointerDown)
-    return () => window.removeEventListener('mousedown', handlePointerDown)
+    // Capture phase avoids cases where inner handlers stop bubbling.
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true)
   }, [])
 
   // ── Save ────────────────────────────────────────────────────────────────────
 
   const handleSave = useCallback(() => {
-    const viewport = getViewport()
-    saveFlow(nodes as FlowNode<BaseNodeData>[], edges, viewport, flowName, flowContext)
+    try {
+      const viewport = getViewport()
+      saveFlow(nodes as FlowNode<BaseNodeData>[], edges, viewport, flowName, flowContext)
+      setSaveFailed(false)
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 1600)
+    } catch (err) {
+      console.error('[AgentFlow] Save failed:', err)
+      setSaved(false)
+      setSaveFailed(true)
+      window.setTimeout(() => setSaveFailed(false), 2200)
+    }
   }, [nodes, edges, getViewport, flowName, flowContext])
 
   // ── Load ────────────────────────────────────────────────────────────────────
@@ -260,7 +285,7 @@ export default function Toolbar({
   }, [nodes, edges, flowName, getViewport])
 
   const handleExportYAML = useCallback(() => {
-    const yamlStr = serializeFlowToYAML(flowName, nodes as FlowNode<BaseNodeData>[], edges)
+    const yamlStr = serializeFlowToYAML(flowName, nodes as FlowNode<BaseNodeData>[], edges, layoutDirection)
     const blob = new Blob([yamlStr], { type: 'text/yaml' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -269,7 +294,7 @@ export default function Toolbar({
     a.download = `${flowName.toLowerCase().replace(/\s+/g, '-')}-${ts}.yaml`
     a.click()
     URL.revokeObjectURL(url)
-  }, [nodes, edges, flowName])
+  }, [nodes, edges, flowName, layoutDirection])
 
   const handleCopy = useCallback(async () => {
     try {
@@ -287,7 +312,7 @@ export default function Toolbar({
     setTheme(theme === 'dark' ? 'light' : 'dark')
   }, [theme, setTheme])
 
-  const handleToggleMenu = useCallback((menu: 'view' | 'export' | 'ai') => {
+  const handleToggleMenu = useCallback((menu: 'flow' | 'view' | 'export' | 'ai') => {
     setOpenMenu((prev) => (prev === menu ? null : menu))
   }, [])
 
@@ -372,34 +397,63 @@ export default function Toolbar({
 
       <div className="w-px h-5 bg-white/10 shrink-0" />
 
-      {/* Primary actions */}
-      <div className="flex items-center gap-1 shrink-0">
-        <IconButton onClick={onNewFlow} title="Start a new flow">
-          <FilePlus size={13} />
-          New Flow
-        </IconButton>
-        {hasContext && (
-          <IconButton onClick={onEditContext} title="Edit flow context and business documents">
-            <BookOpen size={13} />
-            Context
-          </IconButton>
-        )}
-        <IconButton onClick={onTemplates} title="Browse templates / import YAML">
-          <LayoutTemplate size={13} />
-          Templates
-        </IconButton>
-        <IconButton onClick={handleSave} title="Save to browser (Ctrl+S)" variant="accent">
-          <Save size={13} />
-          Save
-        </IconButton>
-        <IconButton onClick={handleLoad} title="Load from browser storage">
-          <FolderOpen size={13} />
-          Load
-        </IconButton>
-      </div>
-
       {/* Grouped menus */}
       <div className="flex items-center gap-1 shrink-0">
+        <ToolbarMenu
+          label="Flow"
+          title="New flow, templates, load, and document export"
+          open={openMenu === 'flow'}
+          onToggle={() => handleToggleMenu('flow')}
+        >
+          <MenuAction
+            onClick={() => handleMenuAction(onNewFlow)}
+            icon={<FilePlus size={14} />}
+            label="New flow"
+            description="Open the new-flow dialog"
+          />
+          {hasContext && (
+            <MenuAction
+              onClick={() => handleMenuAction(onEditContext)}
+              icon={<BookOpen size={14} />}
+              label="Flow context"
+              description="Edit context and business documents"
+            />
+          )}
+          <MenuAction
+            onClick={() => handleMenuAction(() => onOpenTemplates('templates'))}
+            icon={<LayoutTemplate size={14} />}
+            label="Browse templates"
+            description="Starter flows and built-in layouts"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(() => onOpenTemplates('import'))}
+            icon={<FileCode size={14} />}
+            label="Import YAML"
+            description="Paste or upload a .yaml file"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(handleLoad)}
+            icon={<FolderOpen size={14} />}
+            label="Load from browser"
+            description="Restore the last flow saved in this browser"
+          />
+          <MenuDivider />
+          <MenuAction
+            onClick={() => handleMenuAction(handleExportYAML)}
+            icon={<FileCode size={14} />}
+            label="Export YAML"
+            description="Download the flow as editable YAML"
+            disabled={nodes.length === 0}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(handleExportJSON)}
+            icon={<Save size={14} />}
+            label="Export JSON"
+            description="Full document with viewport for backup"
+            disabled={nodes.length === 0}
+          />
+        </ToolbarMenu>
+
         <ToolbarMenu
           label="View"
           title="Layout and view options"
@@ -501,24 +555,10 @@ export default function Toolbar({
 
         <ToolbarMenu
           label="Export"
-          title="Export and sharing options"
+          title="Images, GIF, and sharing"
           open={openMenu === 'export'}
           onToggle={() => handleToggleMenu('export')}
         >
-          <MenuAction
-            onClick={() => handleMenuAction(handleExportYAML)}
-            icon={<FileCode size={14} />}
-            label="Export YAML"
-            description="Download the flow as editable YAML"
-            disabled={nodes.length === 0}
-          />
-          <MenuAction
-            onClick={() => handleMenuAction(handleExportJSON)}
-            icon={<Save size={14} />}
-            label="Export JSON"
-            description="Download the full flow document with viewport state"
-            disabled={nodes.length === 0}
-          />
           <MenuAction
             onClick={() => handleMenuAction(handleDownload)}
             icon={<ImageDown size={14} />}
@@ -540,6 +580,25 @@ export default function Toolbar({
             description="Export only currently selected nodes/frame"
             disabled={exportGIFSelectionDisabled}
           />
+          <div className="px-3 py-2 rounded-lg bg-[#0F1720] border border-white/10">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-white/45">
+                GIF Capture Padding
+              </div>
+              <span className="text-[11px] font-mono text-white/55">
+                {gifCapturePaddingPercent}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={40}
+              step={1}
+              value={gifCapturePaddingPercent}
+              onChange={(e) => setGifCapturePaddingPercent(Number(e.target.value))}
+              className="w-full accent-cyan-400 cursor-pointer"
+            />
+          </div>
           <MenuAction
             onClick={() => handleMenuAction(handleCopy)}
             icon={copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
@@ -587,6 +646,17 @@ export default function Toolbar({
             tone="accent"
           />
         </ToolbarMenu>
+
+        <div className="w-px h-5 bg-white/10 shrink-0 self-center" />
+
+        <IconButton
+          onClick={handleSave}
+          title={saveFailed ? 'Save failed (check browser storage permissions)' : 'Save to browser (Ctrl+S)'}
+          variant="accent"
+        >
+          {saved ? <Check size={13} /> : saveFailed ? <AlertCircle size={13} className="text-red-300" /> : <Save size={13} />}
+          {saveFailed ? 'Save failed' : saved ? 'Saved' : 'Save'}
+        </IconButton>
       </div>
 
       {/* Spacer */}

@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
-import { ReactFlowProvider } from 'reactflow'
+import { ReactFlowProvider, useReactFlow } from 'reactflow'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Minimize2 } from 'lucide-react'
 import FlowCanvas from './components/canvas/FlowCanvas'
@@ -15,7 +15,7 @@ import { useFlowAnimation } from './hooks/useFlowAnimation'
 import { streamExplain } from './lib/api/explain'
 import { streamEvalSuggestions } from './lib/api/evalSuggestions'
 import { streamDesignReview } from './lib/api/designReview'
-import { saveFlow } from './lib/flowSerializer'
+import { saveFlow, loadFlow } from './lib/flowSerializer'
 import { applyAutoLayout } from './lib/autoLayout'
 import { exportPlaybackAsGIF } from './lib/exportUtils'
 import type { Node } from 'reactflow'
@@ -26,12 +26,14 @@ const CONTEXT_PROMPT_KEY = 'agentflow:contextPromptSeen'
 
 // Inner component — needs to be inside ReactFlowProvider to use useFlowAnimation
 function AppInner() {
+  const { getViewport, setViewport } = useReactFlow()
   const theme              = useFlowStore((s) => s.theme)
   const presentationMode   = useFlowStore((s) => s.presentationMode)
   const togglePresentation = useFlowStore((s) => s.togglePresentationMode)
   const nodes              = useFlowStore((s) => s.nodes)
   const edges              = useFlowStore((s) => s.edges)
   const flowName           = useFlowStore((s) => s.flowName)
+  const gifCapturePaddingPercent = useFlowStore((s) => s.gifCapturePaddingPercent)
   const selectedNodeId     = useFlowStore((s) => s.selectedNodeId)
   const removeNode         = useFlowStore((s) => s.removeNode)
   const setNodes           = useFlowStore((s) => s.setNodes)
@@ -47,6 +49,12 @@ function AppInner() {
   // ── Panel state ─────────────────────────────────────────────────────────────
 
   const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [templatesInitialTab, setTemplatesInitialTab] = useState<'templates' | 'import'>('templates')
+
+  const openTemplatesPanel = useCallback((tab: 'templates' | 'import' = 'templates') => {
+    setTemplatesInitialTab(tab)
+    setTemplatesOpen(true)
+  }, [])
   const [exportingGIF, setExportingGIF] = useState(false)
 
   // Flow context modal
@@ -170,12 +178,28 @@ function AppInner() {
   // Auto-open context modal once on first visit with empty canvas
   useEffect(() => {
     const seen = localStorage.getItem(CONTEXT_PROMPT_KEY)
-    if (!seen && nodes.length === 0 && !flowContext) {
+    const hasSavedDoc = !!loadFlow()
+    if (!seen && !hasSavedDoc && nodes.length === 0 && !flowContext) {
       setContextModalMode('new')
       setContextModalOpen(true)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // intentionally runs once on mount
+
+  // Restore the most recent local save on startup (unless shared URL hash is present)
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash.startsWith('#flow=')) return
+
+    const doc = loadFlow()
+    if (!doc) return
+
+    setNodes(doc.nodes as Node<BaseNodeData>[])
+    setEdges(doc.edges)
+    if (doc.viewport) setViewport(doc.viewport, { duration: 0 })
+    if (doc.name) setFlowName(doc.name)
+    setFlowContext(doc.flowContext ?? null)
+  }, [setNodes, setEdges, setViewport, setFlowName, setFlowContext])
 
   // Load flow from URL hash on mount (#flow=<base64>)
   useEffect(() => {
@@ -222,10 +246,10 @@ function AppInner() {
       // Ctrl+S / Cmd+S — save to localStorage
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        saveFlow(nodes as Node<BaseNodeData>[], edges, { x: 0, y: 0, zoom: 1 }, flowName, flowContext)
+        saveFlow(nodes as Node<BaseNodeData>[], edges, getViewport(), flowName, flowContext)
       }
     },
-    [togglePresentation, animation, selectedNodeId, removeNode, nodes, edges, flowName, flowContext],
+    [togglePresentation, animation, selectedNodeId, removeNode, nodes, edges, getViewport, flowName, flowContext],
   )
 
   const handleContextSave = useCallback((
@@ -253,6 +277,25 @@ function AppInner() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
+  // Continuous local backup so edits survive refresh/crash.
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      try {
+        saveFlow(
+          nodes as Node<BaseNodeData>[],
+          edges,
+          getViewport(),
+          flowName,
+          flowContext,
+        )
+      } catch (err) {
+        console.error('[AgentFlow] Autosave failed:', err)
+      }
+    }, 700)
+
+    return () => window.clearTimeout(timeout)
+  }, [nodes, edges, getViewport, flowName, flowContext])
+
   const animControls = (
     <AnimationControls
       status={animation.status}
@@ -274,6 +317,7 @@ function AppInner() {
         nodes: nodes as Node<BaseNodeData>[],
         flowName,
         isDark: theme === 'dark',
+        paddingPercent: gifCapturePaddingPercent,
         beforeCapture: async () => {
           animation.reset()
           await new Promise((r) => setTimeout(r, 50))
@@ -287,7 +331,7 @@ function AppInner() {
     } finally {
       setExportingGIF(false)
     }
-  }, [nodes, exportingGIF, flowName, theme, animation])
+  }, [nodes, exportingGIF, flowName, theme, animation, gifCapturePaddingPercent])
 
   const handleExportGIFSelection = useCallback(async () => {
     if (nodes.length === 0 || exportingGIF) return
@@ -312,6 +356,7 @@ function AppInner() {
         nodes: captureNodes,
         flowName,
         isDark: theme === 'dark',
+        paddingPercent: gifCapturePaddingPercent,
         beforeCapture: async () => {
           animation.reset()
           await new Promise((r) => setTimeout(r, 50))
@@ -325,7 +370,7 @@ function AppInner() {
     } finally {
       setExportingGIF(false)
     }
-  }, [nodes, selectedNodeId, exportingGIF, flowName, theme, animation])
+  }, [nodes, selectedNodeId, exportingGIF, flowName, theme, animation, gifCapturePaddingPercent])
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0F1117] text-white">
@@ -337,7 +382,7 @@ function AppInner() {
             animControls={animControls}
             onExplain={handleExplain}
             explainDisabled={nodes.length === 0 || explainStatus === 'loading' || explainStatus === 'streaming'}
-            onTemplates={() => setTemplatesOpen(true)}
+            onOpenTemplates={openTemplatesPanel}
             onNewFlow={() => { setContextModalMode('new'); setContextModalOpen(true) }}
             onEditContext={() => { setContextModalMode('edit'); setContextModalOpen(true) }}
             onReview={handleReview}
@@ -355,7 +400,7 @@ function AppInner() {
             <Sidebar />
             <FlowCanvas
               activeEdges={animation.activeEdges}
-              onOpenTemplates={() => setTemplatesOpen(true)}
+              onOpenTemplates={() => openTemplatesPanel('templates')}
               onExplainNode={(id) => handleExplain(id)}
             />
             <ConfigPanel />
@@ -377,6 +422,7 @@ function AppInner() {
             />
             <TemplatesPanel
               open={templatesOpen}
+              initialTab={templatesInitialTab}
               onClose={() => setTemplatesOpen(false)}
             />
             <FlowContextModal

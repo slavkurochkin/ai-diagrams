@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Upload, FileCode, ChevronRight, AlertCircle } from 'lucide-react'
 import { FLOW_TEMPLATES, CATEGORY_LABELS } from '../../lib/templates'
@@ -93,6 +93,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 interface TemplatesPanelProps {
   open: boolean
   onClose: () => void
+  /** Which tab to show when the panel opens. */
+  initialTab?: 'templates' | 'import'
 }
 
 // ── Template card ──────────────────────────────────────────────────────────────
@@ -142,10 +144,14 @@ function TemplateCard({
 
 // ── Main panel ─────────────────────────────────────────────────────────────────
 
-export default function TemplatesPanel({ open, onClose }: TemplatesPanelProps) {
+export default function TemplatesPanel({ open, onClose, initialTab = 'templates' }: TemplatesPanelProps) {
   const { nodes, setNodes, setEdges, setFlowName, layoutDirection, setLayoutDirection } = useFlowStore()
 
-  const [tab, setTab] = useState<'templates' | 'import'>('templates')
+  const [tab, setTab] = useState<'templates' | 'import'>(initialTab)
+
+  useEffect(() => {
+    if (open) setTab(initialTab)
+  }, [open, initialTab])
   const [yamlText, setYamlText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all')

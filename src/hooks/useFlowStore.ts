@@ -25,6 +25,7 @@ interface FlowStore {
   isPlaybackRunning: boolean
   globalPathThickness: number
   globalPathColor: string
+  gifCapturePaddingPercent: number
 
   // ── Graph mutations (React Flow-compatible) ───────────────────────────────
   setNodes: (nodes: Node<BaseNodeData>[]) => void
@@ -77,6 +78,7 @@ interface FlowStore {
   setPlaybackRunning: (running: boolean) => void
   setGlobalPathThickness: (thickness: number) => void
   setGlobalPathColor: (color: string) => void
+  setGifCapturePaddingPercent: (percent: number) => void
 
   // ── Presentation mode ─────────────────────────────────────────────────────
   togglePresentationMode: () => void
@@ -171,6 +173,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
   isPlaybackRunning: false,
   globalPathThickness: 1,
   globalPathColor: '#FFFFFF',
+  gifCapturePaddingPercent: 10,
 
   // ── Setters (used by load/restore) ────────────────────────────────────────
   setNodes: (nodes) => set({ nodes }),
@@ -511,6 +514,10 @@ export const useFlowStore = create<FlowStore>((set) => ({
     const trimmed = color.trim()
     if (!HEX_COLOR_RE.test(trimmed)) return
     set({ globalPathColor: trimmed })
+  },
+  setGifCapturePaddingPercent: (percent) => {
+    const safePercent = Math.max(0, Math.min(40, Number.isFinite(percent) ? percent : 10))
+    set({ gifCapturePaddingPercent: Math.round(safePercent) })
   },
 
   // ── Presentation mode ─────────────────────────────────────────────────────

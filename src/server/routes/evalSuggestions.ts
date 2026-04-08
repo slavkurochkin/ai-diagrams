@@ -10,6 +10,7 @@ interface SerializedNode {
   nodeType: string
   label: string
   config: Record<string, unknown>
+  note?: string
 }
 
 interface SerializedEdge {
@@ -18,6 +19,10 @@ interface SerializedEdge {
   sourceHandle: string | null
   target: string
   targetHandle: string | null
+  executionPriority?: number
+  travelSpeed?: number
+  pathThickness?: number
+  pathColor?: string
 }
 
 interface FlowContextDocument {
@@ -45,12 +50,15 @@ function graphToText(nodes: SerializedNode[], edges: SerializedEdge[], flowName:
   const nodeMap = new Map(nodes.map((n) => [n.id, n]))
 
   const nodeLines = nodes.map((n) => {
-    const configEntries = Object.entries(n.config)
+    const configLines = Object.entries(n.config)
       .filter(([, v]) => v !== undefined && v !== '' && v !== null)
       .map(([k, v]) => `    ${k}: ${String(v)}`)
-      .join('\n')
-    return configEntries
-      ? `- [${n.nodeType.toUpperCase()}] "${n.label}" (id: ${n.id})\n${configEntries}`
+    const noteLines = n.note
+      ? ['    note (strategy / context):', ...n.note.split('\n').map((line) => `    ${line}`)]
+      : []
+    const body = [...configLines, ...noteLines].join('\n')
+    return body
+      ? `- [${n.nodeType.toUpperCase()}] "${n.label}" (id: ${n.id})\n${body}`
       : `- [${n.nodeType.toUpperCase()}] "${n.label}" (id: ${n.id})`
   })
 
@@ -62,7 +70,21 @@ function graphToText(nodes: SerializedNode[], edges: SerializedEdge[], flowName:
     const handles = e.sourceHandle && e.targetHandle
       ? ` [${e.sourceHandle} → ${e.targetHandle}]`
       : ''
-    return `- ${srcLabel} → ${tgtLabel}${handles}`
+    const meta: string[] = []
+    if (typeof e.executionPriority === 'number') {
+      meta.push(`priority=${e.executionPriority}`)
+    }
+    if (typeof e.travelSpeed === 'number') {
+      meta.push(`travelSpeed=${e.travelSpeed}`)
+    }
+    if (typeof e.pathThickness === 'number') {
+      meta.push(`pathThickness=${e.pathThickness}`)
+    }
+    if (e.pathColor) {
+      meta.push(`pathColor=${e.pathColor}`)
+    }
+    const metaStr = meta.length > 0 ? ` (${meta.join(', ')})` : ''
+    return `- ${srcLabel} → ${tgtLabel}${handles}${metaStr}`
   })
 
   return [
@@ -119,6 +141,7 @@ evalSuggestionsRouter.post('/eval-suggestions', async (req, res) => {
 
   const systemPrompt = `You are an expert in AI/LLM system evaluation and QA engineering.
 The user will provide a description of an AI agent or pipeline, optionally with business documents, and the diagram of its components.
+Each node may list **config** (model, thresholds, prompts, etc.) and an optional **note** with strategy or context. Edges may list **priority** and **travelSpeed** when the author set routing or animation hints—use these to infer parallel vs sequential emphasis and risk focus.
 Your job is to produce actionable evaluation recommendations.
 
 Structure your response in exactly these three sections:

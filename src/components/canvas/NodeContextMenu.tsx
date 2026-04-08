@@ -1,20 +1,23 @@
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Trash2, Copy, Sparkles } from 'lucide-react'
+import { Trash2, Copy, Sparkles, FlaskConical } from 'lucide-react'
 
 interface NodeContextMenuProps {
   x: number
   y: number
   nodeId: string
+  evalTargetNodeIds: string[]
   onDelete: (nodeId: string) => void
   onDuplicate: (nodeId: string) => void
   onExplainNode: (nodeId: string) => void
+  onEvalTargets: (nodeIds: string[]) => void
   onClose: () => void
 }
 
 export default function NodeContextMenu({
   x, y, nodeId,
-  onDelete, onDuplicate, onExplainNode, onClose,
+  evalTargetNodeIds,
+  onDelete, onDuplicate, onExplainNode, onEvalTargets, onClose,
 }: NodeContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -39,6 +42,11 @@ export default function NodeContextMenu({
   const items = [
     { icon: Copy, label: 'Duplicate', action: () => { onDuplicate(nodeId); onClose() } },
     { icon: Sparkles, label: 'Explain this node', action: () => { onExplainNode(nodeId); onClose() } },
+    {
+      icon: FlaskConical,
+      label: evalTargetNodeIds.length > 1 ? `Eval selected group (${evalTargetNodeIds.length})` : 'Eval this node',
+      action: () => { onEvalTargets(evalTargetNodeIds); onClose() },
+    },
     { icon: Trash2, label: 'Delete', action: () => { onDelete(nodeId); onClose() }, danger: true },
   ]
 

@@ -170,6 +170,40 @@ function AppInner() {
     }
   }, [nodes, edges, flowName, flowContext])
 
+  const handleEvalTargets = useCallback(async (targetNodeIds: string[]) => {
+    const ids = [...new Set(targetNodeIds)].filter(Boolean)
+    if (ids.length === 0) return
+    const scopedNodes = nodes.filter((n) => ids.includes(n.id))
+    if (scopedNodes.length === 0) return
+    const idSet = new Set(scopedNodes.map((n) => n.id))
+    const scopedEdges = edges.filter((e) => idSet.has(e.source) || idSet.has(e.target))
+
+    setAiPanelOpen(true)
+    setAiPanelTab('eval')
+    setEvalText('')
+    setEvalStatus('loading')
+    try {
+      await streamEvalSuggestions(
+        scopedNodes as Parameters<typeof streamEvalSuggestions>[0],
+        scopedEdges,
+        ids.length === 1 ? (scopedNodes[0]?.data.label ?? flowName) : `${flowName} (selection)`,
+        flowContext,
+        (chunk) => {
+          setEvalText((t) => t + chunk)
+          setEvalStatus('streaming')
+        },
+        () => setEvalStatus('done'),
+        (msg) => {
+          setEvalText(msg)
+          setEvalStatus('error')
+        },
+      )
+    } catch (err) {
+      setEvalText(err instanceof Error ? err.message : 'Unexpected error')
+      setEvalStatus('error')
+    }
+  }, [nodes, edges, flowName, flowContext])
+
   // Apply dark/light class to <html>
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
@@ -402,6 +436,7 @@ function AppInner() {
               activeEdges={animation.activeEdges}
               onOpenTemplates={() => openTemplatesPanel('templates')}
               onExplainNode={(id) => handleExplain(id)}
+              onEvalTargets={handleEvalTargets}
             />
             <ConfigPanel />
             <ExplainPanel

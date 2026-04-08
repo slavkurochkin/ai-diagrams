@@ -4,6 +4,8 @@ import type { FlowContext } from '../../types/flow'
 
 // ── Request payload ────────────────────────────────────────────────────────────
 
+const MAX_NOTE_CHARS = 4000
+
 function serializePayload(
   nodes: Node<BaseNodeData>[],
   edges: Edge[],
@@ -12,19 +14,43 @@ function serializePayload(
 ) {
   return {
     flowName,
-    nodes: nodes.map((n) => ({
-      id: n.id,
-      nodeType: n.data.nodeType,
-      label: n.data.label,
-      config: n.data.config ?? {},
-    })),
-    edges: edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      sourceHandle: e.sourceHandle ?? null,
-      target: e.target,
-      targetHandle: e.targetHandle ?? null,
-    })),
+    nodes: nodes.map((n) => {
+      const rawNote = typeof n.data.note === 'string' ? n.data.note.trim() : ''
+      const note =
+        rawNote.length > MAX_NOTE_CHARS
+          ? `${rawNote.slice(0, MAX_NOTE_CHARS)}…`
+          : rawNote || undefined
+      return {
+        id: n.id,
+        nodeType: n.data.nodeType,
+        label: n.data.label,
+        config: n.data.config ?? {},
+        ...(note ? { note } : {}),
+      }
+    }),
+    edges: edges.map((e) => {
+      const d = e.data as
+        | {
+            executionPriority?: number
+            travelSpeed?: number
+            pathThickness?: number
+            pathColor?: string
+          }
+        | undefined
+      return {
+        id: e.id,
+        source: e.source,
+        sourceHandle: e.sourceHandle ?? null,
+        target: e.target,
+        targetHandle: e.targetHandle ?? null,
+        ...(typeof d?.executionPriority === 'number'
+          ? { executionPriority: d.executionPriority }
+          : {}),
+        ...(typeof d?.travelSpeed === 'number' ? { travelSpeed: d.travelSpeed } : {}),
+        ...(typeof d?.pathThickness === 'number' ? { pathThickness: d.pathThickness } : {}),
+        ...(typeof d?.pathColor === 'string' && d.pathColor ? { pathColor: d.pathColor } : {}),
+      }
+    }),
     flowContext: flowContext ?? null,
   }
 }

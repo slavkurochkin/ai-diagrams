@@ -32,6 +32,7 @@ interface FlowCanvasProps {
   activeEdges: ActiveEdge[]
   onOpenTemplates?: () => void
   onExplainNode?: (nodeId: string) => void
+  onEvalTargets?: (nodeIds: string[]) => void
 }
 
 const FLOW_PROPS = {
@@ -53,7 +54,7 @@ const THEME = {
   light: { bg: '#F8FAFC', dot: '#00000012' },
 }
 
-export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode }: FlowCanvasProps) {
+export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode, onEvalTargets }: FlowCanvasProps) {
   const nodes         = useFlowStore((s) => s.nodes)
   const edges         = useFlowStore((s) => s.edges)
   const theme         = useFlowStore((s) => s.theme)
@@ -64,11 +65,50 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
   const colors = THEME[theme]
 
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
+  const [ctxEvalTargetIds, setCtxEvalTargetIds] = useState<string[]>([])
 
   const handleNodeContextMenu = useCallback<NodeMouseHandler>((e, node) => {
     e.preventDefault()
+    const selectedNonFrame = nodes.filter((n) => n.selected && n.type !== 'frame').map((n) => n.id)
+    const nodeConfig = (node.data as { config?: Record<string, unknown> } | undefined)?.config
+    const frameWidth = typeof node.width === 'number'
+      ? node.width
+      : typeof node.style?.width === 'number'
+        ? node.style.width
+        : typeof nodeConfig?.width === 'number'
+          ? nodeConfig.width
+          : 420
+    const frameHeight = typeof node.height === 'number'
+      ? node.height
+      : typeof node.style?.height === 'number'
+        ? node.style.height
+        : typeof nodeConfig?.height === 'number'
+          ? nodeConfig.height
+          : 260
+
+    let evalTargets: string[] = [node.id]
+    if (node.type === 'frame') {
+      const minX = node.position.x
+      const minY = node.position.y
+      const maxX = minX + frameWidth
+      const maxY = minY + frameHeight
+      const inFrame = nodes
+        .filter((n) => n.id !== node.id && n.type !== 'frame')
+        .filter((n) =>
+          n.position.x >= minX &&
+          n.position.x <= maxX &&
+          n.position.y >= minY &&
+          n.position.y <= maxY,
+        )
+        .map((n) => n.id)
+      if (inFrame.length > 0) evalTargets = inFrame
+    } else if (node.selected && selectedNonFrame.length > 1) {
+      evalTargets = selectedNonFrame
+    }
+
+    setCtxEvalTargetIds(evalTargets)
     setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: node.id })
-  }, [])
+  }, [nodes])
 
   const {
     handleNodesChange,
@@ -115,7 +155,7 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
         onConnect={handleConnect}
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}
-        onPaneClick={() => { handlePaneClick(); setCtxMenu(null) }}
+        onPaneClick={() => { handlePaneClick(); setCtxMenu(null); setCtxEvalTargetIds([]) }}
         onNodeContextMenu={handleNodeContextMenu}
         proOptions={{ hideAttribution: false }}
         {...FLOW_PROPS}
@@ -173,10 +213,12 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
             x={ctxMenu.x}
             y={ctxMenu.y}
             nodeId={ctxMenu.nodeId}
+            evalTargetNodeIds={ctxEvalTargetIds}
             onDelete={(id) => { removeNode(id) }}
             onDuplicate={(id) => { duplicateNode(id) }}
             onExplainNode={(id) => { onExplainNode?.(id) }}
-            onClose={() => setCtxMenu(null)}
+            onEvalTargets={(ids) => { onEvalTargets?.(ids) }}
+            onClose={() => { setCtxMenu(null); setCtxEvalTargetIds([]) }}
           />
         )}
       </AnimatePresence>

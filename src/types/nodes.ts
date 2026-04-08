@@ -114,6 +114,7 @@ export interface FrameNodeConfig {
   title: string
   width: number
   height: number
+  groupGlow: boolean
 }
 
 export interface TextNodeConfig {

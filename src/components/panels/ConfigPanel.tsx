@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Trash2, StickyNote, BarChart2 } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
@@ -9,6 +9,8 @@ import RAGEvalPanel from './RAGEvalPanel'
 
 const EDGE_SPEED_PRESETS = [0.25, 0.5, 1, 2] as const
 const EDGE_THICKNESS_PRESETS = [0.75, 1, 1.5, 2, 3] as const
+const DEFAULT_FRAME_WIDTH = 420
+const DEFAULT_FRAME_HEIGHT = 260
 
 // ── Individual field renderers ─────────────────────────────────────────────────
 
@@ -178,7 +180,7 @@ function FieldRow({ field, value, onChange }: FieldProps) {
 // ── Config Panel ───────────────────────────────────────────────────────────────
 
 export default function ConfigPanel() {
-  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, updateNodeConfig, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, removeNode, setSelectedNode, setSelectedEdge } =
+  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, updateNodeConfig, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
     useFlowStore()
 
   const selectedNode = selectedNodeId
@@ -195,6 +197,20 @@ export default function ConfigPanel() {
   const outgoingEdges = selectedNode
     ? edges.filter((e) => e.source === selectedNode.id)
     : []
+  const frameNodes = useMemo(() => {
+    return nodes
+      .filter((n) => n.type === 'frame')
+      .map((n) => {
+        const titleRaw = n.data?.config?.title
+        const title = typeof titleRaw === 'string' && titleRaw.trim().length > 0 ? titleRaw.trim() : n.data.label
+        const widthRaw = n.data?.config?.width
+        const width = typeof widthRaw === 'number' ? widthRaw : DEFAULT_FRAME_WIDTH
+        const heightRaw = n.data?.config?.height
+        const height = typeof heightRaw === 'number' ? heightRaw : DEFAULT_FRAME_HEIGHT
+        return { id: n.id, title, area: width * height }
+      })
+      .sort((a, b) => a.area - b.area)
+  }, [nodes])
 
   const handleChange = useCallback(
     (key: string, value: string | number | boolean) => {
@@ -331,6 +347,69 @@ export default function ConfigPanel() {
                   : 'Override this node’s accent color without changing the default color for the whole component type.'}
               </p>
             </div>
+
+            {isFrameNode && frameNodes.length > 1 && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                  Frame Layer
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => bringFrameToFront(selectedNode.id)}
+                    className="
+                      px-2 py-1 rounded-md text-[11px] font-medium
+                      bg-cyan-800/40 border border-cyan-400/45 text-cyan-200
+                      hover:bg-cyan-700/45 transition-colors
+                    "
+                  >
+                    Bring to front
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => sendFrameToBack(selectedNode.id)}
+                    className="
+                      px-2 py-1 rounded-md text-[11px] font-medium
+                      bg-white/5 border border-white/10 text-white/70
+                      hover:bg-white/10 hover:text-white transition-colors
+                    "
+                  >
+                    Send to back
+                  </button>
+                </div>
+                <p className="text-[10px] text-white/30 leading-relaxed">
+                  Frames stay behind regular nodes, but you can reorder them to avoid blur from overlaps.
+                </p>
+
+                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                  Select Another Frame
+                </label>
+                <div className="space-y-1.5">
+                  {frameNodes.map((frame) => {
+                    const active = frame.id === selectedNode.id
+                    return (
+                      <button
+                        key={frame.id}
+                        type="button"
+                        onClick={() => setSelectedNode(frame.id)}
+                        className={`
+                          w-full text-left px-2.5 py-1.5 rounded-md text-[11px]
+                          border transition-colors
+                          ${active
+                            ? 'bg-cyan-900/35 border-cyan-500/45 text-cyan-200'
+                            : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'}
+                        `}
+                      >
+                        {frame.title}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[10px] text-white/30 leading-relaxed">
+                  Frames are ordered from smaller to larger so nested groups are easier to pick.
+                </p>
+              </div>
+            )}
 
             {/* ── Path priorities ───────────────────────────────────────── */}
             {!isFrameNode && !isTextNode && outgoingEdges.length > 0 && (

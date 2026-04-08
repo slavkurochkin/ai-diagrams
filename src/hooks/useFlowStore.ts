@@ -52,6 +52,12 @@ interface FlowStore {
   toggleNodeNoteVisible: (nodeId: string) => void
   /** Updates where the note card is rendered around the node. */
   updateNodeNotePlacement: (nodeId: string, placement: NotePlacement) => void
+  /** Creates a frame node around currently selected nodes. */
+  createFrameFromSelection: () => boolean
+  /** Moves a frame above all other frames (while still behind regular nodes). */
+  bringFrameToFront: (nodeId: string) => void
+  /** Moves a frame below all other frames. */
+  sendFrameToBack: (nodeId: string) => void
 
   // ── Selection ─────────────────────────────────────────────────────────────
   setSelectedNode: (nodeId: string | null) => void
@@ -90,6 +96,10 @@ interface FlowStore {
 }
 
 let nodeCounter = 1
+const DEFAULT_NODE_WIDTH = 220
+const DEFAULT_NODE_HEIGHT = 110
+const GROUP_FRAME_PADDING_X = 48
+const GROUP_FRAME_PADDING_Y = 56
 
 function generateNodeId(type: string): string {
   return `${type}-${nodeCounter++}`
@@ -113,6 +123,30 @@ function getSizedNodeStyle(type: string, config: Record<string, string | number 
     }
   }
   return undefined
+}
+
+function getNodeDimension(
+  node: Node<BaseNodeData>,
+  key: 'width' | 'height',
+  fallback: number,
+): number {
+  const measured = node[key]
+  if (typeof measured === 'number' && Number.isFinite(measured)) return measured
+
+  const styled = (node.style?.[key] as number | undefined)
+  if (typeof styled === 'number' && Number.isFinite(styled)) return styled
+
+  const cfg = node.data?.config?.[key]
+  if (typeof cfg === 'number' && Number.isFinite(cfg)) return cfg
+
+  return fallback
+}
+
+function getFrameZIndex(node: Node<BaseNodeData>): number {
+  if (typeof node.zIndex === 'number' && Number.isFinite(node.zIndex)) {
+    return Math.min(-1, Math.floor(node.zIndex))
+  }
+  return -1
 }
 
 export const useFlowStore = create<FlowStore>((set) => ({
@@ -313,6 +347,109 @@ export const useFlowStore = create<FlowStore>((set) => ({
         n.id === nodeId ? { ...n, data: { ...n.data, notePlacement } } : n,
       ),
     }))
+  },
+
+  createFrameFromSelection: () => {
+    let created = false
+
+    set((state) => {
+      const selectedNodes = state.nodes.filter((n) => n.selected && n.type !== 'frame')
+      if (selectedNodes.length === 0) return state
+
+      let minX = Number.POSITIVE_INFINITY
+      let minY = Number.POSITIVE_INFINITY
+      let maxX = Number.NEGATIVE_INFINITY
+      let maxY = Number.NEGATIVE_INFINITY
+
+      for (const node of selectedNodes) {
+        const width = getNodeDimension(node, 'width', DEFAULT_NODE_WIDTH)
+        const height = getNodeDimension(node, 'height', DEFAULT_NODE_HEIGHT)
+        minX = Math.min(minX, node.position.x)
+        minY = Math.min(minY, node.position.y)
+        maxX = Math.max(maxX, node.position.x + width)
+        maxY = Math.max(maxY, node.position.y + height)
+      }
+
+      const frameX = Math.round(minX - GROUP_FRAME_PADDING_X)
+      const frameY = Math.round(minY - GROUP_FRAME_PADDING_Y)
+      const frameWidth = Math.round(Math.max(180, (maxX - minX) + GROUP_FRAME_PADDING_X * 2))
+      const frameHeight = Math.round(Math.max(120, (maxY - minY) + GROUP_FRAME_PADDING_Y * 2))
+      const frameId = generateNodeId('frame')
+      const frameConfig = {
+        ...buildDefaultConfig('frame'),
+        title: selectedNodes.length > 1 ? `Group (${selectedNodes.length})` : 'Group',
+        width: frameWidth,
+        height: frameHeight,
+      } as Record<string, string | number | boolean>
+
+      const frameNode: Node<BaseNodeData> = {
+        id: frameId,
+        type: 'frame',
+        position: { x: frameX, y: frameY },
+        zIndex: -1,
+        style: { width: frameWidth, height: frameHeight },
+        selected: true,
+        data: {
+          nodeType: 'frame',
+          label: 'Frame',
+          animationState: 'idle',
+          config: frameConfig,
+          accentColor: '#0EA5E9',
+        },
+      }
+
+      created = true
+      return {
+        ...state,
+        nodes: [
+          ...state.nodes.map((n) => ({ ...n, selected: false })),
+          frameNode,
+        ],
+        selectedNodeId: frameId,
+        selectedEdgeId: null,
+      }
+    })
+
+    return created
+  },
+
+  bringFrameToFront: (nodeId) => {
+    set((state) => {
+      const target = state.nodes.find((n) => n.id === nodeId && n.type === 'frame')
+      if (!target) return state
+      const targetZ = getFrameZIndex(target)
+
+      return {
+        ...state,
+        nodes: state.nodes.map((node) => {
+          if (node.type !== 'frame') return node
+          const z = getFrameZIndex(node)
+          if (node.id === nodeId) return { ...node, zIndex: -1 }
+          if (z >= targetZ) return { ...node, zIndex: z - 1 }
+          return node
+        }),
+      }
+    })
+  },
+
+  sendFrameToBack: (nodeId) => {
+    set((state) => {
+      const target = state.nodes.find((n) => n.id === nodeId && n.type === 'frame')
+      if (!target) return state
+      const frameZValues = state.nodes
+        .filter((n) => n.type === 'frame')
+        .map((n) => getFrameZIndex(n))
+      const minZ = frameZValues.length > 0 ? Math.min(...frameZValues) : -1
+
+      return {
+        ...state,
+        nodes: state.nodes.map((node) =>
+          node.id === nodeId
+            ? { ...node, zIndex: minZ - 1 }
+            : node,
+        ),
+      }
+    })
   },
 
   removeNode: (nodeId) => {

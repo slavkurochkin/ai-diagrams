@@ -145,6 +145,7 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
     compactMode, toggleCompactMode,
     layoutDirection, setLayoutDirection,
     flowContext, setFlowContext,
+    createFrameFromSelection,
     showExecutionPriorities, toggleExecutionPriorities,
     showAllNotes, toggleShowAllNotes,
     globalPathThickness, setGlobalPathThickness,
@@ -271,6 +272,7 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
     action()
     setOpenMenu(null)
   }, [])
+  const selectedNonFrameCount = nodes.filter((n) => n.selected && n.type !== 'frame').length
 
   // ── Diagram name ─────────────────────────────────────────────────────────────
 
@@ -393,6 +395,13 @@ export default function Toolbar({ animControls, onExplain, explainDisabled, onTe
             label="Tidy canvas"
             description="Auto-arrange nodes with the current layout direction"
             disabled={nodes.length === 0}
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(() => { createFrameFromSelection() })}
+            icon={<Layers size={14} />}
+            label="Group selected nodes"
+            description="Create an auto-sized frame around selected nodes"
+            disabled={selectedNonFrameCount === 0}
           />
           <MenuAction
             onClick={() => handleMenuAction(toggleCompactMode)}

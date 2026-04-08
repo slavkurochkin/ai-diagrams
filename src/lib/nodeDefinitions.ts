@@ -756,6 +756,13 @@ const FrameNodeDefinition: NodeDefinition = {
       max: 1800,
       step: 10,
     },
+    {
+      key: 'groupGlow',
+      label: 'Group Glow on Activity',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'When enabled, this frame glows during playback if any node inside it is active.',
+    },
   ],
 }
 

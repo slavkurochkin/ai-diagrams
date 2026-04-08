@@ -1,7 +1,34 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Plus, Trash2, Upload, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Plus, Trash2, Upload, FileText, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import type { FlowContext, FlowContextDocument } from '../../types/flow'
+
+// ── Example data ───────────────────────────────────────────────────────────────
+
+const EXAMPLE_NAME = 'Customer Support RAG Agent'
+
+const EXAMPLE_CONTEXT: FlowContext = {
+  description:
+    'Answers customer questions about orders, returns, and product details by retrieving relevant knowledge-base articles and synthesising a concise reply. Escalates to a human agent when confidence is low or the issue involves a refund over $200.',
+  howItWorks:
+    'User message → prompt template (injects conversation history from memory) → parallel branch:\n' +
+    '  1. Embedding model converts query to vector → vector DB similarity search (top-5 chunks)\n' +
+    '  2. Classifier checks intent (FAQ / order-lookup / escalation)\n' +
+    'Retriever merges chunks → aggregator combines retrieved context + intent signal → GPT-4o generates draft reply → guardrail checks for PII and off-topic content → output parser formats the final response.\n\n' +
+    'Loopback: if the guardrail blocks the response, the agent is re-prompted with an explicit constraint and retries up to 2 times before escalating.',
+  documents: [
+    {
+      id: 'example-doc-1',
+      name: 'Returns & Refunds Policy',
+      content:
+        'Standard return window: 30 days from delivery for unused items in original packaging.\n' +
+        'Exceptions: perishables, digital downloads, and customised products are non-returnable.\n' +
+        'Refunds over $200 require manager approval and are processed within 5–7 business days.\n' +
+        'Exchanges can be initiated via the customer portal or by contacting support@example.com.',
+    },
+  ],
+}
+
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
@@ -157,6 +184,13 @@ export default function FlowContextModal({
     e.target.value = ''
   }, [])
 
+  const handleFillExample = useCallback(() => {
+    setName(EXAMPLE_NAME)
+    setDescription(EXAMPLE_CONTEXT.description)
+    setHowItWorks(EXAMPLE_CONTEXT.howItWorks)
+    setDocuments(EXAMPLE_CONTEXT.documents.map((d) => ({ ...d, id: `doc-${Date.now()}-${d.id}` })))
+  }, [])
+
   const handleSave = useCallback(() => {
     onSave(
       name.trim() || 'Untitled Flow',
@@ -211,13 +245,28 @@ export default function FlowContextModal({
                       : 'Update context to improve AI evaluation suggestions'}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors mt-0.5"
-                >
-                  <X size={15} />
-                </button>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <button
+                    type="button"
+                    onClick={handleFillExample}
+                    className="
+                      flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+                      text-[11px] font-medium text-amber-300/80
+                      bg-amber-400/8 hover:bg-amber-400/15 border border-amber-400/20
+                      transition-colors
+                    "
+                  >
+                    <Sparkles size={11} />
+                    Fill with example
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
               </div>
 
               {/* Body */}

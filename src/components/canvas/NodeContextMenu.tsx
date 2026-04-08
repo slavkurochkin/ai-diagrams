@@ -1,23 +1,25 @@
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Trash2, Copy, Sparkles, FlaskConical } from 'lucide-react'
+import { Trash2, Copy, Sparkles, FlaskConical, PlayCircle } from 'lucide-react'
 
 interface NodeContextMenuProps {
   x: number
   y: number
   nodeId: string
+  nodeType?: string
   evalTargetNodeIds: string[]
   onDelete: (nodeId: string) => void
   onDuplicate: (nodeId: string) => void
   onExplainNode: (nodeId: string) => void
   onEvalTargets: (nodeIds: string[]) => void
+  onPlayFrom: (nodeId: string) => void
   onClose: () => void
 }
 
 export default function NodeContextMenu({
-  x, y, nodeId,
+  x, y, nodeId, nodeType,
   evalTargetNodeIds,
-  onDelete, onDuplicate, onExplainNode, onEvalTargets, onClose,
+  onDelete, onDuplicate, onExplainNode, onEvalTargets, onPlayFrom, onClose,
 }: NodeContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -39,7 +41,9 @@ export default function NodeContextMenu({
     }
   }, [onClose])
 
+  const isFrame = nodeType === 'frame' || nodeType === 'text'
   const items = [
+    ...(!isFrame ? [{ icon: PlayCircle, label: 'Play from here', action: () => { onPlayFrom(nodeId); onClose() } }] : []),
     { icon: Copy, label: 'Duplicate', action: () => { onDuplicate(nodeId); onClose() } },
     { icon: Sparkles, label: 'Explain this node', action: () => { onExplainNode(nodeId); onClose() } },
     {

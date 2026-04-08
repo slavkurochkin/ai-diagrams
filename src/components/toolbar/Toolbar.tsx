@@ -4,7 +4,7 @@ import {
   Sun, Moon, Save, FolderOpen, LayoutDashboard,
   ImageDown, Copy, Maximize2, Check, Sparkles, FileCode, Share2,
   AlignVerticalJustifyStart, AlignHorizontalJustifyStart, Layers, LayoutTemplate, ListOrdered,
-  FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown, AlertCircle,
+  FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown, AlertCircle, Trash2, Info, FileCode2,
 } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { saveFlow, loadFlow, exportFlowAsFile } from '../../lib/flowSerializer'
@@ -146,6 +146,8 @@ interface ToolbarProps {
   exportGIFBusy?: boolean
   onExportGIFSelection: () => void
   exportGIFSelectionDisabled?: boolean
+  onGeneratePrompt: () => void
+  generatePromptDisabled?: boolean
 }
 
 export default function Toolbar({
@@ -165,6 +167,8 @@ export default function Toolbar({
   exportGIFBusy,
   onExportGIFSelection,
   exportGIFSelectionDisabled,
+  onGeneratePrompt,
+  generatePromptDisabled,
 }: ToolbarProps) {
   const {
     nodes, edges, theme, setTheme, setNodes, setEdges,
@@ -185,6 +189,7 @@ export default function Toolbar({
   const [editingName, setEditingName] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveFailed, setSaveFailed] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
   const [copied, setCopied] = useState(false)
   const [shared, setShared] = useState(false)
   const [openMenu, setOpenMenu] = useState<'flow' | 'view' | 'export' | 'ai' | null>(null)
@@ -337,6 +342,7 @@ export default function Toolbar({
   }, [])
 
   return (
+    <>
     <header
       ref={toolbarRef}
       className="
@@ -395,6 +401,26 @@ export default function Toolbar({
           {flowName}
         </button>
       )}
+
+      {/* Flow details button */}
+      <button
+        type="button"
+        onClick={onEditContext}
+        title={hasContext ? 'View / edit flow context' : 'Set up flow context'}
+        className={`
+          flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg shrink-0
+          text-[11px] font-medium border transition-colors duration-150
+          ${hasContext
+            ? 'text-sky-300/80 bg-sky-900/20 border-sky-700/30 hover:bg-sky-900/35 hover:text-sky-200'
+            : 'text-white/35 bg-transparent border-white/8 hover:bg-white/6 hover:text-white/60'}
+        `}
+      >
+        <Info size={12} />
+        {hasContext ? 'Flow details' : 'Add details'}
+        {hasContext && (
+          <span className="w-1.5 h-1.5 rounded-full bg-sky-400/70 shrink-0" />
+        )}
+      </button>
 
       <div className="w-px h-5 bg-white/10 shrink-0" />
 
@@ -646,6 +672,14 @@ export default function Toolbar({
             disabled={evalDisabled}
             tone="accent"
           />
+          <MenuAction
+            onClick={() => handleMenuAction(onGeneratePrompt)}
+            icon={<FileCode2 size={14} />}
+            label="Generate prompt"
+            description="Create an implementation brief for coding agents"
+            disabled={generatePromptDisabled}
+            tone="accent"
+          />
         </ToolbarMenu>
 
         <div className="w-px h-5 bg-white/10 shrink-0 self-center" />
@@ -657,6 +691,15 @@ export default function Toolbar({
         >
           {saved ? <Check size={13} /> : saveFailed ? <AlertCircle size={13} className="text-red-300" /> : <Save size={13} />}
           {saveFailed ? 'Save failed' : saved ? 'Saved' : 'Save'}
+        </IconButton>
+
+        <IconButton
+          onClick={() => setConfirmClear(true)}
+          title="Clear canvas"
+          variant="ghost"
+        >
+          <Trash2 size={13} />
+          Clear
         </IconButton>
       </div>
 
@@ -677,5 +720,42 @@ export default function Toolbar({
         </IconButton>
       </div>
     </header>
+
+    {/* Clear canvas confirmation modal */}
+    {confirmClear && (
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center"
+        style={{ background: 'rgba(0,0,0,0.55)' }}
+        onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmClear(false) }}
+      >
+        <div className="bg-gray-950 border border-white/10 rounded-2xl shadow-2xl p-6 w-[320px] flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-[14px] font-semibold text-white">Clear canvas?</span>
+            <span className="text-[12px] text-white/50">This will remove all nodes and edges. This action cannot be undone.</span>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              onClick={() => setConfirmClear(false)}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white/60 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNodes([])
+                setEdges([])
+                setConfirmClear(false)
+              }}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white bg-red-700/80 hover:bg-red-600/90 border border-red-500/40 transition-colors"
+            >
+              Clear canvas
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

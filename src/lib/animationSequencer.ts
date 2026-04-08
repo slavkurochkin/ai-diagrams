@@ -29,6 +29,48 @@ function getEdgePriority(edge: Edge): number {
  * - Outgoing branches from a node traverse in parallel.
  * - Disconnected / cyclic leftovers still animate in canvas order.
  */
+/**
+ * Builds steps starting from a specific node, animating only the subgraph
+ * reachable from it (downstream nodes only).
+ */
+export function sequenceFlowFrom(
+  nodes: Node<BaseNodeData>[],
+  edges: Edge[],
+  startNodeId: string,
+): AnimationStep[] {
+  if (!nodes.some((n) => n.id === startNodeId)) return sequenceFlow(nodes, edges)
+
+  // BFS forward (all edges, including loopbacks) to find reachable nodes
+  const forward = new Map<string, string[]>()
+  for (const n of nodes) forward.set(n.id, [])
+  for (const e of edges) {
+    if (forward.has(e.source)) forward.get(e.source)!.push(e.target)
+  }
+
+  const reachable = new Set<string>([startNodeId])
+  const queue = [startNodeId]
+  while (queue.length > 0) {
+    const curr = queue.shift()!
+    for (const next of forward.get(curr) ?? []) {
+      if (!reachable.has(next)) {
+        reachable.add(next)
+        queue.push(next)
+      }
+    }
+  }
+
+  const filteredNodes = nodes.filter((n) => reachable.has(n.id))
+  // Exclude non-loopback edges *targeting* startNodeId so its inDegree stays 0
+  const filteredEdges = edges.filter(
+    (e) =>
+      reachable.has(e.source) &&
+      reachable.has(e.target) &&
+      (e.target !== startNodeId || isLoopbackEdge(e)),
+  )
+
+  return sequenceFlow(filteredNodes, filteredEdges)
+}
+
 export function sequenceFlow(
   nodes: Node<BaseNodeData>[],
   edges: Edge[],

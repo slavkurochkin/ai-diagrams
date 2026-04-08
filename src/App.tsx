@@ -7,12 +7,14 @@ import Sidebar from './components/panels/Sidebar'
 import Toolbar from './components/toolbar/Toolbar'
 import ConfigPanel from './components/panels/ConfigPanel'
 import ExplainPanel from './components/panels/ExplainPanel'
+import PromptPanel from './components/panels/PromptPanel'
 import TemplatesPanel from './components/panels/TemplatesPanel'
 import FlowContextModal from './components/panels/FlowContextModal'
 import AnimationControls from './components/animation/AnimationControls'
 import { useFlowStore } from './hooks/useFlowStore'
 import { useFlowAnimation } from './hooks/useFlowAnimation'
 import { streamExplain } from './lib/api/explain'
+import { generateImplementationPrompt } from './lib/promptGenerator'
 import { streamEvalSuggestions } from './lib/api/evalSuggestions'
 import { streamDesignReview } from './lib/api/designReview'
 import { saveFlow, loadFlow } from './lib/flowSerializer'
@@ -26,7 +28,7 @@ const CONTEXT_PROMPT_KEY = 'agentflow:contextPromptSeen'
 
 // Inner component — needs to be inside ReactFlowProvider to use useFlowAnimation
 function AppInner() {
-  const { getViewport, setViewport, fitView } = useReactFlow()
+  const { getViewport, fitView } = useReactFlow()
   const theme              = useFlowStore((s) => s.theme)
   const presentationMode   = useFlowStore((s) => s.presentationMode)
   const togglePresentation = useFlowStore((s) => s.togglePresentationMode)
@@ -68,6 +70,9 @@ function AppInner() {
   // AI panel (explain + review + eval tabs)
   const [aiPanelOpen, setAiPanelOpen]         = useState(false)
   const [aiPanelTab, setAiPanelTab]           = useState<'explain' | 'review' | 'eval'>('explain')
+
+  const [promptPanelOpen, setPromptPanelOpen] = useState(false)
+  const [generatedPrompt, setGeneratedPrompt] = useState('')
 
   const [explainText, setExplainText]         = useState('')
   const [explainStatus, setExplainStatus]     = useState<PanelStatus>('idle')
@@ -205,6 +210,12 @@ function AppInner() {
       setEvalStatus('error')
     }
   }, [nodes, edges, flowName, flowContext])
+
+  const handleGeneratePrompt = useCallback(() => {
+    const prompt = generateImplementationPrompt(flowName, nodes as Node<BaseNodeData>[], edges, flowContext)
+    setGeneratedPrompt(prompt)
+    setPromptPanelOpen(true)
+  }, [flowName, nodes, edges, flowContext])
 
   // Apply dark/light class to <html>
   useEffect(() => {
@@ -439,6 +450,8 @@ function AppInner() {
             exportGIFBusy={exportingGIF}
             onExportGIFSelection={handleExportGIFSelection}
             exportGIFSelectionDisabled={nodes.length === 0 || exportingGIF || !nodes.some((n) => n.selected)}
+            onGeneratePrompt={handleGeneratePrompt}
+            generatePromptDisabled={nodes.length === 0}
           />
           <div className="flex flex-1 overflow-hidden">
             <Sidebar />
@@ -447,6 +460,7 @@ function AppInner() {
               onOpenTemplates={() => openTemplatesPanel('templates')}
               onExplainNode={(id) => handleExplain(id)}
               onEvalTargets={handleEvalTargets}
+              onPlayFromNode={(id) => { animation.reset(); animation.playFrom(id) }}
             />
             <ConfigPanel />
             <ExplainPanel
@@ -469,6 +483,11 @@ function AppInner() {
               open={templatesOpen}
               initialTab={templatesInitialTab}
               onClose={() => setTemplatesOpen(false)}
+            />
+            <PromptPanel
+              open={promptPanelOpen}
+              prompt={generatedPrompt}
+              onClose={() => setPromptPanelOpen(false)}
             />
             <FlowContextModal
               open={contextModalOpen}

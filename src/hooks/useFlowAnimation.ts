@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useFlowStore } from './useFlowStore'
-import { sequenceFlow } from '../lib/animationSequencer'
+import { sequenceFlow, sequenceFlowFrom } from '../lib/animationSequencer'
 import type { AnimationStatus, AnimationSpeed, AnimationStep } from '../types/animation'
 
 interface ActiveEdge {
@@ -14,6 +14,7 @@ interface FlowAnimationAPI {
   speed: AnimationSpeed
   activeEdges: ActiveEdge[]
   play: () => void
+  playFrom: (nodeId: string) => void
   pause: () => void
   reset: () => void
   setSpeed: (s: AnimationSpeed) => void
@@ -172,6 +173,17 @@ export function useFlowAnimation(): FlowAnimationAPI {
     executeStep()
   }, [nodes, edges, resetAllAnimationStates, setPlaybackRunning, executeStep])
 
+  const playFrom = useCallback((nodeId: string) => {
+    resetAllAnimationStates()
+    setActiveEdges([])
+    stepsRef.current     = sequenceFlowFrom(nodes, edges, nodeId)
+    stepIndexRef.current = 0
+    setStatus('playing')
+    statusRef.current    = 'playing'
+    setPlaybackRunning(true)
+    executeStep()
+  }, [nodes, edges, resetAllAnimationStates, setPlaybackRunning, executeStep])
+
   const pause = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
     for (const timer of edgeTimersRef.current) clearTimeout(timer)
@@ -205,5 +217,5 @@ export function useFlowAnimation(): FlowAnimationAPI {
     for (const timer of edgeTimersRef.current) clearTimeout(timer)
   }, [])
 
-  return { status, speed, activeEdges, play, pause, reset, setSpeed: handleSetSpeed }
+  return { status, speed, activeEdges, play, playFrom, pause, reset, setSpeed: handleSetSpeed }
 }

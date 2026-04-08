@@ -33,6 +33,7 @@ interface FlowCanvasProps {
   onOpenTemplates?: () => void
   onExplainNode?: (nodeId: string) => void
   onEvalTargets?: (nodeIds: string[]) => void
+  onPlayFromNode?: (nodeId: string) => void
 }
 
 const FLOW_PROPS = {
@@ -54,7 +55,7 @@ const THEME = {
   light: { bg: '#F8FAFC', dot: '#00000012' },
 }
 
-export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode, onEvalTargets }: FlowCanvasProps) {
+export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode, onEvalTargets, onPlayFromNode }: FlowCanvasProps) {
   const nodes         = useFlowStore((s) => s.nodes)
   const edges         = useFlowStore((s) => s.edges)
   const theme         = useFlowStore((s) => s.theme)
@@ -64,7 +65,7 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
 
   const colors = THEME[theme]
 
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string; nodeType?: string } | null>(null)
   const [ctxEvalTargetIds, setCtxEvalTargetIds] = useState<string[]>([])
 
   const handleNodeContextMenu = useCallback<NodeMouseHandler>((e, node) => {
@@ -107,7 +108,7 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
     }
 
     setCtxEvalTargetIds(evalTargets)
-    setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: node.id })
+    setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: node.id, nodeType: node.type })
   }, [nodes])
 
   const {
@@ -213,11 +214,13 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
             x={ctxMenu.x}
             y={ctxMenu.y}
             nodeId={ctxMenu.nodeId}
+            nodeType={ctxMenu.nodeType}
             evalTargetNodeIds={ctxEvalTargetIds}
             onDelete={(id) => { removeNode(id) }}
             onDuplicate={(id) => { duplicateNode(id) }}
             onExplainNode={(id) => { onExplainNode?.(id) }}
             onEvalTargets={(ids) => { onEvalTargets?.(ids) }}
+            onPlayFrom={(id) => { onPlayFromNode?.(id) }}
             onClose={() => { setCtxMenu(null); setCtxEvalTargetIds([]) }}
           />
         )}

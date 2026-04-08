@@ -13,14 +13,20 @@ export function saveFlow(
   viewport: FlowViewport,
   name = 'Untitled Flow',
   flowContext?: FlowContext | null,
+  layoutDirection?: 'TB' | 'LR',
 ): void {
+  const roundedNodes = nodes.map((n) => ({
+    ...n,
+    position: { x: Math.round(n.position.x), y: Math.round(n.position.y) },
+  }))
   const doc: FlowDocument = {
     version: SCHEMA_VERSION,
     name,
     savedAt: new Date().toISOString(),
-    nodes,
+    nodes: roundedNodes,
     edges,
     viewport,
+    ...(layoutDirection ? { layoutDirection } : {}),
     ...(flowContext ? { flowContext } : {}),
   }
 

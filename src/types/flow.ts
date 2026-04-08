@@ -41,6 +41,8 @@ export interface FlowDocument {
   }
   /** User-provided agent context and business documents */
   flowContext?: FlowContext
+  /** Layout direction used when the flow was saved */
+  layoutDirection?: 'TB' | 'LR'
   /** User-defined metadata */
   metadata?: Record<string, string>
 }

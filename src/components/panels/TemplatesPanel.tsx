@@ -173,9 +173,9 @@ export default function TemplatesPanel({ open, onClose, initialTab = 'templates'
         if (!ok) return false
       }
 
-      const nextLayoutDirection = preferredLayoutDirection ?? layoutDirection
-      if (preferredLayoutDirection && preferredLayoutDirection !== layoutDirection) {
-        setLayoutDirection(preferredLayoutDirection)
+      const nextLayoutDirection = preferredLayoutDirection ?? result.layoutDirection ?? layoutDirection
+      if (nextLayoutDirection !== layoutDirection) {
+        setLayoutDirection(nextLayoutDirection)
       }
 
       const finalNodes = result.hasExplicitPositions

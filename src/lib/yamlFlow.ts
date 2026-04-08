@@ -53,6 +53,7 @@ interface YAMLEdgeSpec {
 interface FlowYAMLDoc {
   name?: string
   description?: string
+  layoutDirection?: 'TB' | 'LR'
   nodes: YAMLNodeSpec[]
   edges?: YAMLEdgeSpec[]
 }
@@ -73,6 +74,7 @@ export interface ParsedFlow {
   nodes: Node<BaseNodeData>[]
   edges: Edge[]
   hasExplicitPositions: boolean
+  layoutDirection?: 'TB' | 'LR'
 }
 
 let _counter = 2000
@@ -181,7 +183,7 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
       Number.isFinite(n.position.y),
   )
 
-  return { name: doc.name ?? 'Imported Flow', nodes, edges, hasExplicitPositions }
+  return { name: doc.name ?? 'Imported Flow', nodes, edges, hasExplicitPositions, layoutDirection: doc.layoutDirection }
 }
 
 // ── Serialize ─────────────────────────────────────────────────────────────────
@@ -198,6 +200,7 @@ export function serializeFlowToYAML(
 ): string {
   const doc = {
     name,
+    layoutDirection,
     nodes: nodes.map((n) => {
       const defLabel = getNodeDefinition(n.data.nodeType)?.label
       const defAccent = getNodeDefinition(n.data.nodeType)?.accentColor
@@ -214,7 +217,8 @@ export function serializeFlowToYAML(
         entry.notePlacement = effectiveNotePlacementForExport(n.data.notePlacement, layoutDirection)
       }
       // Always persist position (including 0,0) so reimport matches the canvas.
-      entry.position = { x: n.position.x, y: n.position.y }
+      // Round to integers — sub-pixel precision is invisible but causes float drift on round-trip.
+      entry.position = { x: Math.round(n.position.x), y: Math.round(n.position.y) }
       return entry
     }),
     edges: edges.map((e) => {

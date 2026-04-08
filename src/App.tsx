@@ -26,7 +26,7 @@ const CONTEXT_PROMPT_KEY = 'agentflow:contextPromptSeen'
 
 // Inner component — needs to be inside ReactFlowProvider to use useFlowAnimation
 function AppInner() {
-  const { getViewport, setViewport } = useReactFlow()
+  const { getViewport, setViewport, fitView } = useReactFlow()
   const theme              = useFlowStore((s) => s.theme)
   const presentationMode   = useFlowStore((s) => s.presentationMode)
   const togglePresentation = useFlowStore((s) => s.togglePresentationMode)
@@ -40,6 +40,7 @@ function AppInner() {
   const setEdges           = useFlowStore((s) => s.setEdges)
   const setFlowName        = useFlowStore((s) => s.setFlowName)
   const layoutDirection    = useFlowStore((s) => s.layoutDirection)
+  const setLayoutDirection = useFlowStore((s) => s.setLayoutDirection)
   const flowContext        = useFlowStore((s) => s.flowContext)
   const setFlowContext     = useFlowStore((s) => s.setFlowContext)
 
@@ -230,10 +231,12 @@ function AppInner() {
 
     setNodes(doc.nodes as Node<BaseNodeData>[])
     setEdges(doc.edges)
-    if (doc.viewport) setViewport(doc.viewport, { duration: 0 })
     if (doc.name) setFlowName(doc.name)
+    if (doc.layoutDirection) setLayoutDirection(doc.layoutDirection)
     setFlowContext(doc.flowContext ?? null)
-  }, [setNodes, setEdges, setViewport, setFlowName, setFlowContext])
+    // Fit the diagram to screen after nodes render (needs a tick to measure nodes)
+    window.requestAnimationFrame(() => fitView({ padding: 0.08, duration: 0 }))
+  }, [setNodes, setEdges, setFlowName, setLayoutDirection, setFlowContext, fitView])
 
   // Load flow from URL hash on mount (#flow=<base64>)
   useEffect(() => {
@@ -280,10 +283,10 @@ function AppInner() {
       // Ctrl+S / Cmd+S — save to localStorage
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        saveFlow(nodes as Node<BaseNodeData>[], edges, getViewport(), flowName, flowContext)
+        saveFlow(nodes as Node<BaseNodeData>[], edges, getViewport(), flowName, flowContext, layoutDirection)
       }
     },
-    [togglePresentation, animation, selectedNodeId, removeNode, nodes, edges, getViewport, flowName, flowContext],
+    [togglePresentation, animation, selectedNodeId, removeNode, nodes, edges, getViewport, flowName, flowContext, layoutDirection],
   )
 
   const handleContextSave = useCallback((
@@ -321,6 +324,7 @@ function AppInner() {
           getViewport(),
           flowName,
           flowContext,
+          layoutDirection,
         )
       } catch (err) {
         console.error('[AgentFlow] Autosave failed:', err)
@@ -328,7 +332,7 @@ function AppInner() {
     }, 700)
 
     return () => window.clearTimeout(timeout)
-  }, [nodes, edges, getViewport, flowName, flowContext])
+  }, [nodes, edges, getViewport, flowName, flowContext, layoutDirection])
 
   const animControls = (
     <AnimationControls

@@ -214,7 +214,7 @@ export default function Toolbar({
   const handleSave = useCallback(() => {
     try {
       const viewport = getViewport()
-      saveFlow(nodes as FlowNode<BaseNodeData>[], edges, viewport, flowName, flowContext)
+      saveFlow(nodes as FlowNode<BaseNodeData>[], edges, viewport, flowName, flowContext, layoutDirection)
       setSaveFailed(false)
       setSaved(true)
       window.setTimeout(() => setSaved(false), 1600)
@@ -224,7 +224,7 @@ export default function Toolbar({
       setSaveFailed(true)
       window.setTimeout(() => setSaveFailed(false), 2200)
     }
-  }, [nodes, edges, getViewport, flowName, flowContext])
+  }, [nodes, edges, getViewport, flowName, flowContext, layoutDirection])
 
   // ── Load ────────────────────────────────────────────────────────────────────
 
@@ -235,8 +235,9 @@ export default function Toolbar({
     setEdges(doc.edges)
     if (doc.viewport) setViewport(doc.viewport)
     if (doc.name) setFlowName(doc.name)
+    if (doc.layoutDirection) setLayoutDirection(doc.layoutDirection)
     setFlowContext(doc.flowContext ?? null)
-  }, [setNodes, setEdges, setViewport, setFlowName, setFlowContext])
+  }, [setNodes, setEdges, setViewport, setFlowName, setLayoutDirection, setFlowContext])
 
   // ── Auto-layout ─────────────────────────────────────────────────────────────
 

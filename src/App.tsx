@@ -36,6 +36,7 @@ function AppInner() {
   const gifCapturePaddingPercent = useFlowStore((s) => s.gifCapturePaddingPercent)
   const selectedNodeId     = useFlowStore((s) => s.selectedNodeId)
   const removeNode         = useFlowStore((s) => s.removeNode)
+  const undo               = useFlowStore((s) => s.undo)
   const setNodes           = useFlowStore((s) => s.setNodes)
   const setEdges           = useFlowStore((s) => s.setEdges)
   const setFlowName        = useFlowStore((s) => s.setFlowName)
@@ -280,13 +281,18 @@ function AppInner() {
         e.preventDefault()
         removeNode(selectedNodeId)
       }
+      // Ctrl+Z / Cmd+Z — undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      }
       // Ctrl+S / Cmd+S — save to localStorage
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         saveFlow(nodes as Node<BaseNodeData>[], edges, getViewport(), flowName, flowContext, layoutDirection)
       }
     },
-    [togglePresentation, animation, selectedNodeId, removeNode, nodes, edges, getViewport, flowName, flowContext, layoutDirection],
+    [togglePresentation, animation, selectedNodeId, removeNode, undo, nodes, edges, getViewport, flowName, flowContext, layoutDirection],
   )
 
   const handleContextSave = useCallback((

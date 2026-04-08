@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { applyNodeChanges, applyEdgeChanges } from 'reactflow'
-import type { Node, Edge, NodeChange, EdgeChange, Connection } from 'reactflow'
+import type { Node, Edge, NodeChange, EdgeChange, Connection, NodePositionChange } from 'reactflow'
 import type { BaseNodeData } from '../types/nodes'
 import type { NotePlacement } from '../types/nodes'
 import type { FlowContext } from '../types/flow'
@@ -99,6 +99,11 @@ interface FlowStore {
   ) => void
   /** Resets all nodes back to 'idle'. */
   resetAllAnimationStates: () => void
+
+  // ── Undo ──────────────────────────────────────────────────────────────────
+  _history: Array<{ nodes: Node<BaseNodeData>[]; edges: Edge[] }>
+  _isDragging: boolean
+  undo: () => void
 }
 
 let nodeCounter = 1
@@ -174,22 +179,53 @@ export const useFlowStore = create<FlowStore>((set) => ({
   globalPathThickness: 1,
   globalPathColor: '#FFFFFF',
   gifCapturePaddingPercent: 10,
+  _history: [],
+  _isDragging: false,
 
   // ── Setters (used by load/restore) ────────────────────────────────────────
-  setNodes: (nodes) => set({ nodes }),
+  setNodes: (nodes) => set({ nodes, _history: [], _isDragging: false }),
   setEdges: (edges) => set({ edges }),
 
   // ── React Flow change handlers ────────────────────────────────────────────
   onNodesChange: (changes) => {
-    set((state) => ({
-      nodes: applyNodeChanges(changes, state.nodes) as Node<BaseNodeData>[],
-    }))
+    set((state) => {
+      const posChanges = changes.filter((c): c is NodePositionChange => c.type === 'position')
+      const hasRemove = changes.some((c) => c.type === 'remove')
+
+      let { _history, _isDragging } = state
+
+      // Snapshot before drag starts
+      if (!_isDragging && posChanges.some((c) => c.dragging)) {
+        _history = [..._history.slice(-49), { nodes: state.nodes, edges: state.edges }]
+        _isDragging = true
+      } else if (_isDragging && posChanges.length > 0 && posChanges.every((c) => !c.dragging)) {
+        _isDragging = false
+      }
+
+      // Snapshot before node removal
+      if (hasRemove) {
+        _history = [..._history.slice(-49), { nodes: state.nodes, edges: state.edges }]
+      }
+
+      return {
+        nodes: applyNodeChanges(changes, state.nodes) as Node<BaseNodeData>[],
+        _history,
+        _isDragging,
+      }
+    })
   },
 
   onEdgesChange: (changes) => {
-    set((state) => ({
-      edges: applyEdgeChanges(changes, state.edges),
-    }))
+    set((state) => {
+      const hasRemove = changes.some((c) => c.type === 'remove')
+      const _history = hasRemove
+        ? [...state._history.slice(-49), { nodes: state.nodes, edges: state.edges }]
+        : state._history
+      return {
+        edges: applyEdgeChanges(changes, state.edges),
+        _history,
+      }
+    })
   },
 
   addEdge: (connection) => {
@@ -213,7 +249,10 @@ export const useFlowStore = create<FlowStore>((set) => ({
         type: 'smoothstep',
         data: { executionPriority: 1, travelSpeed: 1, pathThickness: 1 },
       }
-      return { edges: [...state.edges, newEdge] }
+      return {
+        edges: [...state.edges, newEdge],
+        _history: [...state._history.slice(-49), { nodes: state.nodes, edges: state.edges }],
+      }
     })
   },
 
@@ -304,7 +343,10 @@ export const useFlowStore = create<FlowStore>((set) => ({
       },
     }
 
-    set((state) => ({ nodes: [...state.nodes, newNode] }))
+    set((state) => ({
+      nodes: [...state.nodes, newNode],
+      _history: [...state._history.slice(-49), { nodes: state.nodes, edges: state.edges }],
+    }))
   },
 
   updateNodeConfig: (nodeId, config) => {
@@ -469,6 +511,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
       ),
       selectedNodeId:
         state.selectedNodeId === nodeId ? null : state.selectedNodeId,
+      _history: [...state._history.slice(-49), { nodes: state.nodes, edges: state.edges }],
     }))
   },
 
@@ -547,6 +590,22 @@ export const useFlowStore = create<FlowStore>((set) => ({
         data: { ...n.data, animationState: 'idle' as const },
       })),
     }))
+  },
+
+  // ── Undo ──────────────────────────────────────────────────────────────────
+  undo: () => {
+    set((state) => {
+      if (state._history.length === 0) return state
+      const prev = state._history[state._history.length - 1]
+      return {
+        nodes: prev.nodes,
+        edges: prev.edges,
+        _history: state._history.slice(0, -1),
+        _isDragging: false,
+        selectedNodeId: null,
+        selectedEdgeId: null,
+      }
+    })
   },
 }))
 

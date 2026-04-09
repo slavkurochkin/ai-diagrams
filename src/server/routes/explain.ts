@@ -1,7 +1,10 @@
 import { Router } from 'express'
 import OpenAI from 'openai'
+import { graphBodyLimits } from '../middleware/graphLimits.js'
+import { requireServerAiEnabled } from '../middleware/aiGate.js'
 
 export const explainRouter = Router()
+explainRouter.use(requireServerAiEnabled)
 
 // ── Types (mirrored from frontend, no import needed server-side) ───────────────
 
@@ -66,7 +69,7 @@ function graphToText(nodes: SerializedNode[], edges: SerializedEdge[], flowName:
 
 // ── POST /api/explain ──────────────────────────────────────────────────────────
 
-explainRouter.post('/explain', async (req, res) => {
+explainRouter.post('/explain', graphBodyLimits, async (req, res) => {
   const { nodes, edges, flowName } = req.body as ExplainRequest
 
   if (!nodes || !edges) {

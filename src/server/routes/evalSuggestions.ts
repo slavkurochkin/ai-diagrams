@@ -1,7 +1,10 @@
 import { Router } from 'express'
 import OpenAI from 'openai'
+import { graphBodyLimits } from '../middleware/graphLimits.js'
+import { requireServerAiEnabled } from '../middleware/aiGate.js'
 
 export const evalSuggestionsRouter = Router()
+evalSuggestionsRouter.use(requireServerAiEnabled)
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -120,7 +123,7 @@ function contextToText(ctx: FlowContext): string {
 
 // ── POST /api/eval-suggestions ────────────────────────────────────────────────
 
-evalSuggestionsRouter.post('/eval-suggestions', async (req, res) => {
+evalSuggestionsRouter.post('/eval-suggestions', graphBodyLimits, async (req, res) => {
   const { nodes, edges, flowName, flowContext } = req.body as EvalRequest
 
   if (!nodes || !edges) {

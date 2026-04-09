@@ -1,5 +1,6 @@
 import type { Node, Edge } from 'reactflow'
 import type { BaseNodeData } from '../../types/nodes'
+import { readHttpErrorMessage } from './readHttpError'
 
 // ── Request payload ────────────────────────────────────────────────────────────
 
@@ -44,8 +45,12 @@ export async function streamExplain(
     body: JSON.stringify(payload),
   })
 
-  if (!response.ok || !response.body) {
-    onError(`Server error ${response.status}`)
+  if (!response.ok) {
+    onError(await readHttpErrorMessage(response))
+    return
+  }
+  if (!response.body) {
+    onError('No response body')
     return
   }
 

@@ -1,6 +1,7 @@
 import type { Node, Edge } from 'reactflow'
 import type { BaseNodeData } from '../../types/nodes'
 import type { FlowContext } from '../../types/flow'
+import { readHttpErrorMessage } from './readHttpError'
 
 export async function streamDesignReview(
   nodes: Node<BaseNodeData>[],
@@ -35,8 +36,12 @@ export async function streamDesignReview(
     body: JSON.stringify(payload),
   })
 
-  if (!response.ok || !response.body) {
-    onError(`Server error ${response.status}`)
+  if (!response.ok) {
+    onError(await readHttpErrorMessage(response))
+    return
+  }
+  if (!response.body) {
+    onError('No response body')
     return
   }
 

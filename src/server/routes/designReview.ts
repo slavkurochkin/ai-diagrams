@@ -1,7 +1,10 @@
 import { Router } from 'express'
 import OpenAI from 'openai'
+import { graphBodyLimits } from '../middleware/graphLimits.js'
+import { requireServerAiEnabled } from '../middleware/aiGate.js'
 
 export const designReviewRouter = Router()
+designReviewRouter.use(requireServerAiEnabled)
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -148,7 +151,7 @@ function contextToText(ctx: FlowContext): string {
 
 // ── POST /api/design-review ───────────────────────────────────────────────────
 
-designReviewRouter.post('/design-review', async (req, res) => {
+designReviewRouter.post('/design-review', graphBodyLimits, async (req, res) => {
   const { nodes, edges, flowName, flowContext } = req.body as ReviewRequest
 
   if (!nodes || !edges) {

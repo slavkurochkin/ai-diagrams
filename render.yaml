@@ -1,0 +1,17 @@
+# Render blueprint: https://render.com/docs/infrastructure-as-code
+# New → Blueprint → Connect this repo, or add a Web Service and paste these values.
+
+services:
+  - type: web
+    name: agentflow
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Do not enable AI on a free public demo (saves your OpenAI budget).
+      # When you want paid AI: set ENABLE_SERVER_AI=true and OPENAI_API_KEY in the dashboard.

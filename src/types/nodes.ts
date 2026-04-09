@@ -29,6 +29,7 @@ export type ConfigFieldType =
   | 'select'
   | 'boolean'
   | 'slider'
+  | 'color'
 
 export interface SelectOption {
   label: string
@@ -64,7 +65,7 @@ export interface NodeDefinition {
   /** Short description shown in the sidebar palette */
   description: string
   /** Sidebar category for grouping */
-  category: 'core' | 'data' | 'flow' | 'tool' | 'output' | 'eval'
+  category: 'core' | 'data' | 'flow' | 'tool' | 'output' | 'eval' | 'character'
 }
 
 // ── Per-node config data (stored in React Flow node.data) ────────────────────

@@ -118,6 +118,32 @@ function SliderField({ field, value, onChange }: FieldProps) {
   )
 }
 
+function ColorField({ value, onChange }: FieldProps) {
+  const hex = typeof value === 'string' ? value : '#888888'
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="color"
+        value={hex}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 w-10 rounded border border-white/10 bg-transparent cursor-pointer"
+      />
+      <input
+        type="text"
+        value={hex}
+        onChange={(e) => onChange(e.target.value)}
+        className="
+          flex-1 px-2.5 py-1.5 rounded-md text-[12px] font-mono
+          bg-white/5 border border-white/10
+          text-white/80 placeholder-white/25
+          focus:outline-none focus:border-white/30 focus:bg-white/10
+          transition-colors duration-150
+        "
+      />
+    </div>
+  )
+}
+
 function BooleanField({ value, onChange }: FieldProps) {
   const on = Boolean(value)
   return (
@@ -149,6 +175,7 @@ function FieldRenderer(props: FieldProps) {
     case 'select':   return <SelectField {...props} />
     case 'slider':   return <SliderField {...props} />
     case 'boolean':  return <BooleanField {...props} />
+    case 'color':    return <ColorField {...props} />
   }
 }
 
@@ -180,7 +207,7 @@ function FieldRow({ field, value, onChange }: FieldProps) {
 // ── Config Panel ───────────────────────────────────────────────────────────────
 
 export default function ConfigPanel() {
-  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, updateNodeConfig, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
+  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, updateNodeConfig, updateNodeLabel, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
     useFlowStore()
 
   const selectedNode = selectedNodeId
@@ -257,9 +284,16 @@ export default function ConfigPanel() {
 
             {/* Node label */}
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-white/90 truncate">
-                {selectedNode.data.label}
-              </p>
+              <input
+                type="text"
+                value={selectedNode.data.label}
+                onChange={(e) => updateNodeLabel(selectedNode.id, e.target.value)}
+                className="
+                  w-full text-[13px] font-semibold text-white/90 bg-transparent
+                  border-b border-transparent hover:border-white/20 focus:border-white/40
+                  focus:outline-none transition-colors duration-150 truncate
+                "
+              />
               <p className="text-[10px] text-white/45 mt-0.5 leading-snug">
                 {def.description}
               </p>

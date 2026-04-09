@@ -36,6 +36,7 @@ export {
   TrajectoryEvalIcon,
   TaskCompletionIcon,
   AgentEfficiencyIcon,
+  CharacterIcon,
 } from './lucideRegistry'
 
 export type { IconProps } from './lucideRegistry'

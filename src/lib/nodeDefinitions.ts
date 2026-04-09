@@ -36,6 +36,7 @@ import {
   TrajectoryEvalIcon,
   TaskCompletionIcon,
   AgentEfficiencyIcon,
+  CharacterIcon,
 } from '../components/icons'
 import type { NodeDefinition } from '../types/nodes'
 
@@ -1876,6 +1877,46 @@ const AgentEfficiencyNodeDefinition: NodeDefinition = {
   ],
 }
 
+const CharacterNodeDefinition: NodeDefinition = {
+  type: 'character',
+  label: 'Character',
+  accentColor: '#7C3AED',
+  icon: CharacterIcon,
+  description: 'A character figure for annotating diagrams with actors or personas.',
+  category: 'character',
+  inputs: [],
+  outputs: [],
+  configFields: [
+    {
+      key: 'variant',
+      label: 'Character',
+      type: 'select',
+      defaultValue: 'person',
+      options: [
+        { label: 'Person',  value: 'person' },
+        { label: 'Woman',   value: 'woman'  },
+        { label: 'Man',     value: 'man'    },
+        { label: 'Dog',     value: 'dog'    },
+        { label: 'Cat',     value: 'cat'    },
+        { label: 'Robot',   value: 'robot'  },
+        { label: 'Kid',     value: 'kid'    },
+      ],
+    },
+    {
+      key: 'hairColor',
+      label: 'Hair Color',
+      type: 'color',
+      defaultValue: '#a0522d',
+    },
+    {
+      key: 'dressColor',
+      label: 'Outfit Color',
+      type: 'color',
+      defaultValue: '#6b7db3',
+    },
+  ],
+}
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 const PRIMARY_NODE_ACCENT = '#2563EB'
@@ -1932,7 +1973,7 @@ const NODE_DEFINITIONS: NodeDefinition[] = [
     def.category === 'eval' || def.type === 'evaluator'
       ? EVAL_NODE_ACCENT
       : PRIMARY_NODE_ACCENT,
-}))
+})).concat([CharacterNodeDefinition])
 
 /** Returns all registered node definitions. */
 export function getAllNodeDefinitions(): NodeDefinition[] {

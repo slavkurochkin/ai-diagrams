@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 build/
+private/
 
 # Environment variables (sensitive!)
 .env

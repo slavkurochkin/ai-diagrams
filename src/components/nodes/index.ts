@@ -36,6 +36,7 @@ import ToolUseEvalNode from './ToolUseEvalNode'
 import TrajectoryEvalNode from './TrajectoryEvalNode'
 import TaskCompletionNode from './TaskCompletionNode'
 import AgentEfficiencyNode from './AgentEfficiencyNode'
+import CharacterNode from './CharacterNode'
 
 /**
  * nodeTypes maps the `type` string on each React Flow Node to the
@@ -91,6 +92,8 @@ export const nodeTypes: NodeTypes = {
   trajectoryEval: TrajectoryEvalNode,
   taskCompletion: TaskCompletionNode,
   agentEfficiency: AgentEfficiencyNode,
+  // Characters
+  character: CharacterNode,
 }
 
 export {

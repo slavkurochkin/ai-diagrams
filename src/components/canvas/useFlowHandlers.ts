@@ -191,7 +191,9 @@ export function useFlowHandlers() {
         y: event.clientY,
       })
 
-      addNode(nodeType, position)
+      const configRaw = event.dataTransfer.getData('application/agentflow-node-config')
+      const initialConfig = configRaw ? (JSON.parse(configRaw) as Record<string, string | number | boolean>) : undefined
+      addNode(nodeType, position, initialConfig)
     },
     [addNode, screenToFlowPosition],
   )

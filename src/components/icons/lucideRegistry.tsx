@@ -32,6 +32,7 @@ import {
   SlidersHorizontal,
   Square,
   UserRoundCheck,
+  Users,
   Waypoints,
   Workflow,
   Wrench,
@@ -76,6 +77,7 @@ export const AggregatorIcon = createIcon(Combine)
 export const ClassifierIcon = createIcon(Filter)
 export const FrameIcon = createIcon(Square)
 export const TextIcon = createIcon(MessageSquareText)
+export const CharacterIcon = createIcon(Users)
 
 export const ToolCallIcon = createIcon(Wrench)
 export const WebSearchIcon = createIcon(Globe)

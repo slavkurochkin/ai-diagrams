@@ -158,7 +158,7 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
         onEdgeClick={handleEdgeClick}
         onPaneClick={() => { handlePaneClick(); setCtxMenu(null); setCtxEvalTargetIds([]) }}
         onNodeContextMenu={handleNodeContextMenu}
-        proOptions={{ hideAttribution: false }}
+        proOptions={{ hideAttribution: true }}
         {...FLOW_PROPS}
       >
         <Background

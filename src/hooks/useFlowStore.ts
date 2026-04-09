@@ -40,7 +40,9 @@ interface FlowStore {
 
   // ── Node management ───────────────────────────────────────────────────────
   /** Adds a new node of the given type at the given canvas position. */
-  addNode: (type: string, position: { x: number; y: number }) => void
+  addNode: (type: string, position: { x: number; y: number }, initialConfig?: Record<string, string | number | boolean>) => void
+  /** Renames the display label of a node. */
+  updateNodeLabel: (nodeId: string, label: string) => void
   /** Deep-merges partial config into the node's data.config. */
   updateNodeConfig: (nodeId: string, config: Partial<Record<string, string | number | boolean>>) => void
   /** Removes a node and all its connected edges. */
@@ -314,7 +316,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
   },
 
   // ── Node management ───────────────────────────────────────────────────────
-  addNode: (type, position) => {
+  addNode: (type, position, initialConfig) => {
     const def = getNodeDefinition(type)
     if (!def) {
       console.warn(`[AgentFlow] Unknown node type: "${type}"`)
@@ -323,8 +325,9 @@ export const useFlowStore = create<FlowStore>((set) => ({
 
     const id = generateNodeId(type)
     const defaultConfig = buildDefaultConfig(type)
+    const mergedConfig = initialConfig ? { ...defaultConfig, ...initialConfig } : defaultConfig
     const isFrameNode = type === 'frame'
-    const sizedStyle = getSizedNodeStyle(type, defaultConfig)
+    const sizedStyle = getSizedNodeStyle(type, mergedConfig)
     const newNode: Node<BaseNodeData> = {
       id,
       type,
@@ -338,7 +341,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
       data: {
         nodeType: type,
         label: def.label,
-        config: defaultConfig,
+        config: mergedConfig,
         animationState: 'idle',
       },
     }
@@ -346,6 +349,14 @@ export const useFlowStore = create<FlowStore>((set) => ({
     set((state) => ({
       nodes: [...state.nodes, newNode],
       _history: [...state._history.slice(-49), { nodes: state.nodes, edges: state.edges }],
+    }))
+  },
+
+  updateNodeLabel: (nodeId, label) => {
+    set((state) => ({
+      nodes: state.nodes.map((node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, label } } : node,
+      ),
     }))
   },
 

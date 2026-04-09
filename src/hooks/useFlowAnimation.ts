@@ -2,6 +2,9 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useFlowStore } from './useFlowStore'
 import { sequenceFlow, sequenceFlowFrom } from '../lib/animationSequencer'
 import type { AnimationStatus, AnimationSpeed, AnimationStep } from '../types/animation'
+import { filterGraphForAI } from '../lib/aiGraphFilter'
+import type { BaseNodeData } from '../types/nodes'
+import type { Node } from 'reactflow'
 
 interface ActiveEdge {
   edgeId: string
@@ -20,6 +23,124 @@ interface FlowAnimationAPI {
   setSpeed: (s: AnimationSpeed) => void
 }
 
+const DEFAULT_HOOK_MS = 1200
+
+function coerceHookMs(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(200, Math.min(10000, Math.round(value * 1000)))
+  }
+  if (typeof value === 'string') {
+    const n = Number(value)
+    if (Number.isFinite(n)) return Math.max(200, Math.min(10000, Math.round(n * 1000)))
+  }
+  return DEFAULT_HOOK_MS
+}
+
+function getHookDurationMs(nodes: Node<BaseNodeData>[], phase: 'before' | 'after'): number {
+  let maxMs = 0
+  for (const n of nodes) {
+    if (n.data.nodeType !== 'character') continue
+    const cfg = n.data.config as Record<string, unknown>
+    const speechHook = typeof cfg.speechHook === 'string' ? cfg.speechHook : 'none'
+    const noteBefore = typeof cfg.noteBefore === 'string' ? cfg.noteBefore.trim() : ''
+    const noteAfter = typeof cfg.noteAfter === 'string' ? cfg.noteAfter.trim() : ''
+    const expressionBefore = typeof cfg.expressionBefore === 'string' ? cfg.expressionBefore : 'inherit'
+    const expressionAfter = typeof cfg.expressionAfter === 'string' ? cfg.expressionAfter : 'inherit'
+    const beforeEnabled = speechHook === 'before' || speechHook === 'beforeAfter' || noteBefore.length > 0 || expressionBefore !== 'inherit'
+    const afterEnabled = speechHook === 'after' || speechHook === 'beforeAfter' || noteAfter.length > 0 || expressionAfter !== 'inherit'
+    const enabled = phase === 'before' ? beforeEnabled : afterEnabled
+    if (!enabled) continue
+    // Prefer the new seconds-based field, but support legacy ms-based flows.
+    const legacyMsRaw = cfg.speechDurationMs
+    const legacyMs =
+      typeof legacyMsRaw === 'number' && Number.isFinite(legacyMsRaw)
+        ? Math.max(200, Math.min(10000, Math.round(legacyMsRaw)))
+        : typeof legacyMsRaw === 'string' && Number.isFinite(Number(legacyMsRaw))
+          ? Math.max(200, Math.min(10000, Math.round(Number(legacyMsRaw))))
+          : DEFAULT_HOOK_MS
+    const ms = cfg.speechDurationSeconds !== undefined ? coerceHookMs(cfg.speechDurationSeconds) : legacyMs
+    if (ms > maxMs) maxMs = ms
+  }
+  return maxMs || DEFAULT_HOOK_MS
+}
+
+interface CharacterHookMeta {
+  nodeId: string
+  dependsOnCharacterId: string
+  durationMs: number
+  order: number
+}
+
+function getCharacterHooksForPhase(
+  nodes: Node<BaseNodeData>[],
+  phase: 'before' | 'after',
+): CharacterHookMeta[] {
+  return nodes
+    .map((n, idx): CharacterHookMeta | null => {
+      if (n.data.nodeType !== 'character') return null
+      const cfg = n.data.config as Record<string, unknown>
+      const speechHook = typeof cfg.speechHook === 'string' ? cfg.speechHook : 'none'
+      const noteBefore = typeof cfg.noteBefore === 'string' ? cfg.noteBefore.trim() : ''
+      const noteAfter = typeof cfg.noteAfter === 'string' ? cfg.noteAfter.trim() : ''
+      const expressionBefore = typeof cfg.expressionBefore === 'string' ? cfg.expressionBefore : 'inherit'
+      const expressionAfter = typeof cfg.expressionAfter === 'string' ? cfg.expressionAfter : 'inherit'
+      const beforeEnabled = speechHook === 'before' || speechHook === 'beforeAfter' || noteBefore.length > 0 || expressionBefore !== 'inherit'
+      const afterEnabled = speechHook === 'after' || speechHook === 'beforeAfter' || noteAfter.length > 0 || expressionAfter !== 'inherit'
+      const enabled = phase === 'before' ? beforeEnabled : afterEnabled
+      if (!enabled) return null
+      const dependsOnCharacterId = typeof cfg.dependsOnCharacterId === 'string' ? cfg.dependsOnCharacterId.trim() : ''
+      const legacyMsRaw = cfg.speechDurationMs
+      const legacyMs =
+        typeof legacyMsRaw === 'number' && Number.isFinite(legacyMsRaw)
+          ? Math.max(200, Math.min(10000, Math.round(legacyMsRaw)))
+          : typeof legacyMsRaw === 'string' && Number.isFinite(Number(legacyMsRaw))
+            ? Math.max(200, Math.min(10000, Math.round(Number(legacyMsRaw))))
+            : DEFAULT_HOOK_MS
+      const durationMs = cfg.speechDurationSeconds !== undefined ? coerceHookMs(cfg.speechDurationSeconds) : legacyMs
+      return { nodeId: n.id, dependsOnCharacterId, durationMs, order: idx }
+    })
+    .filter((v): v is CharacterHookMeta => v !== null)
+}
+
+function orderHooksByDependency(hooks: CharacterHookMeta[]): CharacterHookMeta[] {
+  if (hooks.length <= 1) return hooks
+  const byId = new Map(hooks.map((h) => [h.nodeId, h]))
+  const indegree = new Map<string, number>()
+  const outgoing = new Map<string, string[]>()
+  for (const h of hooks) {
+    indegree.set(h.nodeId, 0)
+    outgoing.set(h.nodeId, [])
+  }
+  for (const h of hooks) {
+    if (!h.dependsOnCharacterId || !byId.has(h.dependsOnCharacterId) || h.dependsOnCharacterId === h.nodeId) continue
+    indegree.set(h.nodeId, (indegree.get(h.nodeId) ?? 0) + 1)
+    outgoing.get(h.dependsOnCharacterId)?.push(h.nodeId)
+  }
+  const queue = hooks
+    .filter((h) => (indegree.get(h.nodeId) ?? 0) === 0)
+    .sort((a, b) => a.order - b.order)
+    .map((h) => h.nodeId)
+  const orderedIds: string[] = []
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    orderedIds.push(id)
+    for (const next of outgoing.get(id) ?? []) {
+      const nextDeg = (indegree.get(next) ?? 0) - 1
+      indegree.set(next, nextDeg)
+      if (nextDeg === 0) queue.push(next)
+    }
+    queue.sort((a, b) => (byId.get(a)?.order ?? 0) - (byId.get(b)?.order ?? 0))
+  }
+  if (orderedIds.length < hooks.length) {
+    const added = new Set(orderedIds)
+    hooks
+      .filter((h) => !added.has(h.nodeId))
+      .sort((a, b) => a.order - b.order)
+      .forEach((h) => orderedIds.push(h.nodeId))
+  }
+  return orderedIds.map((id) => byId.get(id)!).filter(Boolean)
+}
+
 export function useFlowAnimation(): FlowAnimationAPI {
   const {
     nodes,
@@ -27,6 +148,8 @@ export function useFlowAnimation(): FlowAnimationAPI {
     setNodeAnimationState,
     resetAllAnimationStates,
     setPlaybackRunning,
+    setPlaybackPhase,
+    setActiveCharacterHookNodeIds,
   } = useFlowStore()
 
   const [status, setStatus]           = useState<AnimationStatus>('idle')
@@ -39,7 +162,43 @@ export function useFlowAnimation(): FlowAnimationAPI {
   const statusRef     = useRef<AnimationStatus>('idle')
   const speedRef      = useRef<AnimationSpeed>(1)
   const timerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prePlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const afterHookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hookTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const edgeTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  const clearCharacterHookTimers = useCallback(() => {
+    for (const timer of hookTimersRef.current) clearTimeout(timer)
+    hookTimersRef.current = []
+  }, [])
+
+  const runCharacterHookPhase = useCallback((
+    phase: 'before' | 'after',
+    onComplete: () => void,
+  ) => {
+    clearCharacterHookTimers()
+    const orderedHooks = orderHooksByDependency(getCharacterHooksForPhase(nodes, phase))
+    if (orderedHooks.length === 0) {
+      setActiveCharacterHookNodeIds([])
+      onComplete()
+      return
+    }
+    setPlaybackPhase(phase)
+    setActiveCharacterHookNodeIds([])
+    let cursorMs = 0
+    for (const hook of orderedHooks) {
+      const activateTimer = setTimeout(() => {
+        setActiveCharacterHookNodeIds([hook.nodeId])
+      }, cursorMs)
+      hookTimersRef.current.push(activateTimer)
+      cursorMs += hook.durationMs
+    }
+    const doneTimer = setTimeout(() => {
+      setActiveCharacterHookNodeIds([])
+      onComplete()
+    }, cursorMs)
+    hookTimersRef.current.push(doneTimer)
+  }, [clearCharacterHookTimers, nodes, setActiveCharacterHookNodeIds, setPlaybackPhase])
 
   // Keep refs in sync
   useEffect(() => { statusRef.current = status }, [status])
@@ -58,6 +217,9 @@ export function useFlowAnimation(): FlowAnimationAPI {
       setStatus('done')
       setPlaybackRunning(false)
       setActiveEdges([])
+      runCharacterHookPhase('after', () => {
+        setPlaybackPhase('idle')
+      })
       return
     }
 
@@ -155,7 +317,7 @@ export function useFlowAnimation(): FlowAnimationAPI {
         timerRef.current = setTimeout(executeStep, scaledDuration(step.duration))
         break
     }
-  }, [setNodeAnimationState])
+  }, [runCharacterHookPhase, setNodeAnimationState, setPlaybackPhase, setPlaybackRunning])
 
   // ── Controls ───────────────────────────────────────────────────────────────
 
@@ -164,47 +326,69 @@ export function useFlowAnimation(): FlowAnimationAPI {
       // Fresh run
       resetAllAnimationStates()
       setActiveEdges([])
-      stepsRef.current   = sequenceFlow(nodes, edges)
+      const { nodes: aiNodes, edges: aiEdges } = filterGraphForAI(nodes, edges)
+      stepsRef.current   = sequenceFlow(aiNodes, aiEdges)
       stepIndexRef.current = 0
     }
     setStatus('playing')
     statusRef.current = 'playing'
     setPlaybackRunning(true)
-    executeStep()
-  }, [nodes, edges, resetAllAnimationStates, setPlaybackRunning, executeStep])
+    if (afterHookTimerRef.current) clearTimeout(afterHookTimerRef.current)
+    runCharacterHookPhase('before', () => {
+      if (statusRef.current !== 'playing') return
+      setPlaybackPhase('running')
+      executeStep()
+    })
+  }, [nodes, edges, resetAllAnimationStates, runCharacterHookPhase, setPlaybackPhase, setPlaybackRunning, executeStep])
 
   const playFrom = useCallback((nodeId: string) => {
     resetAllAnimationStates()
     setActiveEdges([])
-    stepsRef.current     = sequenceFlowFrom(nodes, edges, nodeId)
+    const { nodes: aiNodes, edges: aiEdges } = filterGraphForAI(nodes, edges)
+    stepsRef.current     = sequenceFlowFrom(aiNodes, aiEdges, nodeId)
     stepIndexRef.current = 0
     setStatus('playing')
     statusRef.current    = 'playing'
     setPlaybackRunning(true)
-    executeStep()
-  }, [nodes, edges, resetAllAnimationStates, setPlaybackRunning, executeStep])
+    if (afterHookTimerRef.current) clearTimeout(afterHookTimerRef.current)
+    runCharacterHookPhase('before', () => {
+      if (statusRef.current !== 'playing') return
+      setPlaybackPhase('running')
+      executeStep()
+    })
+  }, [nodes, edges, resetAllAnimationStates, runCharacterHookPhase, setPlaybackPhase, setPlaybackRunning, executeStep])
 
   const pause = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    if (prePlayTimerRef.current) clearTimeout(prePlayTimerRef.current)
+    if (afterHookTimerRef.current) clearTimeout(afterHookTimerRef.current)
+    clearCharacterHookTimers()
     for (const timer of edgeTimersRef.current) clearTimeout(timer)
     edgeTimersRef.current = []
     setStatus('paused')
     statusRef.current = 'paused'
     setPlaybackRunning(false)
-  }, [setPlaybackRunning])
+    setPlaybackPhase('idle')
+    setActiveCharacterHookNodeIds([])
+  }, [clearCharacterHookTimers, setActiveCharacterHookNodeIds, setPlaybackPhase, setPlaybackRunning])
 
   const reset = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    if (prePlayTimerRef.current) clearTimeout(prePlayTimerRef.current)
+    if (afterHookTimerRef.current) clearTimeout(afterHookTimerRef.current)
+    clearCharacterHookTimers()
     for (const timer of edgeTimersRef.current) clearTimeout(timer)
     edgeTimersRef.current = []
     setStatus('idle')
     statusRef.current    = 'idle'
     setPlaybackRunning(false)
+    setPlaybackPhase('idle')
+    setActiveCharacterHookNodeIds([])
     stepIndexRef.current = 0
     stepsRef.current     = []
     setActiveEdges([])
     resetAllAnimationStates()
-  }, [resetAllAnimationStates, setPlaybackRunning])
+  }, [clearCharacterHookTimers, resetAllAnimationStates, setActiveCharacterHookNodeIds, setPlaybackPhase, setPlaybackRunning])
 
   const handleSetSpeed = useCallback((s: AnimationSpeed) => {
     setSpeed(s)
@@ -214,8 +398,11 @@ export function useFlowAnimation(): FlowAnimationAPI {
   // Cleanup on unmount
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    if (prePlayTimerRef.current) clearTimeout(prePlayTimerRef.current)
+    if (afterHookTimerRef.current) clearTimeout(afterHookTimerRef.current)
+    clearCharacterHookTimers()
     for (const timer of edgeTimersRef.current) clearTimeout(timer)
-  }, [])
+  }, [clearCharacterHookTimers])
 
   return { status, speed, activeEdges, play, playFrom, pause, reset, setSpeed: handleSetSpeed }
 }

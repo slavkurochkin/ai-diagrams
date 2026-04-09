@@ -147,6 +147,20 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
     })
   }
 
+  // Remap character dependency IDs after import IDs are generated.
+  // YAML stores original node ids, but imported React Flow ids are regenerated.
+  for (const node of nodes) {
+    if (node.data.nodeType !== 'character') continue
+    const rawDependsOn = node.data.config?.dependsOnCharacterId
+    if (typeof rawDependsOn !== 'string' || rawDependsOn.trim() === '') continue
+    const mappedId = idMap.get(rawDependsOn.trim())
+    if (mappedId) {
+      node.data.config.dependsOnCharacterId = mappedId
+    } else {
+      node.data.config.dependsOnCharacterId = ''
+    }
+  }
+
   const edges: Edge[] = []
   for (let i = 0; i < (doc.edges ?? []).length; i++) {
     const e = doc.edges![i]

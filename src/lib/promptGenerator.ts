@@ -2,6 +2,7 @@ import type { Node, Edge } from 'reactflow'
 import type { BaseNodeData } from '../types/nodes'
 import type { FlowContext } from '../types/flow'
 import { getNodeDefinition } from './nodeDefinitions'
+import { filterGraphForAI } from './aiGraphFilter'
 
 function edgeLabel(e: Edge): string {
   const from = e.sourceHandle ? `[${e.sourceHandle}]` : ''
@@ -27,7 +28,7 @@ export function generateImplementationPrompt(
   edges: Edge[],
   flowContext: FlowContext | null,
 ): string {
-  const contentNodes = nodes.filter((n) => n.type !== 'frame' && n.type !== 'text')
+  const { nodes: contentNodes, edges: contentEdges } = filterGraphForAI(nodes, edges)
   const nodeById = new Map(contentNodes.map((n) => [n.id, n]))
 
   const lines: string[] = []
@@ -109,10 +110,6 @@ export function generateImplementationPrompt(
   }
 
   // ── Data Flow ────────────────────────────────────────────────────────────────
-  const contentEdges = edges.filter(
-    (e) => nodeById.has(e.source) && nodeById.has(e.target),
-  )
-
   if (contentEdges.length > 0) {
     lines.push('---')
     lines.push('')

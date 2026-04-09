@@ -238,6 +238,18 @@ export default function ConfigPanel() {
       })
       .sort((a, b) => a.area - b.area)
   }, [nodes])
+  const characterDependencyOptions = useMemo(() => {
+    if (!selectedNode || selectedNode.data.nodeType !== 'character') {
+      return [{ value: '', label: 'None' }]
+    }
+    const others = nodes
+      .filter((n) => n.data.nodeType === 'character' && n.id !== selectedNode.id)
+      .map((n) => ({
+        value: n.id,
+        label: `${n.data.label} (${n.id})`,
+      }))
+    return [{ value: '', label: 'None' }, ...others]
+  }, [nodes, selectedNode])
 
   const handleChange = useCallback(
     (key: string, value: string | number | boolean) => {
@@ -335,14 +347,55 @@ export default function ConfigPanel() {
                 if (!field.visibleWhen) return true
                 return selectedNode.data.config[field.visibleWhen.key] === field.visibleWhen.value
               })
-              .map((field) => (
-                <FieldRow
-                  key={field.key}
-                  field={field}
-                  value={selectedNode.data.config[field.key] ?? field.defaultValue}
-                  onChange={(val) => handleChange(field.key, val)}
-                />
-              ))}
+              .map((field) => {
+                if (
+                  selectedNode.data.nodeType === 'character' &&
+                  field.key === 'dependsOnCharacterId' &&
+                  field.type === 'select'
+                ) {
+                  const value = String(selectedNode.data.config[field.key] ?? '')
+                  return (
+                    <div key={field.key} className="space-y-1.5">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                          {field.label}
+                        </label>
+                      </div>
+                      <select
+                        value={value}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
+                        className="
+                          w-full px-2.5 py-1.5 rounded-md text-[12px]
+                          bg-gray-800 border border-white/10
+                          text-white/80
+                          focus:outline-none focus:border-white/30
+                          transition-colors duration-150 cursor-pointer
+                        "
+                      >
+                        {characterDependencyOptions.map((opt) => (
+                          <option key={opt.value || 'none'} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      {field.description && (
+                        <p className="text-[10px] text-white/30 leading-relaxed">
+                          {field.description}
+                        </p>
+                      )}
+                    </div>
+                  )
+                }
+
+                return (
+                  <FieldRow
+                    key={field.key}
+                    field={field}
+                    value={selectedNode.data.config[field.key] ?? field.defaultValue}
+                    onChange={(val) => handleChange(field.key, val)}
+                  />
+                )
+              })}
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">

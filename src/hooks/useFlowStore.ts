@@ -7,6 +7,7 @@ import type { FlowContext } from '../types/flow'
 import { buildDefaultConfig, getNodeDefinition } from '../lib/nodeDefinitions'
 
 type Theme = 'dark' | 'light'
+export type PlaybackPhase = 'idle' | 'before' | 'running' | 'after'
 const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
 interface FlowStore {
@@ -23,6 +24,8 @@ interface FlowStore {
   showAllNotes: boolean
   hideNotesDuringPlayback: boolean
   isPlaybackRunning: boolean
+  playbackPhase: PlaybackPhase
+  activeCharacterHookNodeIds: string[]
   globalPathThickness: number
   globalPathColor: string
   gifCapturePaddingPercent: number
@@ -78,6 +81,8 @@ interface FlowStore {
   toggleShowAllNotes: () => void
   toggleHideNotesDuringPlayback: () => void
   setPlaybackRunning: (running: boolean) => void
+  setPlaybackPhase: (phase: PlaybackPhase) => void
+  setActiveCharacterHookNodeIds: (nodeIds: string[]) => void
   setGlobalPathThickness: (thickness: number) => void
   setGlobalPathColor: (color: string) => void
   setGifCapturePaddingPercent: (percent: number) => void
@@ -178,6 +183,8 @@ export const useFlowStore = create<FlowStore>((set) => ({
   showAllNotes: false,
   hideNotesDuringPlayback: false,
   isPlaybackRunning: false,
+  playbackPhase: 'idle',
+  activeCharacterHookNodeIds: [],
   globalPathThickness: 1,
   globalPathColor: '#FFFFFF',
   gifCapturePaddingPercent: 10,
@@ -559,6 +566,8 @@ export const useFlowStore = create<FlowStore>((set) => ({
   toggleHideNotesDuringPlayback: () =>
     set((state) => ({ hideNotesDuringPlayback: !state.hideNotesDuringPlayback })),
   setPlaybackRunning: (isPlaybackRunning) => set({ isPlaybackRunning }),
+  setPlaybackPhase: (playbackPhase) => set({ playbackPhase }),
+  setActiveCharacterHookNodeIds: (activeCharacterHookNodeIds) => set({ activeCharacterHookNodeIds }),
   setGlobalPathThickness: (thickness) => {
     const nextThickness = Math.max(0.5, Math.min(4, Number.isFinite(thickness) ? thickness : 1))
     set({ globalPathThickness: Number(nextThickness.toFixed(2)) })

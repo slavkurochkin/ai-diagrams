@@ -1,6 +1,7 @@
 import type { Node, Edge } from 'reactflow'
 import type { BaseNodeData } from '../../types/nodes'
 import type { FlowContext } from '../../types/flow'
+import { filterGraphForAI } from '../aiGraphFilter'
 
 // ── Request payload ────────────────────────────────────────────────────────────
 
@@ -12,9 +13,10 @@ function serializePayload(
   flowName: string,
   flowContext: FlowContext | null,
 ) {
+  const { nodes: aiNodes, edges: aiEdges } = filterGraphForAI(nodes, edges)
   return {
     flowName,
-    nodes: nodes.map((n) => {
+    nodes: aiNodes.map((n) => {
       const rawNote = typeof n.data.note === 'string' ? n.data.note.trim() : ''
       const note =
         rawNote.length > MAX_NOTE_CHARS
@@ -28,7 +30,7 @@ function serializePayload(
         ...(note ? { note } : {}),
       }
     }),
-    edges: edges.map((e) => {
+    edges: aiEdges.map((e) => {
       const d = e.data as
         | {
             executionPriority?: number

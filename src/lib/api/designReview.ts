@@ -1,6 +1,7 @@
 import type { Node, Edge } from 'reactflow'
 import type { BaseNodeData } from '../../types/nodes'
 import type { FlowContext } from '../../types/flow'
+import { filterGraphForAI } from '../aiGraphFilter'
 
 export async function streamDesignReview(
   nodes: Node<BaseNodeData>[],
@@ -11,15 +12,16 @@ export async function streamDesignReview(
   onDone: () => void,
   onError: (msg: string) => void,
 ): Promise<void> {
+  const { nodes: aiNodes, edges: aiEdges } = filterGraphForAI(nodes, edges)
   const payload = {
     flowName,
-    nodes: nodes.map((n) => ({
+    nodes: aiNodes.map((n) => ({
       id: n.id,
       nodeType: n.data.nodeType,
       label: n.data.label,
       config: n.data.config ?? {},
     })),
-    edges: edges.map((e) => ({
+    edges: aiEdges.map((e) => ({
       id: e.id,
       source: e.source,
       sourceHandle: e.sourceHandle ?? null,

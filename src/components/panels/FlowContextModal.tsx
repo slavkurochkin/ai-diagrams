@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Plus, Trash2, Upload, FileText, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
+import { X, Plus, Trash2, Upload, FileText, ChevronDown, ChevronUp, Sparkles, RotateCcw } from 'lucide-react'
 import type { FlowContext, FlowContextDocument } from '../../types/flow'
 
 // ── Example data ───────────────────────────────────────────────────────────────
@@ -191,6 +191,13 @@ export default function FlowContextModal({
     setDocuments(EXAMPLE_CONTEXT.documents.map((d) => ({ ...d, id: `doc-${Date.now()}-${d.id}` })))
   }, [])
 
+  const handleClearDetails = useCallback(() => {
+    setName('Untitled Flow')
+    setDescription('')
+    setHowItWorks('')
+    setDocuments([])
+  }, [])
+
   const handleSave = useCallback(() => {
     onSave(
       name.trim() || 'Untitled Flow',
@@ -246,6 +253,19 @@ export default function FlowContextModal({
                   </p>
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
+                  <button
+                    type="button"
+                    onClick={handleClearDetails}
+                    className="
+                      flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+                      text-[11px] font-medium text-white/65
+                      bg-white/5 hover:bg-white/10 border border-white/15
+                      transition-colors
+                    "
+                  >
+                    <RotateCcw size={11} />
+                    Clear details
+                  </button>
                   <button
                     type="button"
                     onClick={handleFillExample}

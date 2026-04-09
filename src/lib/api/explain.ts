@@ -1,5 +1,6 @@
 import type { Node, Edge } from 'reactflow'
 import type { BaseNodeData } from '../../types/nodes'
+import { filterGraphForAI } from '../aiGraphFilter'
 
 // ── Request payload ────────────────────────────────────────────────────────────
 
@@ -8,15 +9,16 @@ function serializeGraph(
   edges: Edge[],
   flowName: string,
 ) {
+  const { nodes: aiNodes, edges: aiEdges } = filterGraphForAI(nodes, edges)
   return {
     flowName,
-    nodes: nodes.map((n) => ({
+    nodes: aiNodes.map((n) => ({
       id: n.id,
       nodeType: n.data.nodeType,
       label: n.data.label,
       config: n.data.config ?? {},
     })),
-    edges: edges.map((e) => ({
+    edges: aiEdges.map((e) => ({
       id: e.id,
       source: e.source,
       sourceHandle: e.sourceHandle ?? null,

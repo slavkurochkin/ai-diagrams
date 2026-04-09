@@ -47,6 +47,8 @@ export interface ConfigField {
   max?: number
   step?: number
   description?: string
+  /** Hide this field unless another config key equals the given value */
+  visibleWhen?: { key: string; value: string | number | boolean }
 }
 
 // ── Node definition (static metadata, not instance data) ─────────────────────

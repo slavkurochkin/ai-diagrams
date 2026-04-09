@@ -330,14 +330,19 @@ export default function ConfigPanel() {
 
           {/* ── Scrollable fields ────────────────────────────────────────── */}
           <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5">
-            {def.configFields.map((field) => (
-              <FieldRow
-                key={field.key}
-                field={field}
-                value={selectedNode.data.config[field.key] ?? field.defaultValue}
-                onChange={(val) => handleChange(field.key, val)}
-              />
-            ))}
+            {def.configFields
+              .filter((field) => {
+                if (!field.visibleWhen) return true
+                return selectedNode.data.config[field.visibleWhen.key] === field.visibleWhen.value
+              })
+              .map((field) => (
+                <FieldRow
+                  key={field.key}
+                  field={field}
+                  value={selectedNode.data.config[field.key] ?? field.defaultValue}
+                  onChange={(val) => handleChange(field.key, val)}
+                />
+              ))}
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">

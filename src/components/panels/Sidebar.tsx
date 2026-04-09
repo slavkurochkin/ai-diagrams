@@ -127,39 +127,26 @@ const CHAR_THUMB: Record<string, string> = {
     <path d="M40 42 L58 56" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M40 60 L28 82" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M40 60 L52 82" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
-  woman: `<path d="M31 11 Q14 20 13 64" stroke="#a0522d" stroke-width="6" stroke-linecap="round"/>
-    <path d="M49 11 Q66 20 67 64" stroke="#a0522d" stroke-width="6" stroke-linecap="round"/>
-    <path d="M27 16 Q28 4 40 4 Q52 4 53 16" stroke="#a0522d" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+  woman: `<path d="M33 10 Q6 18 4 70" stroke="#a0522d" stroke-width="7" stroke-linecap="round"/>
+    <path d="M35 9 Q16 24 15 72" stroke="#a0522d" stroke-width="6" stroke-linecap="round"/>
+    <path d="M45 9 Q64 24 65 72" stroke="#a0522d" stroke-width="6" stroke-linecap="round"/>
+    <path d="M47 10 Q74 18 76 70" stroke="#a0522d" stroke-width="7" stroke-linecap="round"/>
+    <path d="M24 15 Q24 1 40 1 Q56 1 56 15" stroke="#a0522d" stroke-width="5" stroke-linecap="round" fill="none"/>
     <circle cx="40" cy="17" r="12" stroke="currentColor" stroke-width="2.5" fill="currentColor" fill-opacity="0.13"/>
-    <path d="M32 29 L18 73 L62 73 L48 29 Z" stroke="#6b7db3" stroke-width="2" fill="#6b7db3" fill-opacity="0.22" stroke-linejoin="round"/>
+    <path d="M32 29 L18 73 L62 73 L48 29 Z" stroke="#6b7db3" stroke-width="2" fill="#6b7db3" stroke-linejoin="round"/>
     <path d="M33 33 L14 53" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M47 33 L66 53" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M26 73 L22 91" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M54 73 L58 91" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
-  man: `<circle cx="40" cy="14" r="11" stroke="currentColor" stroke-width="2.5" fill="currentColor" fill-opacity="0.13"/>
-    <path d="M29 25 L24 58 L56 58 L51 25 Z" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity="0.10" stroke-linejoin="round"/>
-    <path d="M40 27 Q36 34 29 37" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-    <path d="M40 27 Q44 34 51 37" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-    <path d="M40 27 L37.5 44 L40 48 L42.5 44 Z" fill="currentColor" fill-opacity="0.38" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>
-    <path d="M29 30 L10 54" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M51 30 L70 54" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M31 58 L26 84" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M49 58 L54 84" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
-  dog: `<ellipse cx="35" cy="62" rx="21" ry="13" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.10"/>
-    <circle cx="57" cy="40" r="13" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.10"/>
-    <path d="M48 30 Q40 22 38 36" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="currentColor" fill-opacity="0.12"/>
-    <circle cx="60" cy="36" r="2" fill="currentColor"/>
-    <path d="M14 58 Q4 44 10 30" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M50 73 L48 89" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M40 74 L38 90" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M24 73 L21 89" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M14 70 L11 86" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
   cat: `<ellipse cx="38" cy="65" rx="18" ry="13" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.10"/>
     <circle cx="40" cy="34" r="16" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.10"/>
     <path d="M28 22 L23 10 L36 20" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="currentColor" fill-opacity="0.15"/>
     <path d="M52 22 L57 10 L44 20" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="currentColor" fill-opacity="0.15"/>
     <ellipse cx="34" cy="32" rx="2.5" ry="3" fill="currentColor"/>
     <ellipse cx="46" cy="32" rx="2.5" ry="3" fill="currentColor"/>
+    <path d="M38 39 L40 41 L42 39 Q40 43 38 39 Z" fill="currentColor"/>
+    <path d="M14 37 L36 40 M13 42 L36 42" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M66 37 L44 40 M67 42 L44 42" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
     <path d="M20 65 Q8 72 10 84 Q12 92 22 88" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
     <path d="M30 76 L28 90" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M44 76 L46 90" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,

@@ -1895,11 +1895,24 @@ const CharacterNodeDefinition: NodeDefinition = {
       options: [
         { label: 'Person',  value: 'person' },
         { label: 'Woman',   value: 'woman'  },
-        { label: 'Man',     value: 'man'    },
-        { label: 'Dog',     value: 'dog'    },
         { label: 'Cat',     value: 'cat'    },
         { label: 'Robot',   value: 'robot'  },
         { label: 'Kid',     value: 'kid'    },
+      ],
+    },
+    {
+      key: 'expression',
+      label: 'Expression',
+      type: 'select',
+      defaultValue: 'none',
+      options: [
+        { label: 'None',      value: 'none'      },
+        { label: 'Happy',     value: 'happy'     },
+        { label: 'Sad',       value: 'sad'       },
+        { label: 'Angry',     value: 'angry'     },
+        { label: 'Surprised', value: 'surprised' },
+        { label: 'Neutral',   value: 'neutral'   },
+        { label: 'Thinking',  value: 'thinking'  },
       ],
     },
     {
@@ -1907,12 +1920,14 @@ const CharacterNodeDefinition: NodeDefinition = {
       label: 'Hair Color',
       type: 'color',
       defaultValue: '#a0522d',
+      visibleWhen: { key: 'variant', value: 'woman' },
     },
     {
       key: 'dressColor',
       label: 'Outfit Color',
       type: 'color',
       defaultValue: '#6b7db3',
+      visibleWhen: { key: 'variant', value: 'woman' },
     },
   ],
 }

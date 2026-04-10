@@ -216,51 +216,81 @@ edges:
   },
 
   {
-    id: 'rag-with-cache',
-    name: 'RAG with Semantic Cache',
-    description: 'Basic RAG augmented with a semantic cache layer to avoid redundant LLM calls for similar queries.',
+    id: 'conversational-rag',
+    name: 'Conversational RAG',
+    description: 'Multi-turn RAG with conversation memory — the LLM answers questions grounded in retrieved context while retaining the full conversation history.',
     category: 'rag',
     preferredLayoutDirection: 'LR',
-    yaml: `name: RAG with Semantic Cache
+    yaml: `name: Conversational RAG
 nodes:
+  # ── Main pipeline (top row, left → right) ──────────────────────────────────
   - id: user_query
     type: promptTemplate
     label: User Query
     config:
       template: "{{question}}"
       inputVariables: question
+    note: "The current user turn — feeds the retrieval path, the prompt builder, and memory"
+    position:
+      x: 60
+      y: 160
   - id: embedder
     type: embedding
     label: Query Embedder
-  - id: cache
-    type: cache
-    note: "Returns a cached answer if a semantically similar query was seen recently"
+    note: "Encodes the current question into a vector for semantic search"
+    position:
+      x: 340
+      y: 40
   - id: retriever
     type: retriever
+    config:
+      topK: 5
+      strategy: similarity
+    note: "Fetches the most relevant chunks for the current question — history is not used here, only the current turn"
+    position:
+      x: 620
+      y: 40
   - id: prompt
     type: aggregator
     label: Prompt Builder
     config:
       strategy: concat
-    note: "Combines the user question with retrieved context"
+    note: "Assembles three inputs: (A) current question, (B) conversation history, (C) retrieved context"
+    position:
+      x: 900
+      y: 160
   - id: llm
     type: llm
     config:
       model: gpt-4o
-  - id: guardrails
-    type: guardrails
-    note: "PII detection + toxicity filter"
+    note: "Generates an answer grounded in retrieved context and aware of prior conversation turns"
+    position:
+      x: 1160
+      y: 160
   - id: parser
     type: outputParser
+    config:
+      format: markdown
+    position:
+      x: 1420
+      y: 160
+  # ── Memory layer (bottom row) ───────────────────────────────────────────────
+  - id: memory
+    type: memory
+    label: Conversation Memory
+    config:
+      memoryType: buffer
+      windowSize: 10
+    note: "Reads: injects prior turns into the prompt\\nWrites: the LLM reply loops back here so next turn has full context"
+    position:
+      x: 620
+      y: 380
 edges:
+  # Retrieval path
   - from: user_query
     to: embedder
     fromHandle: prompt
     toHandle: text
-  - from: embedder
-    to: cache
-    fromHandle: embedding
-    toHandle: key
   - from: embedder
     to: retriever
     fromHandle: embedding
@@ -269,30 +299,38 @@ edges:
     to: retriever
     fromHandle: prompt
     toHandle: query
+  # Prompt assembly
   - from: user_query
     to: prompt
     fromHandle: prompt
     toHandle: inputA
+  - from: memory
+    to: prompt
+    fromHandle: history
+    toHandle: inputB
   - from: retriever
     to: prompt
     fromHandle: documents
-    toHandle: inputB
+    toHandle: inputC
+  # Generation
   - from: prompt
     to: llm
     fromHandle: merged
     toHandle: prompt
   - from: llm
-    to: cache
-    fromHandle: response
-    toHandle: value
-  - from: cache
-    to: guardrails
-    fromHandle: value
-    toHandle: input
-  - from: guardrails
     to: parser
-    fromHandle: passed
-    toHandle: text`,
+    fromHandle: response
+    toHandle: text
+  # Memory write — user input in, LLM response loops back
+  - from: user_query
+    to: memory
+    fromHandle: prompt
+    toHandle: input
+  - from: llm
+    to: memory
+    fromHandle: response
+    toHandle: input
+    kind: loopback`,
   },
 
   // ── Agent ───────────────────────────────────────────────────────────────────
@@ -619,436 +657,6 @@ edges:
     fromHandle: passed
     toHandle: text
     executionPriority: 6`,
-  },
-
-  {
-    id: 'rag-agentic-loop-eval',
-    name: 'RAG Agentic Loop + Eval',
-    description: 'A complete RAG Agentic Loop with web/code tools plus an attached evaluation suite for response quality, tool use, trajectory, completion, and efficiency.',
-    category: 'agent',
-    preferredLayoutDirection: 'LR',
-    yaml: `name: RAG Agentic Loop + Eval
-nodes:
-  - id: user_input
-    type: promptTemplate
-    label: User Query
-    config:
-      template: "{{question}}"
-      inputVariables: question
-    position:
-      x: 100
-      y: 180
-  - id: memory
-    type: memory
-    config:
-      memoryType: buffer
-      windowSize: 10
-    note: "Stores user messages and agent replies across turns"
-    position:
-      x: 100
-      y: 340
-  - id: agent
-    type: agent
-    config:
-      maxIterations: 10
-      instructions: "You are a grounded research assistant. Use retrieval for internal knowledge, web search for fresh facts, and code execution for computation before answering."
-    note: |
-      **RAG agent loop:**
-      1. Read the task and memory
-      2. Choose the next tool: retrieval, web search, or code execution
-      3. If retrieving, embed the request and query the retriever
-      4. Observe tool results
-      5. Respond and store the answer in memory
-    position:
-      x: 430
-      y: 260
-  - id: search
-    type: webSearch
-    label: Web Search
-    config:
-      engine: brave
-      maxResults: 5
-    note: "Used when the agent needs fresh or external information"
-    position:
-      x: 770
-      y: 40
-  - id: embedding
-    type: embedding
-    label: Query Embedder
-    note: "Converts the agent's retrieval request into a vector embedding"
-    position:
-      x: 760
-      y: 145
-  - id: vector_db
-    type: vectorDB
-    label: Vector Store
-    config:
-      provider: pinecone
-    note: "Persistent vector index that backs the retriever's similarity search"
-    position:
-      x: 1070
-      y: 315
-  - id: retriever
-    type: retriever
-    label: Retriever
-    config:
-      topK: 5
-    note: "Queries the connected vector store for the most relevant context"
-    position:
-      x: 760
-      y: 315
-  - id: toolcall
-    type: toolCall
-    label: Code Executor
-    config:
-      toolName: run_python
-      timeout: 30
-    note: "Executes Python code and returns stdout"
-    position:
-      x: 800
-      y: 430
-  - id: guardrails
-    type: guardrails
-    config:
-      checks: toxicity, pii
-    note: "PII detection + toxicity filter on the final answer"
-    position:
-      x: 770
-      y: 590
-  - id: parser
-    type: outputParser
-    config:
-      format: markdown
-    position:
-      x: 1080
-      y: 590
-  - id: response_criteria
-    type: rubric
-    label: Response Criteria
-    config:
-      criteria: "Correctness\\nGroundedness\\nHelpfulness"
-    note: "Structured criteria for single-turn answer quality"
-    position:
-      x: 100
-      y: 850
-  - id: expected_tools
-    type: rubric
-    label: Expected Tools
-    config:
-      criteria: "Use retriever for internal knowledge\\nUse web search for fresh facts\\nUse code execution for calculations"
-    note: "Expected tool behavior for this class of task"
-    position:
-      x: 100
-      y: 1020
-  - id: expected_trajectory
-    type: rubric
-    label: Ideal Trajectory
-    config:
-      criteria: "Understand task\\nChoose correct tool\\nInterpret outputs\\nRespond clearly"
-    note: "Reference action pattern for trajectory evaluation"
-    position:
-      x: 100
-      y: 1190
-  - id: success_criteria
-    type: rubric
-    label: Success Criteria
-    config:
-      criteria: "Answers the task\\nUses tools appropriately\\nProduces a grounded final response"
-    note: "Structured rubric for overall completion"
-    position:
-      x: 760
-      y: 850
-  - id: single_turn
-    type: singleTurnEval
-    label: Single-Turn Quality
-    config:
-      relevance: true
-      correctness: true
-      helpfulness: true
-      judgeModel: gpt-4o
-    position:
-      x: 430
-      y: 850
-  - id: tool_eval
-    type: toolUseEval
-    label: Tool Use Eval
-    config:
-      toolSelection: true
-      argumentCorrectness: true
-      redundantCalls: true
-      matchStrategy: semantic
-    position:
-      x: 430
-      y: 1020
-  - id: trajectory
-    type: trajectoryEval
-    label: Trajectory Eval
-    config:
-      strategy: llm
-      terminalStateWeight: 0.6
-      stepEfficiency: true
-    position:
-      x: 430
-      y: 1190
-  - id: completion
-    type: taskCompletion
-    label: Task Completion
-    config:
-      completionType: graded
-      allowPartialCredit: true
-    position:
-      x: 1090
-      y: 850
-  - id: efficiency
-    type: agentEfficiency
-    label: Agent Efficiency
-    config:
-      trackSteps: true
-      trackToolCalls: true
-      trackTokens: true
-      trackCost: true
-    position:
-      x: 760
-      y: 1020
-  - id: ground_truth
-    type: groundTruth
-    label: Ground Truth
-    note: "Reference answers and relevant context expectations for retrieval quality checks"
-    position:
-      x: 1090
-      y: 1020
-  - id: rag_eval
-    type: ragEvaluator
-    label: RAG Evaluator
-    config:
-      recallAtK: true
-      precisionAtK: true
-      mrr: true
-      faithfulness: true
-      answerRelevancy: true
-      contextPrecision: true
-      contextRecall: true
-      k: 5
-    note: "Measures both retrieval quality and whether the final answer is grounded in the retrieved context"
-    position:
-      x: 1090
-      y: 1190
-  - id: rag_threshold
-    type: thresholdGate
-    label: RAG Threshold
-    config:
-      threshold: 0.75
-      metric: faithfulness
-    note: "Flags runs where retrieval grounding quality falls below the target threshold"
-    position:
-      x: 1090
-      y: 1360
-edges:
-  # User input enters both the live prompt path and the conversation memory
-  - from: user_input
-    to: agent
-    fromHandle: prompt
-    toHandle: prompt
-  - from: user_input
-    to: memory
-    fromHandle: prompt
-    toHandle: input
-  - from: memory
-    to: agent
-    fromHandle: history
-    toHandle: memory
-  # Agent can choose between web search, retrieval, and code execution
-  - from: agent
-    to: search
-    fromHandle: toolRequests
-    toHandle: query
-    executionPriority: 3
-  - from: agent
-    to: embedding
-    fromHandle: toolRequests
-    toHandle: text
-    executionPriority: 1
-  - from: agent
-    to: retriever
-    fromHandle: toolRequests
-    toHandle: query
-    executionPriority: 2
-  - from: agent
-    to: toolcall
-    fromHandle: toolRequests
-    toHandle: call
-    executionPriority: 4
-  - from: embedding
-    to: vector_db
-    fromHandle: embedding
-    toHandle: embedding
-    executionPriority: 2
-  - from: vector_db
-    to: retriever
-    fromHandle: store
-    toHandle: store
-    executionPriority: 3
-  - from: embedding
-    to: retriever
-    fromHandle: embedding
-    toHandle: embedding
-    executionPriority: 3
-  # Tool observations loop back into the agent
-  - from: search
-    to: agent
-    fromHandle: results
-    toHandle: tools
-    kind: loopback
-    lane: top
-    executionPriority: 1
-  - from: retriever
-    to: agent
-    fromHandle: documents
-    toHandle: tools
-    kind: loopback
-    lane: bottom
-    executionPriority: 1
-  - from: toolcall
-    to: agent
-    fromHandle: result
-    toHandle: tools
-    kind: loopback
-    lane: right
-    executionPriority: 1
-  # Final answer is stored in memory and then sent through safety + formatting
-  - from: agent
-    to: memory
-    fromHandle: response
-    toHandle: input
-    executionPriority: 5
-  - from: agent
-    to: guardrails
-    fromHandle: response
-    toHandle: input
-    executionPriority: 5
-  - from: guardrails
-    to: parser
-    fromHandle: passed
-    toHandle: text
-    executionPriority: 6
-  # Evaluation context derived from the same user task
-  - from: user_input
-    to: response_criteria
-    fromHandle: prompt
-    toHandle: task
-    kind: eval
-  - from: user_input
-    to: expected_tools
-    fromHandle: prompt
-    toHandle: task
-    kind: eval
-  - from: user_input
-    to: expected_trajectory
-    fromHandle: prompt
-    toHandle: task
-    kind: eval
-  - from: user_input
-    to: success_criteria
-    fromHandle: prompt
-    toHandle: task
-    kind: eval
-  - from: user_input
-    to: single_turn
-    fromHandle: prompt
-    toHandle: query
-    kind: eval
-  - from: user_input
-    to: tool_eval
-    fromHandle: prompt
-    toHandle: task
-    kind: eval
-  - from: user_input
-    to: trajectory
-    fromHandle: prompt
-    toHandle: goal
-    kind: eval
-  - from: user_input
-    to: completion
-    fromHandle: prompt
-    toHandle: taskDescription
-    kind: eval
-  - from: user_input
-    to: ground_truth
-    fromHandle: prompt
-    toHandle: query
-    kind: eval
-  - from: user_input
-    to: rag_eval
-    fromHandle: prompt
-    toHandle: query
-    kind: eval
-  # Rubrics provide structured expectations to the evaluators
-  - from: response_criteria
-    to: single_turn
-    fromHandle: criteria
-    toHandle: criteria
-    kind: eval
-  - from: expected_tools
-    to: tool_eval
-    fromHandle: criteria
-    toHandle: expectedTools
-    kind: eval
-  - from: expected_trajectory
-    to: trajectory
-    fromHandle: criteria
-    toHandle: expectedTrajectory
-    kind: eval
-  - from: success_criteria
-    to: completion
-    fromHandle: criteria
-    toHandle: successCriteria
-    kind: eval
-  # Agent outputs feed the evaluation layer
-  - from: agent
-    to: single_turn
-    fromHandle: response
-    toHandle: response
-    kind: eval
-  - from: agent
-    to: completion
-    fromHandle: response
-    toHandle: result
-    kind: eval
-  - from: agent
-    to: tool_eval
-    fromHandle: actions
-    toHandle: toolCalls
-    kind: eval
-  - from: agent
-    to: trajectory
-    fromHandle: actions
-    toHandle: trajectory
-    kind: eval
-  - from: agent
-    to: efficiency
-    fromHandle: actions
-    toHandle: trajectory
-    kind: eval
-  - from: retriever
-    to: rag_eval
-    fromHandle: documents
-    toHandle: contexts
-    kind: eval
-  - from: agent
-    to: rag_eval
-    fromHandle: response
-    toHandle: response
-    kind: eval
-  - from: ground_truth
-    to: rag_eval
-    fromHandle: reference
-    toHandle: reference
-    kind: eval
-  - from: rag_eval
-    to: rag_threshold
-    fromHandle: scores
-    toHandle: score
-    kind: eval`,
   },
 
   {
@@ -1472,6 +1080,85 @@ edges:
     to: efficiency
     fromHandle: actions
     toHandle: trajectory`,
+  },
+
+  // ── Pipeline ─────────────────────────────────────────────────────────────────
+
+  {
+    id: 'structured-output',
+    name: 'Structured Output',
+    description: 'Extract typed, schema-defined fields from raw documents using an LLM — invoices, contracts, forms, emails. Low-temperature generation + JSON parser + confidence gate.',
+    category: 'pipeline',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: Structured Output Pipeline
+nodes:
+  - id: loader
+    type: dataLoader
+    label: Document Loader
+    note: "Load raw source documents — PDFs, emails, contracts, HTML pages, etc."
+  - id: chunker
+    type: chunker
+    label: Chunker
+    config:
+      chunkSize: 2000
+      overlap: 100
+    note: "Split long documents into chunks that fit the LLM context window — larger chunks work well for extraction since you want full sentences"
+  - id: schema
+    type: promptTemplate
+    label: Extraction Schema
+    config:
+      template: "Extract the following fields as JSON:\\n- company_name\\n- invoice_date\\n- total_amount\\n- line_items[]"
+      inputVariables: ""
+    note: "Define exactly which fields to extract and their expected types — the more specific the schema, the more reliable the output"
+  - id: prompt
+    type: aggregator
+    label: Prompt Builder
+    config:
+      strategy: concat
+    note: "Combines the extraction schema with the document chunk to form the LLM prompt"
+  - id: llm
+    type: llm
+    config:
+      model: gpt-4o
+      temperature: 0
+    note: "Temperature 0 gives deterministic, structured output — creativity is the enemy of reliable extraction"
+  - id: parser
+    type: outputParser
+    config:
+      format: json
+    note: "Parses and validates the raw LLM output into typed JSON — rejects responses that don't match the expected schema"
+  - id: gate
+    type: thresholdGate
+    label: Confidence Gate
+    config:
+      threshold: 0.85
+      metric: parseScore
+    note: "Flag low-confidence extractions for human review — anything below the threshold gets routed to a review queue instead of being written to the database"
+edges:
+  - from: loader
+    to: chunker
+    fromHandle: documents
+    toHandle: text
+  - from: chunker
+    to: prompt
+    fromHandle: chunks
+    toHandle: inputA
+  - from: schema
+    to: prompt
+    fromHandle: prompt
+    toHandle: inputB
+  - from: prompt
+    to: llm
+    fromHandle: merged
+    toHandle: prompt
+  - from: llm
+    to: parser
+    fromHandle: response
+    toHandle: text
+  - from: parser
+    to: gate
+    fromHandle: parsed
+    toHandle: score`,
   },
 ]
 

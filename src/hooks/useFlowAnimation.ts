@@ -36,33 +36,6 @@ function coerceHookMs(value: unknown): number {
   return DEFAULT_HOOK_MS
 }
 
-function getHookDurationMs(nodes: Node<BaseNodeData>[], phase: 'before' | 'after'): number {
-  let maxMs = 0
-  for (const n of nodes) {
-    if (n.data.nodeType !== 'character') continue
-    const cfg = n.data.config as Record<string, unknown>
-    const speechHook = typeof cfg.speechHook === 'string' ? cfg.speechHook : 'none'
-    const noteBefore = typeof cfg.noteBefore === 'string' ? cfg.noteBefore.trim() : ''
-    const noteAfter = typeof cfg.noteAfter === 'string' ? cfg.noteAfter.trim() : ''
-    const expressionBefore = typeof cfg.expressionBefore === 'string' ? cfg.expressionBefore : 'inherit'
-    const expressionAfter = typeof cfg.expressionAfter === 'string' ? cfg.expressionAfter : 'inherit'
-    const beforeEnabled = speechHook === 'before' || speechHook === 'beforeAfter' || noteBefore.length > 0 || expressionBefore !== 'inherit'
-    const afterEnabled = speechHook === 'after' || speechHook === 'beforeAfter' || noteAfter.length > 0 || expressionAfter !== 'inherit'
-    const enabled = phase === 'before' ? beforeEnabled : afterEnabled
-    if (!enabled) continue
-    // Prefer the new seconds-based field, but support legacy ms-based flows.
-    const legacyMsRaw = cfg.speechDurationMs
-    const legacyMs =
-      typeof legacyMsRaw === 'number' && Number.isFinite(legacyMsRaw)
-        ? Math.max(200, Math.min(10000, Math.round(legacyMsRaw)))
-        : typeof legacyMsRaw === 'string' && Number.isFinite(Number(legacyMsRaw))
-          ? Math.max(200, Math.min(10000, Math.round(Number(legacyMsRaw))))
-          : DEFAULT_HOOK_MS
-    const ms = cfg.speechDurationSeconds !== undefined ? coerceHookMs(cfg.speechDurationSeconds) : legacyMs
-    if (ms > maxMs) maxMs = ms
-  }
-  return maxMs || DEFAULT_HOOK_MS
-}
 
 interface CharacterHookMeta {
   nodeId: string

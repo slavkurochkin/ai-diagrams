@@ -1,11 +1,22 @@
 import { useCallback, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Trash2, StickyNote, BarChart2 } from 'lucide-react'
+import { X, Trash2, StickyNote, BarChart2, ChevronDown } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { getNodeDefinition } from '../../lib/nodeDefinitions'
-import type { NotePlacement } from '../../types/nodes'
+import { resolvePortAxisPercent } from '../../lib/portLayout'
+import { portHandleFill } from '../../lib/portVisual'
+import type { NotePlacement, PortDefinition } from '../../types/nodes'
 import type { ConfigField } from '../../types/nodes'
 import RAGEvalPanel from './RAGEvalPanel'
+
+/** Same ordering as canvas `portOrder` (YAML / persisted). */
+function applyPortOrder(ports: PortDefinition[], order?: string[]): PortDefinition[] {
+  if (!order || order.length === 0) return ports
+  const byId = Object.fromEntries(ports.map((p) => [p.id, p]))
+  const ordered = order.map((id) => byId[id]).filter((p): p is PortDefinition => p != null)
+  const rest = ports.filter((p) => !order.includes(p.id))
+  return [...ordered, ...rest]
+}
 
 const EDGE_SPEED_PRESETS = [0.25, 0.5, 1, 2] as const
 const EDGE_THICKNESS_PRESETS = [0.75, 1, 1.5, 2, 3] as const
@@ -207,7 +218,7 @@ function FieldRow({ field, value, onChange }: FieldProps) {
 // ── Config Panel ───────────────────────────────────────────────────────────────
 
 export default function ConfigPanel() {
-  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, updateNodeConfig, updateNodeLabel, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
+  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, layoutDirection, updateNodeConfig, updateNodeLabel, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, updateNodePortOffset, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
     useFlowStore()
 
   const selectedNode = selectedNodeId
@@ -266,6 +277,7 @@ export default function ConfigPanel() {
   }, [selectedNodeId, removeNode, setSelectedNode])
 
   const [ragEvalOpen, setRagEvalOpen] = useState(false)
+  const [portsSectionOpen, setPortsSectionOpen] = useState(false)
 
   return (
     <AnimatePresence>
@@ -638,26 +650,142 @@ export default function ConfigPanel() {
             </div>
           )}
 
-          {/* ── Port reference ────────────────────────────────────────────── */}
-          {(def.inputs.length > 0 || def.outputs.length > 0) && (
-            <div className="px-4 py-3 border-t border-white/5 space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-white/25">
-                Ports
+          {/* ── Port position (sliders) — same order as canvas ───────────── */}
+          {!isFrameNode && !isTextNode && selectedNode && def && (def.inputs.length > 0 || def.outputs.length > 0) && (
+            <div className="px-4 py-2.5 border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => setPortsSectionOpen((o) => !o)}
+                aria-expanded={portsSectionOpen}
+                className="flex w-full items-center justify-between gap-2 rounded-md py-1 text-left -mx-1 px-1 hover:bg-white/[0.04] transition-colors"
+              >
+                <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                  <span className="text-[11px] font-medium text-white/60 uppercase tracking-wide shrink-0">
+                    Ports
+                  </span>
+                  {!portsSectionOpen && (
+                    <span className="truncate text-[10px] font-normal normal-case text-white/30">
+                      {def.inputs.length} in · {def.outputs.length} out · sliders
+                    </span>
+                  )}
+                </div>
+                <ChevronDown
+                  size={14}
+                  className={`shrink-0 text-white/35 transition-transform duration-200 ${
+                    portsSectionOpen ? 'rotate-180' : ''
+                  }`}
+                  aria-hidden
+                />
+              </button>
+              {portsSectionOpen && (
+              <div className="mt-2 space-y-1.5">
+              <p className="text-[10px] text-white/30 leading-relaxed">
+                <span className="text-white/45">Sliders</span> set where each handle sits on the node edge (0–100%).{' '}
+                {layoutDirection === 'LR'
+                  ? 'Along the left or right side, 0% is at the top and 100% at the bottom.'
+                  : 'Along the top or bottom edge, 0% is at the start and 100% at the end.'}
               </p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                {def.inputs.map((p) => (
-                  <div key={p.id} className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-slate-400" />
-                    <span className="text-[10px] text-white/40 truncate">{p.label}</span>
-                  </div>
-                ))}
-                {def.outputs.map((p) => (
-                  <div key={p.id} className="flex items-center gap-1.5 justify-end">
-                    <span className="text-[10px] text-white/40 truncate">{p.label}</span>
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-emerald-400" />
-                  </div>
-                ))}
+              <p className="text-[10px] text-white/30 leading-relaxed">
+                Hold Option/Alt and drag a port on the canvas to match, or use Auto to clear the override.
+              </p>
+              <div className="space-y-2 pt-0.5">
+                {applyPortOrder(def.inputs, selectedNode.data.portOrder?.inputs).map((port, i, arr) => {
+                  const value = resolvePortAxisPercent(port, i, arr.length, selectedNode.data.portOffsets)
+                  const hasOverride = selectedNode.data.portOffsets?.[port.id] !== undefined
+                  const dot = portHandleFill(port.type, 'input')
+                  return (
+                    <div
+                      key={`in-${port.id}`}
+                      className="space-y-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0 ring-1 ring-white/10"
+                          style={{ background: dot }}
+                        />
+                        <span className="text-[10px] text-white/50 truncate min-w-0 flex-1" title={port.id}>
+                          In · {port.label}
+                        </span>
+                        {hasOverride && (
+                          <button
+                            type="button"
+                            onClick={() => updateNodePortOffset(selectedNode.id, port.id, null)}
+                            className="text-[9px] text-white/35 hover:text-white/65 transition-colors shrink-0"
+                          >
+                            Auto
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={Math.round(value)}
+                          onChange={(e) =>
+                            updateNodePortOffset(selectedNode.id, port.id, Number(e.target.value))
+                          }
+                          className="min-w-0 flex-1 h-1.5"
+                          style={{ accentColor: dot }}
+                        />
+                        <span className="text-[9px] font-mono text-white/40 w-7 text-right tabular-nums shrink-0">
+                          {Math.round(value)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+                {applyPortOrder(def.outputs, selectedNode.data.portOrder?.outputs).map((port, i, arr) => {
+                  const value = resolvePortAxisPercent(port, i, arr.length, selectedNode.data.portOffsets)
+                  const hasOverride = selectedNode.data.portOffsets?.[port.id] !== undefined
+                  const dot = portHandleFill(port.type, 'output')
+                  return (
+                    <div
+                      key={`out-${port.id}`}
+                      className="space-y-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-white/50 truncate min-w-0 flex-1 text-right" title={port.id}>
+                          Out · {port.label}
+                        </span>
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0 ring-1 ring-white/10"
+                          style={{ background: dot }}
+                        />
+                        {hasOverride && (
+                          <button
+                            type="button"
+                            onClick={() => updateNodePortOffset(selectedNode.id, port.id, null)}
+                            className="text-[9px] text-white/35 hover:text-white/65 transition-colors shrink-0"
+                          >
+                            Auto
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={Math.round(value)}
+                          onChange={(e) =>
+                            updateNodePortOffset(selectedNode.id, port.id, Number(e.target.value))
+                          }
+                          className="min-w-0 flex-1 h-1.5"
+                          style={{ accentColor: dot }}
+                        />
+                        <span className="text-[9px] font-mono text-white/40 w-7 text-right tabular-nums shrink-0">
+                          {Math.round(value)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
+              </div>
+              )}
             </div>
           )}
         </motion.aside>

@@ -15,6 +15,8 @@ interface YAMLNodeSpec {
   note?: string
   noteAlwaysVisible?: boolean
   notePlacement?: NotePlacement
+  portOrder?: { inputs?: string[]; outputs?: string[] }
+  portOffsets?: Record<string, number>
   position?: {
     x: number
     y: number
@@ -98,6 +100,10 @@ let _counter = 2000
  *     to: chunker
  *     fromHandle: documents   # optional handle id
  *     toHandle: text          # optional handle id
+ *     portOrder:              # optional — custom port order on the node edge
+ *       inputs: [prompt, memory, tools]
+ *     portOffsets:            # optional — slide ports along the edge (0–100)
+ *       prompt: 35
  * ```
  */
 export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
@@ -143,6 +149,12 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
         ...(n.note !== undefined && { note: n.note }),
         ...(n.noteAlwaysVisible !== undefined && { noteAlwaysVisible: n.noteAlwaysVisible }),
         ...(n.notePlacement !== undefined && { notePlacement: n.notePlacement }),
+        ...(n.portOrder !== undefined &&
+          typeof n.portOrder === 'object' &&
+          n.portOrder !== null && { portOrder: { ...n.portOrder } }),
+        ...(n.portOffsets !== undefined &&
+          typeof n.portOffsets === 'object' &&
+          n.portOffsets !== null && { portOffsets: { ...n.portOffsets } }),
       },
     })
   }
@@ -229,6 +241,12 @@ export function serializeFlowToYAML(
       // (auto/undefined is layout-dependent in the UI but was previously omitted from YAML).
       if (n.data.note) {
         entry.notePlacement = effectiveNotePlacementForExport(n.data.notePlacement, layoutDirection)
+      }
+      if (n.data.portOrder && (n.data.portOrder.inputs?.length || n.data.portOrder.outputs?.length)) {
+        entry.portOrder = { ...n.data.portOrder }
+      }
+      if (n.data.portOffsets && Object.keys(n.data.portOffsets).length > 0) {
+        entry.portOffsets = { ...n.data.portOffsets }
       }
       // Always persist position (including 0,0) so reimport matches the canvas.
       // Round to integers — sub-pixel precision is invisible but causes float drift on round-trip.

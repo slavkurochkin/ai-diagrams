@@ -16,6 +16,8 @@ export interface PortDefinition {
   label: string
   type: PortType
   color?: string
+  /** Default position along the node edge, 0–100 (overridable per instance via `BaseNodeData.portOffsets`). */
+  edgeOffsetPercent?: number
 }
 
 export type NotePlacement = 'auto' | 'right' | 'bottom'
@@ -89,6 +91,10 @@ export interface BaseNodeData {
   noteAlwaysVisible?: boolean
   /** Optional placement override for the rendered note card. */
   notePlacement?: NotePlacement
+  /** Custom port ordering — arrays of port IDs in display order. */
+  portOrder?: { inputs?: string[]; outputs?: string[] }
+  /** Per-port position along the edge (0–100), keyed by port id. */
+  portOffsets?: Record<string, number>
 }
 
 // ── Typed data shapes per node type ──────────────────────────────────────────

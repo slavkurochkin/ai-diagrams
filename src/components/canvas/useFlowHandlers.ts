@@ -3,7 +3,8 @@ import { useReactFlow } from 'reactflow'
 import type { NodeChange, EdgeChange, Connection } from 'reactflow'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { getNodeDefinition } from '../../lib/nodeDefinitions'
-import type { PortType } from '../../types/nodes'
+import type { PortDefinition, PortType } from '../../types/nodes'
+import { portAxisPercentToPixelOffset, resolvePortAxisPercent, sortPortsByOrder } from '../../lib/portLayout'
 
 const FULL_NODE_WIDTH = 220
 const FULL_NODE_HEIGHT = 110
@@ -17,9 +18,16 @@ function portsCompatible(src: PortType, tgt: PortType): boolean {
   return src === tgt
 }
 
-function getPortOffset(index: number, total: number, span: number): number {
-  const axisPercent = total === 1 ? 50 : 20 + (index / (total - 1)) * 60
-  return (axisPercent / 100) * span
+function getPortOffsetPixels(
+  port: PortDefinition | undefined,
+  index: number,
+  total: number,
+  span: number,
+  portOffsets?: Record<string, number>,
+): number {
+  if (!port) return portAxisPercentToPixelOffset(50, span)
+  const axis = resolvePortAxisPercent(port, index, total, portOffsets)
+  return portAxisPercentToPixelOffset(axis, span)
 }
 
 function getNodeSize(compactMode: boolean) {
@@ -82,10 +90,22 @@ export function useFlowHandlers() {
           }
         }
 
-        const srcPortIndex = srcDef?.outputs.findIndex((p) => p.id === connection.sourceHandle) ?? -1
-        const tgtPortIndex = tgtDef?.inputs.findIndex((p) => p.id === connection.targetHandle) ?? -1
-        const srcPortTotal = srcDef?.outputs.length ?? 1
-        const tgtPortTotal = tgtDef?.inputs.length ?? 1
+        const srcPortsSorted = srcDef ? sortPortsByOrder(srcDef.outputs, srcNode.data.portOrder?.outputs) : []
+        const tgtPortsSorted = tgtDef ? sortPortsByOrder(tgtDef.inputs, tgtNode.data.portOrder?.inputs) : []
+        const srcVisualIdx = connection.sourceHandle
+          ? srcPortsSorted.findIndex((p) => p.id === connection.sourceHandle)
+          : -1
+        const tgtVisualIdx = connection.targetHandle
+          ? tgtPortsSorted.findIndex((p) => p.id === connection.targetHandle)
+          : -1
+        const srcPortDef =
+          srcVisualIdx >= 0 ? srcPortsSorted[srcVisualIdx] : srcPortsSorted[0]
+        const tgtPortDef =
+          tgtVisualIdx >= 0 ? tgtPortsSorted[tgtVisualIdx] : tgtPortsSorted[0]
+        const srcIdx = srcVisualIdx >= 0 ? srcVisualIdx : 0
+        const tgtIdx = tgtVisualIdx >= 0 ? tgtVisualIdx : 0
+        const srcPortTotal = Math.max(1, srcPortsSorted.length)
+        const tgtPortTotal = Math.max(1, tgtPortsSorted.length)
         const { width: nodeWidth, height: nodeHeight } = getNodeSize(compactMode)
 
         const alignedNodes = nodes.map((node) => {
@@ -94,11 +114,13 @@ export function useFlowHandlers() {
           if (layoutDirection === 'TB') {
             const sourceHandleX =
               srcNode.position.x +
-              getPortOffset(srcPortIndex >= 0 ? srcPortIndex : 0, srcPortTotal, nodeWidth)
-            const targetHandleOffsetX = getPortOffset(
-              tgtPortIndex >= 0 ? tgtPortIndex : 0,
+              getPortOffsetPixels(srcPortDef, srcIdx, srcPortTotal, nodeWidth, srcNode.data.portOffsets)
+            const targetHandleOffsetX = getPortOffsetPixels(
+              tgtPortDef,
+              tgtIdx,
               tgtPortTotal,
               nodeWidth,
+              tgtNode.data.portOffsets,
             )
             const verticalDirection = tgtNode.position.y >= srcNode.position.y ? 1 : -1
             const currentGap = Math.abs(tgtNode.position.y - srcNode.position.y)
@@ -118,11 +140,13 @@ export function useFlowHandlers() {
 
           const sourceHandleY =
             srcNode.position.y +
-            getPortOffset(srcPortIndex >= 0 ? srcPortIndex : 0, srcPortTotal, nodeHeight)
-          const targetHandleOffsetY = getPortOffset(
-            tgtPortIndex >= 0 ? tgtPortIndex : 0,
+            getPortOffsetPixels(srcPortDef, srcIdx, srcPortTotal, nodeHeight, srcNode.data.portOffsets)
+          const targetHandleOffsetY = getPortOffsetPixels(
+            tgtPortDef,
+            tgtIdx,
             tgtPortTotal,
             nodeHeight,
+            tgtNode.data.portOffsets,
           )
           const horizontalDirection = tgtNode.position.x >= srcNode.position.x ? 1 : -1
           const currentGap = Math.abs(tgtNode.position.x - srcNode.position.x)

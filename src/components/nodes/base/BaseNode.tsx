@@ -1,10 +1,12 @@
-import { useCallback } from 'react'
+import { useCallback, useLayoutEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import type { NodeProps } from 'reactflow'
+import { useUpdateNodeInternals } from 'reactflow'
 import { useFlowStore, selectTheme } from '../../../hooks/useFlowStore'
 import { getNodeDefinition } from '../../../lib/nodeDefinitions'
 import type { BaseNodeData } from '../../../types/nodes'
+import { sortPortsByOrder } from '../../../lib/portLayout'
 import NodePort from './NodePort'
 
 // ── Animation state → ring color ─────────────────────────────────────────────
@@ -53,6 +55,7 @@ interface BaseNodeProps extends NodeProps<BaseNodeData> {
 }
 
 export default function BaseNode({ id, data, selected, preview }: BaseNodeProps) {
+  const updateNodeInternals = useUpdateNodeInternals()
   const setSelectedNode   = useFlowStore((s) => s.setSelectedNode)
   const theme             = useFlowStore(selectTheme)
   const compactMode       = useFlowStore((s) => s.compactMode)
@@ -66,6 +69,27 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
   const handleClick = useCallback(() => {
     setSelectedNode(id)
   }, [id, setSelectedNode])
+
+  const portOffsetsKey = useMemo(() => {
+    const o = data.portOffsets
+    if (!o || Object.keys(o).length === 0) return ''
+    return Object.keys(o)
+      .sort()
+      .map((k) => `${k}:${Number(o[k])}`)
+      .join('|')
+  }, [data.portOffsets])
+
+  const portOrderKey = useMemo(() => {
+    const po = data.portOrder
+    if (!po) return ''
+    const ins = po.inputs?.join(',') ?? ''
+    const outs = po.outputs?.join(',') ?? ''
+    return `${ins}|${outs}`
+  }, [data.portOrder])
+
+  useLayoutEffect(() => {
+    updateNodeInternals(id)
+  }, [id, updateNodeInternals, portOffsetsKey, portOrderKey, layoutDirection, compactMode])
 
   if (!def) return null
 
@@ -171,11 +195,25 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
         </div>
 
         {/* Ports */}
-        {def.inputs.map((port, i) => (
-          <NodePort key={port.id} port={port} side="input" index={i} total={def.inputs.length} />
+        {sortPortsByOrder(def.inputs, data.portOrder?.inputs).map((port, i, arr) => (
+          <NodePort
+            key={port.id}
+            port={port}
+            side="input"
+            index={i}
+            total={arr.length}
+            portOffsets={data.portOffsets}
+          />
         ))}
-        {def.outputs.map((port, i) => (
-          <NodePort key={port.id} port={port} side="output" index={i} total={def.outputs.length} />
+        {sortPortsByOrder(def.outputs, data.portOrder?.outputs).map((port, i, arr) => (
+          <NodePort
+            key={port.id}
+            port={port}
+            side="output"
+            index={i}
+            total={arr.length}
+            portOffsets={data.portOffsets}
+          />
         ))}
 
         {/* Note card */}
@@ -308,24 +346,26 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
       </div>
 
       {/* ── Input ports (left side) ──────────────────────────────────────── */}
-      {def.inputs.map((port, i) => (
+      {sortPortsByOrder(def.inputs, data.portOrder?.inputs).map((port, i, arr) => (
         <NodePort
           key={port.id}
           port={port}
           side="input"
           index={i}
-          total={def.inputs.length}
+          total={arr.length}
+          portOffsets={data.portOffsets}
         />
       ))}
 
       {/* ── Output ports (right side) ────────────────────────────────────── */}
-      {def.outputs.map((port, i) => (
+      {sortPortsByOrder(def.outputs, data.portOrder?.outputs).map((port, i, arr) => (
         <NodePort
           key={port.id}
           port={port}
           side="output"
           index={i}
-          total={def.outputs.length}
+          total={arr.length}
+          portOffsets={data.portOffsets}
         />
       ))}
 

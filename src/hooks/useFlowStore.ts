@@ -60,6 +60,8 @@ interface FlowStore {
   toggleNodeNoteVisible: (nodeId: string) => void
   /** Updates where the note card is rendered around the node. */
   updateNodeNotePlacement: (nodeId: string, placement: NotePlacement) => void
+  /** Sets or clears a port’s position along the edge (0–100). Pass `null` to remove override. */
+  updateNodePortOffset: (nodeId: string, portId: string, percent: number | null) => void
   /** Creates a frame node around currently selected nodes. */
   createFrameFromSelection: () => boolean
   /** Moves a frame above all other frames (while still behind regular nodes). */
@@ -415,6 +417,19 @@ export const useFlowStore = create<FlowStore>((set) => ({
       nodes: state.nodes.map((n) =>
         n.id === nodeId ? { ...n, data: { ...n.data, notePlacement } } : n,
       ),
+    }))
+  },
+
+  updateNodePortOffset: (nodeId, portId, percent) => {
+    set((state) => ({
+      nodes: state.nodes.map((n) => {
+        if (n.id !== nodeId) return n
+        const next = { ...(n.data.portOffsets ?? {}) }
+        if (percent === null) delete next[portId]
+        else next[portId] = percent
+        const portOffsets = Object.keys(next).length > 0 ? next : undefined
+        return { ...n, data: { ...n.data, portOffsets } }
+      }),
     }))
   },
 

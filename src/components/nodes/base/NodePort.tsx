@@ -1,18 +1,9 @@
-import { useState } from 'react'
-import { Handle, Position } from 'reactflow'
-import type { PortDefinition, PortType } from '../../../types/nodes'
+import { useCallback, useRef, useState } from 'react'
+import { Handle, Position, useNodeId, useUpdateNodeInternals } from 'reactflow'
+import type { PortDefinition } from '../../../types/nodes'
 import { useFlowStore } from '../../../hooks/useFlowStore'
-
-// ── Port color map ────────────────────────────────────────────────────────────
-
-const PORT_COLORS: Record<PortType, string> = {
-  text:       '#94A3B8',
-  embedding:  '#0891B2',
-  'tool-call':'#EA580C',
-  memory:     '#CA8A04',
-  structured: '#16A34A',
-  any:        '#6B7280',
-}
+import { resolvePortAxisPercent } from '../../../lib/portLayout'
+import { portHandleFill } from '../../../lib/portVisual'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -21,25 +12,27 @@ interface NodePortProps {
   side: 'input' | 'output'
   index: number
   total: number
+  portOffsets?: Record<string, number>
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function NodePort({ port, side, index, total }: NodePortProps) {
+export default function NodePort({ port, side, index, total, portOffsets }: NodePortProps) {
   const [hovered, setHovered] = useState(false)
+  const nodeId = useNodeId()
+  const updateNodeInternals = useUpdateNodeInternals()
+  const draggingRef = useRef(false)
   const theme = useFlowStore((s) => s.theme)
   const layoutDirection = useFlowStore((s) => s.layoutDirection)
-  const color = port.color ?? PORT_COLORS[port.type]
   const isInput = side === 'input'
+  const color = port.color ?? portHandleFill(port.type, side)
   const isVerticalLayout = layoutDirection === 'TB'
   const position = isVerticalLayout
     ? (isInput ? Position.Top : Position.Bottom)
     : (isInput ? Position.Left : Position.Right)
   const borderColor = theme === 'dark' ? '#0F1117' : '#F8FAFC'
 
-  // Spread handles across the active edge of the node so connectors read
-  // clearly in both top-to-bottom and left-to-right layouts.
-  const axisPercent = total === 1 ? 50 : 20 + (index / (total - 1)) * 60
+  const axisPercent = resolvePortAxisPercent(port, index, total, portOffsets)
   const handleStyle = isVerticalLayout
     ? {
         left: `${axisPercent}%`,
@@ -67,12 +60,66 @@ export default function NodePort({ port, side, index, total }: NodePortProps) {
         [isInput ? 'left' : 'right']: '14px',
       }
 
+  const applyPercentFromPointer = useCallback(
+    (clientX: number, clientY: number, fromEl: HTMLElement | null) => {
+      const nodeEl =
+        fromEl?.closest<HTMLElement>('.react-flow__node') ??
+        (nodeId
+          ? document.querySelector<HTMLElement>(`.react-flow__node[data-id="${nodeId}"]`)
+          : null)
+      if (!nodeEl) return
+      const r = nodeEl.getBoundingClientRect()
+      if (r.width <= 0 || r.height <= 0) return
+      const pct = isVerticalLayout
+        ? ((clientX - r.left) / r.width) * 100
+        : ((clientY - r.top) / r.height) * 100
+      const clamped = Math.max(0, Math.min(100, pct))
+      if (nodeId) {
+        useFlowStore.getState().updateNodePortOffset(nodeId, port.id, clamped)
+        updateNodeInternals(nodeId)
+      }
+    },
+    [nodeId, port.id, isVerticalLayout, updateNodeInternals],
+  )
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!e.altKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      draggingRef.current = true
+      ;(e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId)
+      applyPercentFromPointer(e.clientX, e.clientY, e.currentTarget as HTMLElement)
+    },
+    [applyPercentFromPointer],
+  )
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!draggingRef.current) return
+      e.preventDefault()
+      applyPercentFromPointer(e.clientX, e.clientY, e.currentTarget as HTMLElement)
+    },
+    [applyPercentFromPointer],
+  )
+
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return
+    draggingRef.current = false
+    try {
+      ;(e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   return (
     <Handle
       key={`${port.id}-${layoutDirection}`}
       type={isInput ? 'target' : 'source'}
       position={position}
       id={port.id}
+      className="nodrag"
       style={{
         background: color,
         width: 10,
@@ -86,15 +133,27 @@ export default function NodePort({ port, side, index, total }: NodePortProps) {
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      aria-label={`${port.label}. Option or Alt-drag to slide, or use sliders under Ports.`}
     >
-      {/* Label tooltip on hover */}
       {hovered && (
-        <span
-          className="absolute text-[10px] font-medium text-white/80 bg-gray-800 border border-white/10 rounded px-1.5 py-0.5 whitespace-nowrap pointer-events-none z-50"
+        <div
+          className="
+            absolute z-50 max-w-[min(230px,calc(100vw-1rem))] rounded-sm border border-white/10 bg-gray-800
+            px-1.5 py-1 text-left text-[9px] font-medium text-white/85 shadow-sm pointer-events-none
+          "
           style={labelStyle}
         >
-          {port.label}
-        </span>
+          <span className="block truncate leading-tight" title={port.label}>
+            {port.label}
+          </span>
+          <span className="mt-px block whitespace-nowrap text-[8px] font-normal leading-tight text-white/40">
+            Option/Alt + drag · sliders
+          </span>
+        </div>
       )}
     </Handle>
   )

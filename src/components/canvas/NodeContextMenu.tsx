@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Trash2, Copy, Sparkles, FlaskConical, PlayCircle } from 'lucide-react'
+import { Trash2, Copy, Sparkles, FlaskConical, PlayCircle, CheckCircle2, ShieldAlert } from 'lucide-react'
 
 interface NodeContextMenuProps {
   x: number
@@ -13,13 +13,15 @@ interface NodeContextMenuProps {
   onExplainNode: (nodeId: string) => void
   onEvalTargets: (nodeIds: string[]) => void
   onPlayFrom: (nodeId: string) => void
+  onSuccessNode: (nodeId: string) => void
+  onRisksNode: (nodeId: string) => void
   onClose: () => void
 }
 
 export default function NodeContextMenu({
   x, y, nodeId, nodeType,
   evalTargetNodeIds,
-  onDelete, onDuplicate, onExplainNode, onEvalTargets, onPlayFrom, onClose,
+  onDelete, onDuplicate, onExplainNode, onEvalTargets, onPlayFrom, onSuccessNode, onRisksNode, onClose,
 }: NodeContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -42,6 +44,7 @@ export default function NodeContextMenu({
   }, [onClose])
 
   const isFrame = nodeType === 'frame' || nodeType === 'text'
+  const isAnalyzable = !isFrame
   const items = [
     ...(!isFrame ? [{ icon: PlayCircle, label: 'Play from here', action: () => { onPlayFrom(nodeId); onClose() } }] : []),
     { icon: Copy, label: 'Duplicate', action: () => { onDuplicate(nodeId); onClose() } },
@@ -51,6 +54,10 @@ export default function NodeContextMenu({
       label: evalTargetNodeIds.length > 1 ? `Eval selected group (${evalTargetNodeIds.length})` : 'Eval this node',
       action: () => { onEvalTargets(evalTargetNodeIds); onClose() },
     },
+    ...(isAnalyzable ? [
+      { icon: CheckCircle2, label: 'Success criteria', action: () => { onSuccessNode(nodeId); onClose() } },
+      { icon: ShieldAlert, label: 'Risk analysis', action: () => { onRisksNode(nodeId); onClose() } },
+    ] : []),
     { icon: Trash2, label: 'Delete', action: () => { onDelete(nodeId); onClose() }, danger: true },
   ]
 

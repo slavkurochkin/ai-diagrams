@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Sparkles, Loader2, FlaskConical, RefreshCw, ClipboardCheck, Copy, Check } from 'lucide-react'
+import { X, Sparkles, Loader2, FlaskConical, RefreshCw, ClipboardCheck, Copy, Check, CheckCircle2, ShieldAlert } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type PanelStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error'
-type PanelTab = 'explain' | 'review' | 'eval'
+type PanelTab = 'explain' | 'review' | 'eval' | 'success' | 'risks'
 
 interface ExplainPanelProps {
   open: boolean
@@ -16,6 +16,8 @@ interface ExplainPanelProps {
   onTabChange: (tab: PanelTab) => void
   explainText: string
   explainStatus: PanelStatus
+  explainDisabled: boolean
+  onGenerateExplain: () => void
   reviewText: string
   reviewStatus: PanelStatus
   reviewDisabled: boolean
@@ -24,6 +26,14 @@ interface ExplainPanelProps {
   evalStatus: PanelStatus
   evalDisabled: boolean
   onGenerateEval: () => void
+  successText: string
+  successStatus: PanelStatus
+  successDisabled: boolean
+  onGenerateSuccess: () => void
+  risksText: string
+  risksStatus: PanelStatus
+  risksDisabled: boolean
+  onGenerateRisks: () => void
 }
 
 // ── Markdown component map ─────────────────────────────────────────────────────
@@ -273,31 +283,45 @@ function TabFooter({
 
 // ── Panel ──────────────────────────────────────────────────────────────────────
 
-const TAB_LABELS: Record<PanelTab, string> = { explain: 'Explain', review: 'Review', eval: 'Eval' }
+const TAB_LABELS: Record<PanelTab, string> = {
+  explain: 'Explain',
+  review:  'Review',
+  eval:    'Eval',
+  success: 'Success',
+  risks:   'Risks',
+}
 
 const TAB_ICONS: Record<PanelTab, React.ReactNode> = {
   explain: <Sparkles size={14} className="text-sky-400 shrink-0" />,
   review:  <ClipboardCheck size={14} className="text-sky-400 shrink-0" />,
   eval:    <FlaskConical size={14} className="text-sky-400 shrink-0" />,
+  success: <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />,
+  risks:   <ShieldAlert size={14} className="text-amber-400 shrink-0" />,
 }
 
 const TAB_TITLES: Record<PanelTab, string> = {
   explain: 'AI Explanation',
   review:  'Design Review',
   eval:    'Eval Suggestions',
+  success: 'Success Criteria',
+  risks:   'Risk Analysis',
 }
 
 export default function ExplainPanel({
   open, onClose,
   activeTab, onTabChange,
-  explainText, explainStatus,
+  explainText, explainStatus, explainDisabled, onGenerateExplain,
   reviewText, reviewStatus, reviewDisabled, onGenerateReview,
   evalText, evalStatus, evalDisabled, onGenerateEval,
+  successText, successStatus, successDisabled, onGenerateSuccess,
+  risksText, risksStatus, risksDisabled, onGenerateRisks,
 }: ExplainPanelProps) {
   const statusMap: Record<PanelTab, PanelStatus> = {
     explain: explainStatus,
     review:  reviewStatus,
     eval:    evalStatus,
+    success: successStatus,
+    risks:   risksStatus,
   }
   const isLoading = ['loading', 'streaming'].includes(statusMap[activeTab])
 
@@ -329,16 +353,20 @@ export default function ExplainPanel({
           </div>
 
           {/* Tab bar */}
-          <div className="flex gap-1 px-4 pt-2 border-b border-white/8 shrink-0">
-            {(['explain', 'review', 'eval'] as const).map((tab) => (
+          <div className="flex gap-0.5 px-3 pt-2 border-b border-white/8 shrink-0 overflow-x-auto">
+            {(['explain', 'review', 'eval', 'success', 'risks'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => onTabChange(tab)}
                 className={`
-                  px-3 py-1.5 text-[11px] font-medium transition-colors rounded-t
+                  px-2.5 py-1.5 text-[11px] font-medium transition-colors rounded-t shrink-0
                   ${activeTab === tab
-                    ? 'text-white border-b-2 border-sky-500 -mb-px'
+                    ? tab === 'success'
+                      ? 'text-emerald-300 border-b-2 border-emerald-500 -mb-px'
+                      : tab === 'risks'
+                        ? 'text-amber-300 border-b-2 border-amber-500 -mb-px'
+                        : 'text-white border-b-2 border-sky-500 -mb-px'
                     : 'text-white/40 hover:text-white/70'}
                 `}
               >
@@ -350,17 +378,22 @@ export default function ExplainPanel({
           {/* ── Explain tab ── */}
           {activeTab === 'explain' && (
             <>
-              <MarkdownContent
-                text={explainText}
-                status={explainStatus}
-                idleMessage="Click Explain to analyze your pipeline."
-                loadingMessage="Analyzing pipeline…"
-              />
-              <TabFooter
-                status={explainStatus}
-                hint="Powered by AI · click Explain again to refresh"
-                onRegenerate={() => {}}
-              />
+              {explainStatus === 'idle'
+                ? <GeneratePrompt
+                    icon={<Sparkles size={13} />}
+                    description="Generate a plain-language explanation of what this pipeline does, how data flows through it, and what to watch out for."
+                    buttonLabel="Explain"
+                    onClick={onGenerateExplain}
+                    disabled={explainDisabled}
+                  />
+                : <MarkdownContent
+                    text={explainText}
+                    status={explainStatus}
+                    idleMessage=""
+                    loadingMessage="Analyzing pipeline…"
+                  />
+              }
+              <TabFooter status={explainStatus} onRegenerate={onGenerateExplain} />
             </>
           )}
 
@@ -392,8 +425,8 @@ export default function ExplainPanel({
               {evalStatus === 'idle'
                 ? <GeneratePrompt
                     icon={<FlaskConical size={13} />}
-                    description="Generate targeted evaluation suggestions based on your flow and context."
-                    buttonLabel="Generate suggestions"
+                    description="Get an eval strategy, test cases, and a production observability plan — including online evals and recommended tooling."
+                    buttonLabel="Generate eval plan"
                     onClick={onGenerateEval}
                     disabled={evalDisabled}
                   />
@@ -405,6 +438,50 @@ export default function ExplainPanel({
                   />
               }
               <TabFooter status={evalStatus} onRegenerate={onGenerateEval} />
+            </>
+          )}
+
+          {/* ── Success tab ── */}
+          {activeTab === 'success' && (
+            <>
+              {successStatus === 'idle'
+                ? <GeneratePrompt
+                    icon={<CheckCircle2 size={13} />}
+                    description="Define concrete, measurable success criteria for this flow or selected node — what does 'working correctly' actually mean?"
+                    buttonLabel="Define success"
+                    onClick={onGenerateSuccess}
+                    disabled={successDisabled}
+                  />
+                : <MarkdownContent
+                    text={successText}
+                    status={successStatus}
+                    idleMessage=""
+                    loadingMessage="Defining success criteria…"
+                  />
+              }
+              <TabFooter status={successStatus} onRegenerate={onGenerateSuccess} />
+            </>
+          )}
+
+          {/* ── Risks tab ── */}
+          {activeTab === 'risks' && (
+            <>
+              {risksStatus === 'idle'
+                ? <GeneratePrompt
+                    icon={<ShieldAlert size={13} />}
+                    description="Identify specific failure modes and risks for this flow or selected node — what could go wrong and what's the impact?"
+                    buttonLabel="Analyze risks"
+                    onClick={onGenerateRisks}
+                    disabled={risksDisabled}
+                  />
+                : <MarkdownContent
+                    text={risksText}
+                    status={risksStatus}
+                    idleMessage=""
+                    loadingMessage="Analyzing risks…"
+                  />
+              }
+              <TabFooter status={risksStatus} onRegenerate={onGenerateRisks} />
             </>
           )}
         </motion.aside>

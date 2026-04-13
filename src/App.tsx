@@ -18,6 +18,7 @@ import { streamExplain } from './lib/api/explain'
 import { generateImplementationPrompt } from './lib/promptGenerator'
 import { streamEvalSuggestions } from './lib/api/evalSuggestions'
 import { streamDesignReview } from './lib/api/designReview'
+import { streamSuccessCriteria, streamRiskAnalysis } from './lib/api/successRisks'
 import { saveFlow, loadFlow } from './lib/flowSerializer'
 import { applyAutoLayout } from './lib/autoLayout'
 import { exportPlaybackAsGIF } from './lib/exportUtils'
@@ -68,21 +69,30 @@ function AppInner() {
 
   type PanelStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error'
 
-  // AI panel (explain + review + eval tabs)
+  // AI panel (explain + review + eval + success + risks tabs)
   const [aiPanelOpen, setAiPanelOpen]         = useState(false)
-  const [aiPanelTab, setAiPanelTab]           = useState<'explain' | 'review' | 'eval'>('explain')
+  const [aiPanelTab, setAiPanelTab]           = useState<'explain' | 'review' | 'eval' | 'success' | 'risks'>('explain')
 
   const [promptPanelOpen, setPromptPanelOpen] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
 
   const [explainText, setExplainText]         = useState('')
   const [explainStatus, setExplainStatus]     = useState<PanelStatus>('idle')
+  const [explainNodeId, setExplainNodeId]     = useState<string | undefined>(undefined)
 
   const [reviewText, setReviewText]           = useState('')
   const [reviewStatus, setReviewStatus]       = useState<PanelStatus>('idle')
 
   const [evalText, setEvalText]               = useState('')
   const [evalStatus, setEvalStatus]           = useState<PanelStatus>('idle')
+
+  const [successText, setSuccessText]         = useState('')
+  const [successStatus, setSuccessStatus]     = useState<PanelStatus>('idle')
+  const [successNodeId, setSuccessNodeId]     = useState<string | undefined>(undefined)
+
+  const [risksText, setRisksText]             = useState('')
+  const [risksStatus, setRisksStatus]         = useState<PanelStatus>('idle')
+  const [risksNodeId, setRisksNodeId]         = useState<string | undefined>(undefined)
 
   useEffect(() => {
     animationStatusRef.current = animation.status
@@ -93,6 +103,7 @@ function AppInner() {
     setAiPanelTab('explain')
     setExplainText('')
     setExplainStatus('loading')
+    setExplainNodeId(nodeId)
 
     // When called for a single node, pass only that node (no edges needed)
     const targetNodes = nodeId
@@ -209,6 +220,52 @@ function AppInner() {
     } catch (err) {
       setEvalText(err instanceof Error ? err.message : 'Unexpected error')
       setEvalStatus('error')
+    }
+  }, [nodes, edges, flowName, flowContext])
+
+  const handleSuccess = useCallback(async (nodeId?: string) => {
+    setAiPanelOpen(true)
+    setAiPanelTab('success')
+    setSuccessText('')
+    setSuccessStatus('loading')
+    setSuccessNodeId(nodeId)
+    try {
+      await streamSuccessCriteria(
+        nodes as Parameters<typeof streamSuccessCriteria>[0],
+        edges,
+        flowName,
+        flowContext,
+        (chunk) => { setSuccessText((t) => t + chunk); setSuccessStatus('streaming') },
+        () => setSuccessStatus('done'),
+        (msg) => { setSuccessText(msg); setSuccessStatus('error') },
+        nodeId,
+      )
+    } catch (err) {
+      setSuccessText(err instanceof Error ? err.message : 'Unexpected error')
+      setSuccessStatus('error')
+    }
+  }, [nodes, edges, flowName, flowContext])
+
+  const handleRisks = useCallback(async (nodeId?: string) => {
+    setAiPanelOpen(true)
+    setAiPanelTab('risks')
+    setRisksText('')
+    setRisksStatus('loading')
+    setRisksNodeId(nodeId)
+    try {
+      await streamRiskAnalysis(
+        nodes as Parameters<typeof streamRiskAnalysis>[0],
+        edges,
+        flowName,
+        flowContext,
+        (chunk) => { setRisksText((t) => t + chunk); setRisksStatus('streaming') },
+        () => setRisksStatus('done'),
+        (msg) => { setRisksText(msg); setRisksStatus('error') },
+        nodeId,
+      )
+    } catch (err) {
+      setRisksText(err instanceof Error ? err.message : 'Unexpected error')
+      setRisksStatus('error')
     }
   }, [nodes, edges, flowName, flowContext])
 
@@ -443,9 +500,13 @@ function AppInner() {
             onEditContext={() => { setContextModalMode('edit'); setContextModalOpen(true) }}
             onReview={handleReview}
             onEval={handleEval}
+            onSuccess={() => handleSuccess()}
+            onRisks={() => handleRisks()}
             hasContext={!!flowContext}
             reviewDisabled={nodes.length === 0 || reviewStatus === 'loading' || reviewStatus === 'streaming'}
             evalDisabled={nodes.length === 0 || evalStatus === 'loading' || evalStatus === 'streaming'}
+            successDisabled={nodes.length === 0 || successStatus === 'loading' || successStatus === 'streaming'}
+            risksDisabled={nodes.length === 0 || risksStatus === 'loading' || risksStatus === 'streaming'}
             onExportGIF={handleExportGIF}
             exportGIFDisabled={nodes.length === 0 || exportingGIF}
             exportGIFBusy={exportingGIF}
@@ -462,6 +523,8 @@ function AppInner() {
               onExplainNode={(id) => handleExplain(id)}
               onEvalTargets={handleEvalTargets}
               onPlayFromNode={(id) => { animation.reset(); animation.playFrom(id) }}
+              onSuccessNode={(id) => handleSuccess(id)}
+              onRisksNode={(id) => handleRisks(id)}
             />
             <ConfigPanel />
             <ExplainPanel
@@ -471,6 +534,8 @@ function AppInner() {
               onTabChange={setAiPanelTab}
               explainText={explainText}
               explainStatus={explainStatus}
+              explainDisabled={nodes.length === 0 || explainStatus === 'loading' || explainStatus === 'streaming'}
+              onGenerateExplain={() => handleExplain(explainNodeId)}
               reviewText={reviewText}
               reviewStatus={reviewStatus}
               reviewDisabled={nodes.length === 0 || reviewStatus === 'loading' || reviewStatus === 'streaming'}
@@ -479,6 +544,14 @@ function AppInner() {
               evalStatus={evalStatus}
               evalDisabled={nodes.length === 0 || evalStatus === 'loading' || evalStatus === 'streaming'}
               onGenerateEval={handleEval}
+              successText={successText}
+              successStatus={successStatus}
+              successDisabled={nodes.length === 0 || successStatus === 'loading' || successStatus === 'streaming'}
+              onGenerateSuccess={() => handleSuccess(successNodeId)}
+              risksText={risksText}
+              risksStatus={risksStatus}
+              risksDisabled={nodes.length === 0 || risksStatus === 'loading' || risksStatus === 'streaming'}
+              onGenerateRisks={() => handleRisks(risksNodeId)}
             />
             <TemplatesPanel
               open={templatesOpen}

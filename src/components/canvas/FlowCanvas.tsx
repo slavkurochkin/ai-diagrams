@@ -34,6 +34,8 @@ interface FlowCanvasProps {
   onExplainNode?: (nodeId: string) => void
   onEvalTargets?: (nodeIds: string[]) => void
   onPlayFromNode?: (nodeId: string) => void
+  onSuccessNode?: (nodeId: string) => void
+  onRisksNode?: (nodeId: string) => void
 }
 
 const FLOW_PROPS = {
@@ -55,7 +57,7 @@ const THEME = {
   light: { bg: '#F8FAFC', dot: '#00000012' },
 }
 
-export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode, onEvalTargets, onPlayFromNode }: FlowCanvasProps) {
+export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode, onEvalTargets, onPlayFromNode, onSuccessNode, onRisksNode }: FlowCanvasProps) {
   const nodes         = useFlowStore((s) => s.nodes)
   const edges         = useFlowStore((s) => s.edges)
   const theme         = useFlowStore((s) => s.theme)
@@ -221,6 +223,8 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
             onExplainNode={(id) => { onExplainNode?.(id) }}
             onEvalTargets={(ids) => { onEvalTargets?.(ids) }}
             onPlayFrom={(id) => { onPlayFromNode?.(id) }}
+            onSuccessNode={(id) => { onSuccessNode?.(id) }}
+            onRisksNode={(id) => { onRisksNode?.(id) }}
             onClose={() => { setCtxMenu(null); setCtxEvalTargetIds([]) }}
           />
         )}

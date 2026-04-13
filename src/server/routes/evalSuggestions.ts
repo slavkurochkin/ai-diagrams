@@ -141,32 +141,58 @@ evalSuggestionsRouter.post('/eval-suggestions', async (req, res) => {
 
   const systemPrompt = `You are an expert in AI/LLM system evaluation and QA engineering.
 The user will provide a description of an AI agent or pipeline, optionally with business documents, and the diagram of its components.
-Each node may list **config** (model, thresholds, prompts, etc.) and an optional **note** with strategy or context. Edges may list **priority** and **travelSpeed** when the author set routing or animation hints—use these to infer parallel vs sequential emphasis and risk focus.
-Your job is to produce actionable evaluation recommendations.
+Each node may list **config** (model, thresholds, prompts, etc.) and an optional **note** with strategy or context.
+Your job is to produce actionable evaluation recommendations in two parts: strategy first, then test cases.
+
+Here is the catalog of available eval node types you can recommend adding to the diagram:
+  evaluator       — General-purpose evaluator node
+  llmJudge        — Uses an LLM to score another LLM's output
+  rubric          — Criterion-based scoring against a rubric
+  comparator      — A/B comparison of two outputs
+  groundTruth     — Compares output against a known correct answer
+  evalMetrics     — Computes quantitative metrics (BLEU, ROUGE, etc.)
+  critique        — Generates a written critique of an output
+  thresholdGate   — Pass/fail gate based on a score threshold
+  humanRater      — Human-in-the-loop rating step
+  ragEvaluator    — End-to-end RAG pipeline evaluation (faithfulness, relevance, etc.)
+  singleTurnEval  — Evaluates a single prompt-response pair
+  multiTurnEval   — Evaluates a multi-turn conversation
+  toolUseEval     — Evaluates correct tool selection and call accuracy
+  trajectoryEval  — Evaluates agent decision trajectory
+  taskCompletion  — Measures whether the agent completed its assigned task
+  agentEfficiency — Measures token cost and step count relative to task success
 
 Structure your response in exactly these three sections:
 
-## Component Evaluation
+## Eval Strategy
 
-For each significant node or group of nodes, provide a brief card:
-- **[Node type + label]** — what to evaluate, which metric or eval node to use (e.g. LLM Judge, Rubric, Trajectory Eval), and the key risk to watch.
+Lead with the most important eval nodes to add to this diagram. For each recommendation:
+- **[EvalNodeType]** → where in the flow to add it, which metric it measures, and a concrete threshold to target (e.g. faithfulness ≥ 0.85, task completion ≥ 90%, latency p95 < 3s).
 
-Keep each entry to 2–3 lines. Skip trivial infrastructure nodes (e.g. a lone output parser) unless there's a real risk.
+Then 1–2 short paragraphs on the overall eval approach: what data you'd need (golden dataset, production logs, human labels), how to gate on quality before promoting to production, and any business requirements from the context documents that should drive specific thresholds.
 
-## End-to-End Evaluation Strategy
+Limit to the 4–6 most impactful recommendations. Do not suggest eval nodes that are already present.
 
-2–3 paragraphs of prose. Cover: how to evaluate the whole flow as a unit, what data you'd need (golden datasets, logs, human ratings), and how to set pass/fail thresholds. Tailor advice to any business requirements found in the context documents.
+## Test Cases
 
-## Recommended Test Cases
+A numbered list of 5–7 specific, concrete test scenarios. For each:
+- **Scenario** — what you send or simulate
+- **Assert** — what the correct outcome looks like
+- **Why** — one sentence on what failure would mean
 
-A numbered list of 5–8 specific, concrete test cases. Each test case should include:
-- The input or scenario
-- What to check (the assertion)
-- Why it matters (one sentence)
+Prioritise: adversarial inputs, edge cases, data contract violations between nodes, and failure modes implied by the business documents. Focus on cases where the pipeline could silently produce wrong output rather than visibly crash.
 
-Prioritise failure modes, edge cases, adversarial inputs, and anything implied by the business documents. If no documents are provided, focus on generic but realistic failure scenarios for this type of agent.
+## Production Observability
 
-Be direct and specific. Do not repeat the node list verbatim. Do not use filler phrases.`
+Cover what to instrument and watch once this pipeline is live. Structure as three sub-sections:
+
+**Online evals** — which eval checks to run continuously against live traffic (e.g. sample 5% of requests through an llmJudge for hallucination, run ragEvaluator on retrieval quality). Name specific metrics and sampling rates. Flag which ones are cheap enough to run on every request vs which need sampling.
+
+**Key metrics to track** — 4–6 specific signals for this pipeline type. Go beyond generic latency/error rate — name metrics tied to the actual nodes present (e.g. retrieval recall, reranker score distribution, tool call success rate, guardrail trigger rate, token cost per request). Include suggested alert thresholds where possible.
+
+**Observability capabilities to look for** — based on the nodes in this pipeline, describe 3–4 specific platform capabilities the builder should require when evaluating observability tooling (e.g. "LLM trace capture with prompt/response logging", "online eval execution against sampled live traffic", "per-request cost tracking", "human review queue for annotation"). Do not name specific vendors. Frame each capability as a requirement tied to a real need in this pipeline.
+
+Be direct. No filler. Ground everything in the actual pipeline and context.`
 
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
@@ -178,7 +204,7 @@ Be direct and specific. Do not repeat the node list verbatim. Do not use filler 
 
     const stream = await client.chat.completions.create({
       model: 'gpt-4o',
-      max_tokens: 2000,
+      max_tokens: 2800,
       stream: true,
       messages: [
         { role: 'system', content: systemPrompt },

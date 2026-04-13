@@ -5,6 +5,7 @@ import {
   ImageDown, Copy, Maximize2, Check, Sparkles, FileCode, Share2,
   AlignVerticalJustifyStart, AlignHorizontalJustifyStart, Layers, LayoutTemplate, ListOrdered,
   FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown, AlertCircle, Trash2, Info, FileCode2,
+  CheckCircle2, ShieldAlert,
 } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { saveFlow, loadFlow, exportFlowAsFile } from '../../lib/flowSerializer'
@@ -138,9 +139,13 @@ interface ToolbarProps {
   onEditContext: () => void
   onReview: () => void
   onEval: () => void
+  onSuccess: () => void
+  onRisks: () => void
   hasContext: boolean
   reviewDisabled?: boolean
   evalDisabled?: boolean
+  successDisabled?: boolean
+  risksDisabled?: boolean
   onExportGIF: () => void
   exportGIFDisabled?: boolean
   exportGIFBusy?: boolean
@@ -159,9 +164,13 @@ export default function Toolbar({
   onEditContext,
   onReview,
   onEval,
+  onSuccess,
+  onRisks,
   hasContext,
   reviewDisabled,
   evalDisabled,
+  successDisabled,
+  risksDisabled,
   onExportGIF,
   exportGIFDisabled,
   exportGIFBusy,
@@ -670,6 +679,22 @@ export default function Toolbar({
             label="Eval"
             description="Suggest evaluation coverage for the flow"
             disabled={evalDisabled}
+            tone="accent"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(onSuccess)}
+            icon={<CheckCircle2 size={14} />}
+            label="Success criteria"
+            description="Define what 'working correctly' looks like for this flow"
+            disabled={successDisabled}
+            tone="accent"
+          />
+          <MenuAction
+            onClick={() => handleMenuAction(onRisks)}
+            icon={<ShieldAlert size={14} />}
+            label="Risk analysis"
+            description="Identify failure modes and architectural risks"
+            disabled={risksDisabled}
             tone="accent"
           />
           <MenuAction

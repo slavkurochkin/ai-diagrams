@@ -339,10 +339,11 @@ function AppInner() {
         e.preventDefault()
         togglePresentation()
       }
-      // Space — play/pause animation
+      // Space — play/pause; in presentation mode paused state, advance one step
       if (e.key === ' ') {
         e.preventDefault()
         if (animation.status === 'playing') animation.pause()
+        else if (presentationMode && animation.status === 'paused') animation.step()
         else animation.play()
       }
       // Delete / Backspace — remove selected node
@@ -418,6 +419,19 @@ function AppInner() {
       onPause={animation.pause}
       onReset={animation.reset}
       onSpeedChange={animation.setSpeed}
+    />
+  )
+
+  const presentationAnimControls = (
+    <AnimationControls
+      status={animation.status}
+      speed={animation.speed}
+      disabled={nodes.length === 0}
+      onPlay={animation.play}
+      onPause={animation.pause}
+      onReset={animation.reset}
+      onSpeedChange={animation.setSpeed}
+      onStep={animation.step}
     />
   )
 
@@ -585,7 +599,7 @@ function AppInner() {
           {/* Playback controls overlay */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black/50 backdrop-blur-sm border border-white/10">
-              {animControls}
+              {presentationAnimControls}
             </div>
           </div>
 

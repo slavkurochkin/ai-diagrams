@@ -1,4 +1,4 @@
-import { Play, Pause, Square, Gauge } from 'lucide-react'
+import { Play, Pause, Square, Gauge, SkipForward } from 'lucide-react'
 import type { AnimationStatus, AnimationSpeed } from '../../types/animation'
 
 interface AnimationControlsProps {
@@ -9,13 +9,14 @@ interface AnimationControlsProps {
   onPause: () => void
   onReset: () => void
   onSpeedChange: (s: AnimationSpeed) => void
+  onStep?: () => void   // optional — shown only in presentation mode
 }
 
 const SPEEDS: AnimationSpeed[] = [0.5, 1, 2]
 
 export default function AnimationControls({
   status, speed, disabled,
-  onPlay, onPause, onReset, onSpeedChange,
+  onPlay, onPause, onReset, onSpeedChange, onStep,
 }: AnimationControlsProps) {
   const isPlaying = status === 'playing'
   const isIdle    = status === 'idle' || status === 'done'
@@ -41,6 +42,26 @@ export default function AnimationControls({
           : <><Play  size={13} /> Play</>
         }
       </button>
+
+      {/* Step — only in presentation mode (onStep provided), hidden while playing */}
+      {onStep && !isPlaying && status !== 'done' && (
+        <button
+          type="button"
+          onClick={onStep}
+          disabled={disabled}
+          title="Step to next node (Space)"
+          className="
+            flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium
+            border transition-all duration-150 select-none
+            bg-white/8 border-white/15 text-white/80
+            hover:bg-white/15 hover:text-white
+            disabled:opacity-40 disabled:pointer-events-none
+          "
+        >
+          <SkipForward size={13} />
+          Next
+        </button>
+      )}
 
       {/* Reset — only when not idle */}
       {!isIdle && (

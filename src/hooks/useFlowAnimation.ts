@@ -20,6 +20,7 @@ interface FlowAnimationAPI {
   playFrom: (nodeId: string) => void
   pause: () => void
   reset: () => void
+  step: () => void
   setSpeed: (s: AnimationSpeed) => void
 }
 
@@ -134,6 +135,8 @@ export function useFlowAnimation(): FlowAnimationAPI {
   const stepIndexRef  = useRef(0)
   const statusRef     = useRef<AnimationStatus>('idle')
   const speedRef      = useRef<AnimationSpeed>(1)
+  const stepModeRef   = useRef(false)   // true = pause before each node wave
+  const stepResumedRef = useRef(false)  // true = skip the very next pause-before-activate
   const timerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prePlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const afterHookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -184,6 +187,24 @@ export function useFlowAnimation(): FlowAnimationAPI {
 
     const steps = stepsRef.current
     const idx   = stepIndexRef.current
+
+    // Step mode: pause just before activating the next node wave.
+    // stepResumedRef lets the first activate-node of each step() call through.
+    if (
+      stepModeRef.current &&
+      idx < steps.length &&
+      (steps[idx].type === 'activate-node' || steps[idx].type === 'activate-nodes')
+    ) {
+      if (stepResumedRef.current) {
+        stepResumedRef.current = false  // consume the pass — execute this wave
+      } else {
+        setStatus('paused')
+        statusRef.current = 'paused'
+        setPlaybackRunning(false)
+        setActiveEdges([])
+        return
+      }
+    }
 
     if (idx >= steps.length) {
       // Done
@@ -295,6 +316,7 @@ export function useFlowAnimation(): FlowAnimationAPI {
   // ── Controls ───────────────────────────────────────────────────────────────
 
   const play = useCallback(() => {
+    stepModeRef.current = false
     if (statusRef.current === 'done' || statusRef.current === 'idle') {
       // Fresh run
       resetAllAnimationStates()
@@ -314,6 +336,35 @@ export function useFlowAnimation(): FlowAnimationAPI {
     })
   }, [nodes, edges, resetAllAnimationStates, runCharacterHookPhase, setPlaybackPhase, setPlaybackRunning, executeStep])
 
+  const step = useCallback(() => {
+    if (statusRef.current === 'done') return
+
+    stepModeRef.current  = true
+    stepResumedRef.current = true  // let the next activate-node through
+
+    if (statusRef.current === 'idle') {
+      // Fresh step run — initialise steps then kick off
+      resetAllAnimationStates()
+      setActiveEdges([])
+      const { nodes: aiNodes, edges: aiEdges } = filterGraphForAI(nodes, edges)
+      stepsRef.current     = sequenceFlow(aiNodes, aiEdges)
+      stepIndexRef.current = 0
+      setStatus('playing')
+      statusRef.current = 'playing'
+      setPlaybackRunning(true)
+      setPlaybackPhase('running')
+      executeStep()
+      return
+    }
+
+    // Resuming from paused (step-mode pause or manual pause)
+    setStatus('playing')
+    statusRef.current = 'playing'
+    setPlaybackRunning(true)
+    setPlaybackPhase('running')
+    executeStep()
+  }, [nodes, edges, resetAllAnimationStates, setPlaybackPhase, setPlaybackRunning, executeStep])
+
   const playFrom = useCallback((nodeId: string) => {
     resetAllAnimationStates()
     setActiveEdges([])
@@ -332,6 +383,8 @@ export function useFlowAnimation(): FlowAnimationAPI {
   }, [nodes, edges, resetAllAnimationStates, runCharacterHookPhase, setPlaybackPhase, setPlaybackRunning, executeStep])
 
   const pause = useCallback(() => {
+    stepModeRef.current   = false
+    stepResumedRef.current = false
     if (timerRef.current) clearTimeout(timerRef.current)
     if (prePlayTimerRef.current) clearTimeout(prePlayTimerRef.current)
     if (afterHookTimerRef.current) clearTimeout(afterHookTimerRef.current)
@@ -346,6 +399,8 @@ export function useFlowAnimation(): FlowAnimationAPI {
   }, [clearCharacterHookTimers, setActiveCharacterHookNodeIds, setPlaybackPhase, setPlaybackRunning])
 
   const reset = useCallback(() => {
+    stepModeRef.current   = false
+    stepResumedRef.current = false
     if (timerRef.current) clearTimeout(timerRef.current)
     if (prePlayTimerRef.current) clearTimeout(prePlayTimerRef.current)
     if (afterHookTimerRef.current) clearTimeout(afterHookTimerRef.current)
@@ -377,5 +432,5 @@ export function useFlowAnimation(): FlowAnimationAPI {
     for (const timer of edgeTimersRef.current) clearTimeout(timer)
   }, [clearCharacterHookTimers])
 
-  return { status, speed, activeEdges, play, playFrom, pause, reset, setSpeed: handleSetSpeed }
+  return { status, speed, activeEdges, play, playFrom, pause, reset, step, setSpeed: handleSetSpeed }
 }

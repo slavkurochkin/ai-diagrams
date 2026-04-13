@@ -31,10 +31,15 @@
   --port-any:        #6B7280;
 
   /* Canvas */
-  --canvas-bg: #0F1117;
-  --canvas-dot-color: #ffffff18;
+  --canvas-bg: #f4f7ff;
+  --canvas-dot-color: #3b82f620;
   --canvas-dot-size: 1.5px;
   --canvas-dot-spacing: 24px;
+}
+
+html.dark {
+  --canvas-bg: #0F1117;
+  --canvas-dot-color: #ffffff18;
 }
 
 /* ── Base resets ────────────────────────────────────────────────────────── */
@@ -53,10 +58,13 @@
 
   body {
     background-color: var(--canvas-bg);
-    color: #f8fafc;
+    color: #0f172a;
     font-family: 'Geist', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  html.dark body {
+    color: #f8fafc;
   }
 }
 
@@ -81,38 +89,63 @@
 /* Keep attribution but style it subtly */
 .react-flow__attribution {
   background: transparent !important;
-  color: #ffffff30 !important;
+  color: #1e293b60 !important;
   font-size: 10px !important;
 }
 
 .react-flow__attribution a {
+  color: #2563eb80 !important;
+}
+
+html.dark .react-flow__attribution {
+  color: #ffffff30 !important;
+}
+
+html.dark .react-flow__attribution a {
   color: #ffffff40 !important;
 }
 
 /* Edge default style */
 .react-flow__edge-path {
-  stroke: #4B5563;
+  stroke: #64748B;
   stroke-width: 1.5px;
   border-radius: 8px;
 }
 
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:hover .react-flow__edge-path {
-  stroke: #14B8A6;
+  stroke: #4F46E5;
   stroke-width: 2px;
 }
 
 /* Connection line while dragging */
 .react-flow__connection-path {
-  stroke: #14B8A680;
+  stroke: #4F46E599;
   stroke-width: 1.5px;
   stroke-dasharray: 5 3;
 }
 
 /* Node selection ring */
 .react-flow__node.selected > div {
-  outline: 2px solid #14B8A680;
+  outline: 2px solid #4F46E599;
   outline-offset: 2px;
+}
+
+html.dark .react-flow__edge-path {
+  stroke: #4B5563;
+}
+
+html.dark .react-flow__edge.selected .react-flow__edge-path,
+html.dark .react-flow__edge:hover .react-flow__edge-path {
+  stroke: #14B8A6;
+}
+
+html.dark .react-flow__connection-path {
+  stroke: #14B8A680;
+}
+
+html.dark .react-flow__node.selected > div {
+  outline: 2px solid #14B8A680;
 }
 
 /* Hide default node border React Flow adds */

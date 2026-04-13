@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { MousePointer2, Pen, ArrowRight, Circle, Trash2 } from 'lucide-react'
+import { useFlowStore } from '../../hooks/useFlowStore'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,9 +67,9 @@ function RenderStroke({ stroke }: { stroke: Stroke }) {
 // ── Tool button ──────────────────────────────────────────────────────────────
 
 function ToolBtn({
-  active, onClick, title, children,
+  active, onClick, title, children, isDark,
 }: {
-  active: boolean; onClick: () => void; title: string; children: React.ReactNode
+  active: boolean; onClick: () => void; title: string; children: React.ReactNode; isDark: boolean
 }) {
   return (
     <button
@@ -76,7 +77,9 @@ function ToolBtn({
       onClick={onClick}
       title={title}
       className={`p-1.5 rounded-md transition-colors ${
-        active ? 'bg-white/20 text-white' : 'text-white/45 hover:text-white hover:bg-white/10'
+        active
+          ? (isDark ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700')
+          : (isDark ? 'text-white/45 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100')
       }`}
     >
       {children}
@@ -87,6 +90,8 @@ function ToolBtn({
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function DrawingOverlay() {
+  const theme = useFlowStore((s) => s.theme)
+  const isDark = theme === 'dark'
   const [tool, setTool]         = useState<DrawTool>(null)
   const [color, setColor]       = useState(COLORS[0])
   const [strokes, setStrokes]   = useState<Stroke[]>([])
@@ -203,25 +208,34 @@ export default function DrawingOverlay() {
 
       <div className="absolute bottom-6 left-6 z-30 flex flex-col items-start gap-1.5">
       {tool && (
-        <div className="px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-[10px] text-white/40 select-none">
+        <div
+          className={`px-2 py-1 rounded-md backdrop-blur-sm text-[10px] select-none ${isDark ? 'text-white/40' : 'text-slate-500'}`}
+          style={isDark ? { background: 'rgba(0,0,0,0.5)' } : { background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(99,102,241,0.2)' }}
+        >
           Click again to deselect
         </div>
       )}
-      <div className="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-black/55 backdrop-blur-sm border border-white/10 shadow-xl">
-        <ToolBtn active={tool === 'laser'} onClick={() => setTool((t) => t === 'laser' ? null : 'laser')} title="Laser pointer">
+      <div
+        className="flex items-center gap-1 px-2.5 py-2 rounded-xl backdrop-blur-sm border shadow-xl"
+        style={isDark
+          ? { background: 'rgba(0,0,0,0.55)', borderColor: 'rgba(255,255,255,0.1)' }
+          : { background: 'rgba(255,255,255,0.92)', borderColor: 'rgba(99,102,241,0.24)' }
+        }
+      >
+        <ToolBtn active={tool === 'laser'} onClick={() => setTool((t) => t === 'laser' ? null : 'laser')} title="Laser pointer" isDark={isDark}>
           <MousePointer2 size={13} />
         </ToolBtn>
-        <ToolBtn active={tool === 'pen'} onClick={() => setTool((t) => t === 'pen' ? null : 'pen')} title="Freehand">
+        <ToolBtn active={tool === 'pen'} onClick={() => setTool((t) => t === 'pen' ? null : 'pen')} title="Freehand" isDark={isDark}>
           <Pen size={13} />
         </ToolBtn>
-        <ToolBtn active={tool === 'arrow'} onClick={() => setTool((t) => t === 'arrow' ? null : 'arrow')} title="Arrow">
+        <ToolBtn active={tool === 'arrow'} onClick={() => setTool((t) => t === 'arrow' ? null : 'arrow')} title="Arrow" isDark={isDark}>
           <ArrowRight size={13} />
         </ToolBtn>
-        <ToolBtn active={tool === 'circle'} onClick={() => setTool((t) => t === 'circle' ? null : 'circle')} title="Circle highlight">
+        <ToolBtn active={tool === 'circle'} onClick={() => setTool((t) => t === 'circle' ? null : 'circle')} title="Circle highlight" isDark={isDark}>
           <Circle size={13} />
         </ToolBtn>
 
-        <div className="w-px h-4 bg-white/15 mx-0.5" />
+        <div className="w-px h-4 mx-0.5" style={{ background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(99,102,241,0.24)' }} />
 
         {COLORS.map((c) => (
           <button
@@ -231,15 +245,17 @@ export default function DrawingOverlay() {
             className="w-3.5 h-3.5 rounded-full transition-transform hover:scale-125 shrink-0"
             style={{
               background: c,
-              outline: color === c ? '2px solid rgba(255,255,255,0.8)' : '2px solid transparent',
+              outline: color === c
+                ? (isDark ? '2px solid rgba(255,255,255,0.8)' : '2px solid rgba(67,56,202,0.75)')
+                : '2px solid transparent',
               outlineOffset: '1.5px',
             }}
           />
         ))}
 
-        <div className="w-px h-4 bg-white/15 mx-0.5" />
+        <div className="w-px h-4 mx-0.5" style={{ background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(99,102,241,0.24)' }} />
 
-        <ToolBtn active={false} onClick={() => { setStrokes([]); setActive(null) }} title="Clear all">
+        <ToolBtn active={false} onClick={() => { setStrokes([]); setActive(null) }} title="Clear all" isDark={isDark}>
           <Trash2 size={13} />
         </ToolBtn>
       </div>

@@ -32,42 +32,45 @@ interface FieldProps {
 }
 
 function TextField({ field, value, onChange }: FieldProps) {
+  const isDark = useFlowStore((s) => s.theme === 'dark')
   return (
     <input
       type="text"
       value={String(value)}
       placeholder={field.placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="
+      className={`
         w-full px-2.5 py-1.5 rounded-md text-[12px]
-        bg-white/5 border border-white/10
-        text-white/80 placeholder-white/25
-        focus:outline-none focus:border-white/30 focus:bg-white/10
-        transition-colors duration-150
-      "
+        transition-colors duration-150 focus:outline-none
+        ${isDark
+          ? 'bg-white/5 border border-white/10 text-white/80 placeholder-white/25 focus:border-white/30 focus:bg-white/10'
+          : 'bg-white border border-indigo-200/80 text-slate-800 placeholder-slate-400 focus:border-indigo-400/60 focus:bg-white'}
+      `}
     />
   )
 }
 
 function TextareaField({ field, value, onChange }: FieldProps) {
+  const isDark = useFlowStore((s) => s.theme === 'dark')
   return (
     <textarea
       value={String(value)}
       placeholder={field.placeholder}
       rows={4}
       onChange={(e) => onChange(e.target.value)}
-      className="
+      className={`
         w-full px-2.5 py-1.5 rounded-md text-[12px] resize-none
-        bg-white/5 border border-white/10
-        text-white/80 placeholder-white/25
-        focus:outline-none focus:border-white/30 focus:bg-white/10
-        transition-colors duration-150 font-mono leading-relaxed
-      "
+        transition-colors duration-150 font-mono leading-relaxed focus:outline-none
+        ${isDark
+          ? 'bg-white/5 border border-white/10 text-white/80 placeholder-white/25 focus:border-white/30 focus:bg-white/10'
+          : 'bg-white border border-indigo-200/80 text-slate-800 placeholder-slate-400 focus:border-indigo-400/60 focus:bg-white'}
+      `}
     />
   )
 }
 
 function NumberField({ field, value, onChange }: FieldProps) {
+  const isDark = useFlowStore((s) => s.theme === 'dark')
   return (
     <input
       type="number"
@@ -76,29 +79,30 @@ function NumberField({ field, value, onChange }: FieldProps) {
       max={field.max}
       step={field.step}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="
+      className={`
         w-full px-2.5 py-1.5 rounded-md text-[12px]
-        bg-white/5 border border-white/10
-        text-white/80
-        focus:outline-none focus:border-white/30 focus:bg-white/10
-        transition-colors duration-150
-      "
+        transition-colors duration-150 focus:outline-none
+        ${isDark
+          ? 'bg-white/5 border border-white/10 text-white/80 focus:border-white/30 focus:bg-white/10'
+          : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60 focus:bg-white'}
+      `}
     />
   )
 }
 
 function SelectField({ field, value, onChange }: FieldProps) {
+  const isDark = useFlowStore((s) => s.theme === 'dark')
   return (
     <select
       value={String(value)}
       onChange={(e) => onChange(e.target.value)}
-      className="
+      className={`
         w-full px-2.5 py-1.5 rounded-md text-[12px]
-        bg-gray-800 border border-white/10
-        text-white/80
-        focus:outline-none focus:border-white/30
-        transition-colors duration-150 cursor-pointer
-      "
+        transition-colors duration-150 cursor-pointer focus:outline-none
+        ${isDark
+          ? 'bg-gray-800 border border-white/10 text-white/80 focus:border-white/30'
+          : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60'}
+      `}
     >
       {field.options?.map((opt) => (
         <option key={opt.value} value={opt.value}>
@@ -110,6 +114,7 @@ function SelectField({ field, value, onChange }: FieldProps) {
 }
 
 function SliderField({ field, value, onChange }: FieldProps) {
+  const isDark = useFlowStore((s) => s.theme === 'dark')
   const num = Number(value)
   return (
     <div className="flex items-center gap-3">
@@ -122,7 +127,7 @@ function SliderField({ field, value, onChange }: FieldProps) {
         onChange={(e) => onChange(Number(e.target.value))}
         className="flex-1 accent-sky-500 cursor-pointer"
       />
-      <span className="text-[11px] font-mono text-white/60 w-10 text-right shrink-0">
+      <span className={`text-[11px] font-mono w-10 text-right shrink-0 ${isDark ? 'text-white/60' : 'text-slate-500'}`}>
         {num}
       </span>
     </div>
@@ -130,6 +135,7 @@ function SliderField({ field, value, onChange }: FieldProps) {
 }
 
 function ColorField({ value, onChange }: FieldProps) {
+  const isDark = useFlowStore((s) => s.theme === 'dark')
   const hex = typeof value === 'string' ? value : '#888888'
   return (
     <div className="flex items-center gap-2">
@@ -137,19 +143,19 @@ function ColorField({ value, onChange }: FieldProps) {
         type="color"
         value={hex}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 w-10 rounded border border-white/10 bg-transparent cursor-pointer"
+        className={`h-8 w-10 rounded bg-transparent cursor-pointer ${isDark ? 'border border-white/10' : 'border border-indigo-200/80'}`}
       />
       <input
         type="text"
         value={hex}
         onChange={(e) => onChange(e.target.value)}
-        className="
+        className={`
           flex-1 px-2.5 py-1.5 rounded-md text-[12px] font-mono
-          bg-white/5 border border-white/10
-          text-white/80 placeholder-white/25
-          focus:outline-none focus:border-white/30 focus:bg-white/10
-          transition-colors duration-150
-        "
+          transition-colors duration-150 focus:outline-none
+          ${isDark
+            ? 'bg-white/5 border border-white/10 text-white/80 placeholder-white/25 focus:border-white/30 focus:bg-white/10'
+            : 'bg-white border border-indigo-200/80 text-slate-800 placeholder-slate-400 focus:border-indigo-400/60 focus:bg-white'}
+        `}
       />
     </div>
   )
@@ -193,10 +199,11 @@ function FieldRenderer(props: FieldProps) {
 // ── Config field row ───────────────────────────────────────────────────────────
 
 function FieldRow({ field, value, onChange }: FieldProps) {
+  const isDark = useFlowStore((s) => s.theme === 'dark')
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+        <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
           {field.label}
         </label>
         {field.type === 'boolean' && (
@@ -207,7 +214,7 @@ function FieldRow({ field, value, onChange }: FieldProps) {
         <FieldRenderer field={field} value={value} onChange={onChange} />
       )}
       {field.description && (
-        <p className="text-[10px] text-white/30 leading-relaxed">
+        <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
           {field.description}
         </p>
       )}
@@ -218,8 +225,9 @@ function FieldRow({ field, value, onChange }: FieldProps) {
 // ── Config Panel ───────────────────────────────────────────────────────────────
 
 export default function ConfigPanel() {
-  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, layoutDirection, updateNodeConfig, updateNodeLabel, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, updateNodePortOffset, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
+  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, layoutDirection, theme, updateNodeConfig, updateNodeLabel, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, updateNodePortOffset, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
     useFlowStore()
+  const isDark = theme === 'dark'
 
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId)
@@ -288,16 +296,17 @@ export default function ConfigPanel() {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 280, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-          className="
-            w-72 h-full flex flex-col shrink-0
-            bg-gray-950/90 border-l border-white/5
-            backdrop-blur-sm overflow-hidden
-          "
+          className="w-72 h-full flex flex-col shrink-0 backdrop-blur-sm overflow-hidden"
+          style={{
+            background: isDark ? 'rgba(3,7,18,0.9)' : 'rgba(248,250,255,0.92)',
+            borderLeft: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(99,102,241,0.16)',
+          }}
         >
           {/* ── Header ──────────────────────────────────────────────────── */}
           <div
-            className="flex items-center gap-2 px-4 py-3 border-b border-white/5"
+            className="flex items-center gap-2 px-4 py-3"
             style={{
+              borderBottom: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(99,102,241,0.16)',
               background: `linear-gradient(135deg, ${accentColor}20 0%, transparent 100%)`,
             }}
           >
@@ -313,12 +322,15 @@ export default function ConfigPanel() {
                 value={selectedNode.data.label}
                 onChange={(e) => updateNodeLabel(selectedNode.id, e.target.value)}
                 className="
-                  w-full text-[13px] font-semibold text-white/90 bg-transparent
-                  border-b border-transparent hover:border-white/20 focus:border-white/40
+                  w-full text-[13px] font-semibold bg-transparent
+                  border-b border-transparent
                   focus:outline-none transition-colors duration-150 truncate
                 "
+                style={{
+                  color: isDark ? 'rgba(255,255,255,0.9)' : '#1e293b',
+                }}
               />
-              <p className="text-[10px] text-white/45 mt-0.5 leading-snug">
+              <p className={`text-[10px] mt-0.5 leading-snug ${isDark ? 'text-white/45' : 'text-slate-500'}`}>
                 {def.description}
               </p>
             </div>
@@ -329,10 +341,10 @@ export default function ConfigPanel() {
               onClick={handleDelete}
               title="Delete node"
               className="
-                shrink-0 p-1.5 rounded-md text-white/30
-                hover:text-red-400 hover:bg-red-500/10
+                shrink-0 p-1.5 rounded-md hover:text-red-400 hover:bg-red-500/10
                 transition-colors duration-150
               "
+              style={{ color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(71,85,105,0.7)' }}
             >
               <Trash2 size={13} />
             </button>
@@ -343,17 +355,19 @@ export default function ConfigPanel() {
               onClick={() => setSelectedNode(null)}
               title="Close panel"
               className="
-                shrink-0 p-1.5 rounded-md text-white/30
-                hover:text-white/70 hover:bg-white/10
-                transition-colors duration-150
+                shrink-0 p-1.5 rounded-md transition-colors duration-150
+                hover:bg-white/10
               "
+              style={{
+                color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(71,85,105,0.7)',
+              }}
             >
               <X size={13} />
             </button>
           </div>
 
           {/* ── Scrollable fields ────────────────────────────────────────── */}
-          <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5">
+          <div className={`flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5 ${isDark ? 'text-white' : 'text-slate-800'}`}>
             {def.configFields
               .filter((field) => {
                 if (!field.visibleWhen) return true
@@ -369,20 +383,20 @@ export default function ConfigPanel() {
                   return (
                     <div key={field.key} className="space-y-1.5">
                       <div className="flex items-baseline justify-between gap-2">
-                        <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                        <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                           {field.label}
                         </label>
                       </div>
                       <select
                         value={value}
                         onChange={(e) => handleChange(field.key, e.target.value)}
-                        className="
+                        className={`
                           w-full px-2.5 py-1.5 rounded-md text-[12px]
-                          bg-gray-800 border border-white/10
-                          text-white/80
-                          focus:outline-none focus:border-white/30
-                          transition-colors duration-150 cursor-pointer
-                        "
+                          transition-colors duration-150 cursor-pointer focus:outline-none
+                          ${isDark
+                            ? 'bg-gray-800 border border-white/10 text-white/80 focus:border-white/30'
+                            : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60'}
+                        `}
                       >
                         {characterDependencyOptions.map((opt) => (
                           <option key={opt.value || 'none'} value={opt.value}>
@@ -391,7 +405,7 @@ export default function ConfigPanel() {
                         ))}
                       </select>
                       {field.description && (
-                        <p className="text-[10px] text-white/30 leading-relaxed">
+                        <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                           {field.description}
                         </p>
                       )}
@@ -411,13 +425,13 @@ export default function ConfigPanel() {
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                   {isFrameNode ? 'Frame Color' : isTextNode ? 'Text Color' : 'Card Color'}
                 </label>
                 <button
                   type="button"
                   onClick={() => updateNodeAccentColor(selectedNode.id, undefined)}
-                  className="text-[10px] text-white/35 hover:text-white/65 transition-colors"
+                  className={`text-[10px] transition-colors ${isDark ? 'text-white/35 hover:text-white/65' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   Use default
                 </button>
@@ -427,23 +441,23 @@ export default function ConfigPanel() {
                   type="color"
                   value={accentColor}
                   onChange={(e) => updateNodeAccentColor(selectedNode.id, e.target.value)}
-                  className="h-9 w-12 rounded border border-white/10 bg-transparent cursor-pointer"
+                  className={`h-9 w-12 rounded bg-transparent cursor-pointer ${isDark ? 'border border-white/10' : 'border border-indigo-200/80'}`}
                 />
                 <input
                   type="text"
                   value={selectedNode.data.accentColor ?? ''}
                   placeholder={def.accentColor}
                   onChange={(e) => updateNodeAccentColor(selectedNode.id, e.target.value || undefined)}
-                  className="
+                  className={`
                     flex-1 px-2.5 py-1.5 rounded-md text-[12px] font-mono
-                    bg-white/5 border border-white/10
-                    text-white/80 placeholder-white/25
-                    focus:outline-none focus:border-white/30 focus:bg-white/10
-                    transition-colors duration-150
-                  "
+                    transition-colors duration-150 focus:outline-none
+                    ${isDark
+                      ? 'bg-white/5 border border-white/10 text-white/80 placeholder-white/25 focus:border-white/30 focus:bg-white/10'
+                      : 'bg-white border border-indigo-200/80 text-slate-800 placeholder-slate-400 focus:border-indigo-400/60'}
+                  `}
                 />
               </div>
-              <p className="text-[10px] text-white/30 leading-relaxed">
+              <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                 {isFrameNode
                   ? 'Override this frame’s tint without changing the default color for all frame nodes.'
                   : isTextNode
@@ -454,7 +468,7 @@ export default function ConfigPanel() {
 
             {isFrameNode && frameNodes.length > 1 && (
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                   Frame Layer
                 </label>
                 <div className="flex items-center gap-1.5">
@@ -463,9 +477,12 @@ export default function ConfigPanel() {
                     onClick={() => bringFrameToFront(selectedNode.id)}
                     className="
                       px-2 py-1 rounded-md text-[11px] font-medium
-                      bg-cyan-800/40 border border-cyan-400/45 text-cyan-200
-                      hover:bg-cyan-700/45 transition-colors
+                      transition-colors
                     "
+                    style={isDark
+                      ? { background: 'rgba(8,145,178,0.35)', border: '1px solid rgba(34,211,238,0.45)', color: 'rgb(165,243,252)' }
+                      : { background: 'rgba(79,70,229,0.12)', border: '1px solid rgba(79,70,229,0.34)', color: 'rgb(67,56,202)' }
+                    }
                   >
                     Bring to front
                   </button>
@@ -474,18 +491,21 @@ export default function ConfigPanel() {
                     onClick={() => sendFrameToBack(selectedNode.id)}
                     className="
                       px-2 py-1 rounded-md text-[11px] font-medium
-                      bg-white/5 border border-white/10 text-white/70
-                      hover:bg-white/10 hover:text-white transition-colors
+                      transition-colors
                     "
+                    style={isDark
+                      ? { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }
+                      : { background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(99,102,241,0.2)', color: 'rgb(51,65,85)' }
+                    }
                   >
                     Send to back
                   </button>
                 </div>
-                <p className="text-[10px] text-white/30 leading-relaxed">
+                <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                   Frames stay behind regular nodes, but you can reorder them to avoid blur from overlaps.
                 </p>
 
-                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                   Select Another Frame
                 </label>
                 <div className="space-y-1.5">
@@ -500,8 +520,8 @@ export default function ConfigPanel() {
                           w-full text-left px-2.5 py-1.5 rounded-md text-[11px]
                           border transition-colors
                           ${active
-                            ? 'bg-cyan-900/35 border-cyan-500/45 text-cyan-200'
-                            : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'}
+                            ? (isDark ? 'bg-cyan-900/35 border-cyan-500/45 text-cyan-200' : 'bg-indigo-100 border-indigo-300/70 text-indigo-700')
+                            : (isDark ? 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white' : 'bg-white border-indigo-200/80 text-slate-700 hover:bg-slate-100 hover:text-slate-900')}
                         `}
                       >
                         {frame.title}
@@ -509,7 +529,7 @@ export default function ConfigPanel() {
                     )
                   })}
                 </div>
-                <p className="text-[10px] text-white/30 leading-relaxed">
+                <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                   Frames are ordered from smaller to larger so nested groups are easier to pick.
                 </p>
               </div>
@@ -518,7 +538,7 @@ export default function ConfigPanel() {
             {/* ── Path priorities ───────────────────────────────────────── */}
             {!isFrameNode && !isTextNode && outgoingEdges.length > 0 && (
               <div className="space-y-2">
-                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                   Path Priorities
                 </label>
                 <div className="space-y-2">
@@ -534,7 +554,7 @@ export default function ConfigPanel() {
 
                     return (
                       <div key={edge.id} className="flex items-center gap-2">
-                        <div className="flex-1 min-w-0 text-[11px] text-white/65 truncate">
+                        <div className={`flex-1 min-w-0 text-[11px] truncate ${isDark ? 'text-white/65' : 'text-slate-600'}`}>
                           {sourceLabel} → {targetLabel}
                         </div>
                         <input
@@ -543,18 +563,19 @@ export default function ConfigPanel() {
                           step={1}
                           value={priority}
                           onChange={(e) => updateEdgePriority(edge.id, Number(e.target.value))}
-                          className="
+                          className={`
                             w-16 px-2 py-1 rounded-md text-[11px] text-right
-                            bg-white/5 border border-white/10 text-white/85
-                            focus:outline-none focus:border-white/30 focus:bg-white/10
-                            transition-colors duration-150
-                          "
+                            transition-colors duration-150 focus:outline-none
+                            ${isDark
+                              ? 'bg-white/5 border border-white/10 text-white/85 focus:border-white/30 focus:bg-white/10'
+                              : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60'}
+                          `}
                         />
                       </div>
                     )
                   })}
                 </div>
-                <p className="text-[10px] text-white/30 leading-relaxed">
+                <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                   Same number runs in parallel. Lower numbers run first (1 → 2 → 3).
                 </p>
               </div>
@@ -564,12 +585,12 @@ export default function ConfigPanel() {
             {!isFrameNode && !isTextNode && (
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
-                <StickyNote size={11} className="text-white/30" />
-                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                <StickyNote size={11} className={isDark ? 'text-white/30' : 'text-slate-500'} />
+                <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                   Note
                 </label>
                 <div className="flex items-center gap-1.5 ml-auto">
-                <span className="text-[10px] text-white/25">
+                <span className={`text-[10px] ${isDark ? 'text-white/25' : 'text-slate-500'}`}>
                   {selectedNode.data.noteAlwaysVisible ? 'always visible' : 'playback only'}
                 </span>
                 <button
@@ -596,34 +617,34 @@ export default function ConfigPanel() {
                 placeholder={'Add a **markdown** note...\n\n- Bullet points work\n- So does **bold**'}
                 rows={5}
                 onChange={(e) => updateNodeNote(selectedNode.id, e.target.value)}
-                className="
+                className={`
                   w-full px-2.5 py-1.5 rounded-md text-[12px] resize-none
-                  bg-white/5 border border-white/10
-                  text-white/80 placeholder-white/20
-                  focus:outline-none focus:border-white/30 focus:bg-white/10
-                  transition-colors duration-150 font-mono leading-relaxed
-                "
+                  transition-colors duration-150 font-mono leading-relaxed focus:outline-none
+                  ${isDark
+                    ? 'bg-white/5 border border-white/10 text-white/80 placeholder-white/20 focus:border-white/30 focus:bg-white/10'
+                    : 'bg-white border border-indigo-200/80 text-slate-800 placeholder-slate-400 focus:border-indigo-400/60'}
+                `}
               />
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                   Note Placement
                 </label>
                 <select
                   value={selectedNode.data.notePlacement ?? 'auto'}
                   onChange={(e) => updateNodeNotePlacement(selectedNode.id, e.target.value as NotePlacement)}
-                  className="
+                  className={`
                     w-full px-2.5 py-1.5 rounded-md text-[12px]
-                    bg-gray-800 border border-white/10
-                    text-white/80
-                    focus:outline-none focus:border-white/30
-                    transition-colors duration-150 cursor-pointer
-                  "
+                    transition-colors duration-150 cursor-pointer focus:outline-none
+                    ${isDark
+                      ? 'bg-gray-800 border border-white/10 text-white/80 focus:border-white/30'
+                      : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60'}
+                  `}
                 >
                   <option value="auto">Auto (current default)</option>
                   <option value="right">Right</option>
                   <option value="bottom">Bottom</option>
                 </select>
-                <p className="text-[10px] text-white/30 leading-relaxed">
+                <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                   Auto keeps the existing behavior. Override it only when a note reads better on one side.
                 </p>
               </div>
@@ -652,43 +673,46 @@ export default function ConfigPanel() {
 
           {/* ── Port position (sliders) — same order as canvas ───────────── */}
           {!isFrameNode && !isTextNode && selectedNode && def && (def.inputs.length > 0 || def.outputs.length > 0) && (
-            <div className="px-4 py-2.5 border-t border-white/5">
+            <div
+              className="px-4 py-2.5 border-t"
+              style={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(99,102,241,0.16)' }}
+            >
               <button
                 type="button"
                 onClick={() => setPortsSectionOpen((o) => !o)}
                 aria-expanded={portsSectionOpen}
-                className="flex w-full items-center justify-between gap-2 rounded-md py-1 text-left -mx-1 px-1 hover:bg-white/[0.04] transition-colors"
+                className={`flex w-full items-center justify-between gap-2 rounded-md py-1 text-left -mx-1 px-1 transition-colors ${isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-100'}`}
               >
                 <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                  <span className="text-[11px] font-medium text-white/60 uppercase tracking-wide shrink-0">
+                  <span className={`text-[11px] font-medium uppercase tracking-wide shrink-0 ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                     Ports
                   </span>
                   {!portsSectionOpen && (
-                    <span className="truncate text-[10px] font-normal normal-case text-white/30">
+                    <span className={`truncate text-[10px] font-normal normal-case ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                       {def.inputs.length} in · {def.outputs.length} out · sliders
                     </span>
                   )}
                 </div>
                 <ChevronDown
                   size={14}
-                  className={`shrink-0 text-white/35 transition-transform duration-200 ${
+                  className={`shrink-0 transition-transform duration-200 ${isDark ? 'text-white/35' : 'text-slate-500'} ${
                     portsSectionOpen ? 'rotate-180' : ''
                   }`}
                   aria-hidden
                 />
               </button>
               {portsSectionOpen && (
-              <div className="mt-2 space-y-1.5">
-              <p className="text-[10px] text-white/30 leading-relaxed">
-                <span className="text-white/45">Sliders</span> set where each handle sits on the node edge (0–100%).{' '}
+              <div className="mt-2 space-y-2">
+              <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
+                <span className={isDark ? 'text-white/45' : 'text-slate-700'}>Sliders</span> set where each handle sits on the node edge (0–100%).{' '}
                 {layoutDirection === 'LR'
                   ? 'Along the left or right side, 0% is at the top and 100% at the bottom.'
                   : 'Along the top or bottom edge, 0% is at the start and 100% at the end.'}
               </p>
-              <p className="text-[10px] text-white/30 leading-relaxed">
+              <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                 Hold Option/Alt and drag a port on the canvas to match, or use Auto to clear the override.
               </p>
-              <div className="space-y-2 pt-0.5">
+              <div className="space-y-2 pt-1">
                 {applyPortOrder(def.inputs, selectedNode.data.portOrder?.inputs).map((port, i, arr) => {
                   const value = resolvePortAxisPercent(port, i, arr.length, selectedNode.data.portOffsets)
                   const hasOverride = selectedNode.data.portOffsets?.[port.id] !== undefined
@@ -696,21 +720,25 @@ export default function ConfigPanel() {
                   return (
                     <div
                       key={`in-${port.id}`}
-                      className="space-y-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5"
+                      className={`space-y-1 rounded-lg border px-2.5 py-2 ${
+                        isDark
+                          ? 'border-white/10 bg-white/[0.03]'
+                          : 'border-indigo-200/70 bg-white'
+                      }`}
                     >
                       <div className="flex items-center gap-1.5">
                         <span
-                          className="w-1.5 h-1.5 rounded-full shrink-0 ring-1 ring-white/10"
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ring-1 ${isDark ? 'ring-white/10' : 'ring-slate-300/80'}`}
                           style={{ background: dot }}
                         />
-                        <span className="text-[10px] text-white/50 truncate min-w-0 flex-1" title={port.id}>
+                        <span className={`text-[10px] truncate min-w-0 flex-1 ${isDark ? 'text-white/50' : 'text-slate-600'}`} title={port.id}>
                           In · {port.label}
                         </span>
                         {hasOverride && (
                           <button
                             type="button"
                             onClick={() => updateNodePortOffset(selectedNode.id, port.id, null)}
-                            className="text-[9px] text-white/35 hover:text-white/65 transition-colors shrink-0"
+                            className={`text-[9px] transition-colors shrink-0 ${isDark ? 'text-white/35 hover:text-white/65' : 'text-slate-500 hover:text-slate-800'}`}
                           >
                             Auto
                           </button>
@@ -729,7 +757,7 @@ export default function ConfigPanel() {
                           className="min-w-0 flex-1 h-1.5"
                           style={{ accentColor: dot }}
                         />
-                        <span className="text-[9px] font-mono text-white/40 w-7 text-right tabular-nums shrink-0">
+                        <span className={`text-[9px] font-mono w-7 text-right tabular-nums shrink-0 ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
                           {Math.round(value)}
                         </span>
                       </div>
@@ -743,21 +771,25 @@ export default function ConfigPanel() {
                   return (
                     <div
                       key={`out-${port.id}`}
-                      className="space-y-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5"
+                      className={`space-y-1 rounded-lg border px-2.5 py-2 ${
+                        isDark
+                          ? 'border-white/10 bg-white/[0.03]'
+                          : 'border-indigo-200/70 bg-white'
+                      }`}
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-white/50 truncate min-w-0 flex-1 text-right" title={port.id}>
+                        <span className={`text-[10px] truncate min-w-0 flex-1 text-right ${isDark ? 'text-white/50' : 'text-slate-600'}`} title={port.id}>
                           Out · {port.label}
                         </span>
                         <span
-                          className="w-1.5 h-1.5 rounded-full shrink-0 ring-1 ring-white/10"
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ring-1 ${isDark ? 'ring-white/10' : 'ring-slate-300/80'}`}
                           style={{ background: dot }}
                         />
                         {hasOverride && (
                           <button
                             type="button"
                             onClick={() => updateNodePortOffset(selectedNode.id, port.id, null)}
-                            className="text-[9px] text-white/35 hover:text-white/65 transition-colors shrink-0"
+                            className={`text-[9px] transition-colors shrink-0 ${isDark ? 'text-white/35 hover:text-white/65' : 'text-slate-500 hover:text-slate-800'}`}
                           >
                             Auto
                           </button>
@@ -776,7 +808,7 @@ export default function ConfigPanel() {
                           className="min-w-0 flex-1 h-1.5"
                           style={{ accentColor: dot }}
                         />
-                        <span className="text-[9px] font-mono text-white/40 w-7 text-right tabular-nums shrink-0">
+                        <span className={`text-[9px] font-mono w-7 text-right tabular-nums shrink-0 ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
                           {Math.round(value)}
                         </span>
                       </div>
@@ -798,16 +830,19 @@ export default function ConfigPanel() {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 280, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-          className="
-            w-72 h-full flex flex-col shrink-0
-            bg-gray-950/90 border-l border-white/5
-            backdrop-blur-sm overflow-hidden
-          "
+          className="w-72 h-full flex flex-col shrink-0 backdrop-blur-sm overflow-hidden"
+          style={{
+            background: isDark ? 'rgba(3,7,18,0.9)' : 'rgba(248,250,255,0.92)',
+            borderLeft: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(99,102,241,0.16)',
+          }}
         >
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
+          <div
+            className="flex items-center gap-2 px-4 py-3"
+            style={{ borderBottom: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(99,102,241,0.16)' }}
+          >
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-white/90 truncate">Path Settings</p>
-              <p className="text-[10px] text-white/45 mt-0.5 leading-snug truncate">
+              <p className={`text-[13px] font-semibold truncate ${isDark ? 'text-white/90' : 'text-slate-800'}`}>Path Settings</p>
+              <p className={`text-[10px] mt-0.5 leading-snug truncate ${isDark ? 'text-white/45' : 'text-slate-500'}`}>
                 {`${selectedEdge.sourceHandle ?? 'source'} → ${selectedEdge.targetHandle ?? 'target'}`}
               </p>
             </div>
@@ -816,18 +851,19 @@ export default function ConfigPanel() {
               onClick={() => setSelectedEdge(null)}
               title="Close panel"
               className="
-                shrink-0 p-1.5 rounded-md text-white/30
-                hover:text-white/70 hover:bg-white/10
+                shrink-0 p-1.5 rounded-md
+                hover:bg-white/10
                 transition-colors duration-150
               "
+              style={{ color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(71,85,105,0.7)' }}
             >
               <X size={13} />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5">
+          <div className={`flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5 ${isDark ? 'text-white' : 'text-slate-800'}`}>
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+              <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                 Travel Speed
               </label>
               <div className="flex items-center gap-1.5">
@@ -843,8 +879,8 @@ export default function ConfigPanel() {
                         px-2 py-1 rounded-md text-[11px] font-medium
                         border transition-colors
                         ${active
-                          ? 'bg-cyan-800/40 border-cyan-400/50 text-cyan-200'
-                          : 'bg-white/5 border-white/10 text-white/65 hover:bg-white/10 hover:text-white'}
+                          ? (isDark ? 'bg-cyan-800/40 border-cyan-400/50 text-cyan-200' : 'bg-indigo-100 border-indigo-300/70 text-indigo-700')
+                          : (isDark ? 'bg-white/5 border-white/10 text-white/65 hover:bg-white/10 hover:text-white' : 'bg-white border-indigo-200/80 text-slate-700 hover:bg-slate-100 hover:text-slate-900')}
                       `}
                     >
                       {preset}x
@@ -860,30 +896,30 @@ export default function ConfigPanel() {
                   step={0.25}
                   value={typeof selectedEdge.data?.travelSpeed === 'number' ? selectedEdge.data.travelSpeed : 1}
                   onChange={(e) => updateEdgeTravelSpeed(selectedEdge.id, Number(e.target.value))}
-                  className="
+                  className={`
                     w-full px-2.5 py-1.5 rounded-md text-[12px]
-                    bg-white/5 border border-white/10
-                    text-white/80
-                    focus:outline-none focus:border-white/30 focus:bg-white/10
-                    transition-colors duration-150
-                  "
+                    transition-colors duration-150 focus:outline-none
+                    ${isDark
+                      ? 'bg-white/5 border border-white/10 text-white/80 focus:border-white/30 focus:bg-white/10'
+                      : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60'}
+                  `}
                 />
-                <span className="text-[11px] text-white/45 shrink-0">x</span>
+                <span className={`text-[11px] shrink-0 ${isDark ? 'text-white/45' : 'text-slate-500'}`}>x</span>
               </div>
-              <p className="text-[10px] text-white/30 leading-relaxed">
+              <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                 Per-path speed multiplier. 1.00 = default, 0.50 = slower, 2.00 = faster.
               </p>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+                <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                   Path Color
                 </label>
                 <button
                   type="button"
                   onClick={() => updateEdgeColor(selectedEdge.id, undefined)}
-                  className="text-[10px] text-white/35 hover:text-white/65 transition-colors"
+                  className={`text-[10px] transition-colors ${isDark ? 'text-white/35 hover:text-white/65' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   Use global
                 </button>
@@ -893,19 +929,19 @@ export default function ConfigPanel() {
                   type="color"
                   value={typeof selectedEdge.data?.pathColor === 'string' ? selectedEdge.data.pathColor : globalPathColor}
                   onChange={(e) => updateEdgeColor(selectedEdge.id, e.target.value)}
-                  className="h-9 w-12 rounded border border-white/10 bg-transparent cursor-pointer"
+                  className={`h-9 w-12 rounded bg-transparent cursor-pointer ${isDark ? 'border border-white/10' : 'border border-indigo-200/80'}`}
                 />
-                <span className="text-[11px] font-mono text-white/45">
+                <span className={`text-[11px] font-mono ${isDark ? 'text-white/45' : 'text-slate-600'}`}>
                   {typeof selectedEdge.data?.pathColor === 'string' ? selectedEdge.data.pathColor : `${globalPathColor} (global)`}
                 </span>
               </div>
-              <p className="text-[10px] text-white/30 leading-relaxed">
+              <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                 Override this path color or inherit the global path color.
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+              <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                 Path Thickness
               </label>
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -921,8 +957,8 @@ export default function ConfigPanel() {
                         px-2 py-1 rounded-md text-[11px] font-medium
                         border transition-colors
                         ${active
-                          ? 'bg-sky-800/40 border-sky-400/50 text-sky-200'
-                          : 'bg-white/5 border-white/10 text-white/65 hover:bg-white/10 hover:text-white'}
+                          ? (isDark ? 'bg-sky-800/40 border-sky-400/50 text-sky-200' : 'bg-indigo-100 border-indigo-300/70 text-indigo-700')
+                          : (isDark ? 'bg-white/5 border-white/10 text-white/65 hover:bg-white/10 hover:text-white' : 'bg-white border-indigo-200/80 text-slate-700 hover:bg-slate-100 hover:text-slate-900')}
                       `}
                     >
                       {preset}x
@@ -938,23 +974,23 @@ export default function ConfigPanel() {
                   step={0.25}
                   value={typeof selectedEdge.data?.pathThickness === 'number' ? selectedEdge.data.pathThickness : 1}
                   onChange={(e) => updateEdgeThickness(selectedEdge.id, Number(e.target.value))}
-                  className="
+                  className={`
                     w-full px-2.5 py-1.5 rounded-md text-[12px]
-                    bg-white/5 border border-white/10
-                    text-white/80
-                    focus:outline-none focus:border-white/30 focus:bg-white/10
-                    transition-colors duration-150
-                  "
+                    transition-colors duration-150 focus:outline-none
+                    ${isDark
+                      ? 'bg-white/5 border border-white/10 text-white/80 focus:border-white/30 focus:bg-white/10'
+                      : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60'}
+                  `}
                 />
-                <span className="text-[11px] text-white/45 shrink-0">x</span>
+                <span className={`text-[11px] shrink-0 ${isDark ? 'text-white/45' : 'text-slate-500'}`}>x</span>
               </div>
-              <p className="text-[10px] text-white/30 leading-relaxed">
+              <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                 Adjust visual path thickness for readability.
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-white/60 uppercase tracking-wide">
+              <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
                 Execution Priority
               </label>
               <input
@@ -967,15 +1003,15 @@ export default function ConfigPanel() {
                     : 1
                 }
                 onChange={(e) => updateEdgePriority(selectedEdge.id, Number(e.target.value))}
-                className="
+                className={`
                   w-full px-2.5 py-1.5 rounded-md text-[12px]
-                  bg-white/5 border border-white/10
-                  text-white/80
-                  focus:outline-none focus:border-white/30 focus:bg-white/10
-                  transition-colors duration-150
-                "
+                  transition-colors duration-150 focus:outline-none
+                  ${isDark
+                    ? 'bg-white/5 border border-white/10 text-white/80 focus:border-white/30 focus:bg-white/10'
+                    : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60'}
+                `}
               />
-              <p className="text-[10px] text-white/30 leading-relaxed">
+              <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
                 Same priority runs in parallel. Lower numbers run first.
               </p>
             </div>

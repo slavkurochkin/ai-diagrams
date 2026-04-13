@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Plus, Trash2, Upload, FileText, ChevronDown, ChevronUp, Sparkles, RotateCcw } from 'lucide-react'
 import type { FlowContext, FlowContextDocument } from '../../types/flow'
+import { useFlowStore } from '../../hooks/useFlowStore'
 
 // ── Example data ───────────────────────────────────────────────────────────────
 
@@ -46,8 +47,9 @@ interface FlowContextModalProps {
 // ── Section header ─────────────────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
+  const isDark = useFlowStore((s) => s.theme === 'dark')
   return (
-    <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30 mb-2">
+    <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
       {children}
     </p>
   )
@@ -64,33 +66,37 @@ function DocCard({
   onChange: (updated: FlowContextDocument) => void
   onRemove: () => void
 }) {
+  const isDark = useFlowStore((s) => s.theme === 'dark')
   const [expanded, setExpanded] = useState(true)
 
   return (
-    <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{
+        background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.9)',
+        border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(99,102,241,0.16)',
+      }}
+    >
       {/* Card header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/8">
-        <FileText size={12} className="text-sky-400 shrink-0" />
+      <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(99,102,241,0.14)' }}>
+        <FileText size={12} className={`shrink-0 ${isDark ? 'text-sky-400' : 'text-indigo-500'}`} />
         <input
           value={doc.name}
           onChange={(e) => onChange({ ...doc, name: e.target.value })}
           placeholder="Document name"
-          className="
-            flex-1 bg-transparent text-[12px] font-medium text-white
-            placeholder:text-white/25 focus:outline-none min-w-0
-          "
+          className={`flex-1 bg-transparent text-[12px] font-medium focus:outline-none min-w-0 ${isDark ? 'text-white placeholder:text-white/25' : 'text-slate-800 placeholder:text-slate-400'}`}
         />
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="p-0.5 text-white/30 hover:text-white/60 transition-colors"
+          className={`p-0.5 transition-colors ${isDark ? 'text-white/30 hover:text-white/60' : 'text-slate-400 hover:text-slate-700'}`}
         >
           {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </button>
         <button
           type="button"
           onClick={onRemove}
-          className="p-0.5 text-white/30 hover:text-red-400 transition-colors"
+          className={`p-0.5 transition-colors ${isDark ? 'text-white/30 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`}
         >
           <Trash2 size={12} />
         </button>
@@ -104,12 +110,12 @@ function DocCard({
           placeholder="Paste document content here…"
           spellCheck={false}
           rows={5}
-          className="
+          className={`
             w-full px-3 py-2.5 bg-transparent
-            text-[11px] text-white/70 leading-relaxed font-mono
-            placeholder:text-white/20
+            text-[11px] leading-relaxed font-mono
             focus:outline-none resize-none
-          "
+            ${isDark ? 'text-white/70 placeholder:text-white/20' : 'text-slate-700 placeholder:text-slate-400'}
+          `}
         />
       )}
     </div>
@@ -127,6 +133,8 @@ export default function FlowContextModal({
   onSave,
   onClose,
 }: FlowContextModalProps) {
+  const theme = useFlowStore((s) => s.theme)
+  const isDark = theme === 'dark'
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialContext?.description ?? '')
   const [howItWorks, setHowItWorks] = useState(initialContext?.howItWorks ?? '')
@@ -236,17 +244,21 @@ export default function FlowContextModal({
               className="
                 pointer-events-auto
                 w-full max-w-2xl max-h-[88vh] flex flex-col
-                bg-gray-950 border border-white/10 rounded-2xl shadow-2xl
+                rounded-2xl shadow-2xl
                 overflow-hidden
               "
+              style={{
+                background: isDark ? '#030712' : '#f8faff',
+                border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(99,102,241,0.2)',
+              }}
             >
               {/* Header */}
-              <div className="flex items-start justify-between px-5 py-4 border-b border-white/8 shrink-0">
+              <div className="flex items-start justify-between px-5 py-4 shrink-0" style={{ borderBottom: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(99,102,241,0.16)' }}>
                 <div>
-                  <h2 className="text-[14px] font-semibold text-white">
+                  <h2 className={`text-[14px] font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                     {isNew ? 'Set up your flow' : 'Edit flow context'}
                   </h2>
-                  <p className="text-[11px] text-white/40 mt-0.5">
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
                     {isNew
                       ? 'Describe your agent so AI can give targeted suggestions'
                       : 'Update context to improve AI evaluation suggestions'}
@@ -258,10 +270,13 @@ export default function FlowContextModal({
                     onClick={handleClearDetails}
                     className="
                       flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
-                      text-[11px] font-medium text-white/65
-                      bg-white/5 hover:bg-white/10 border border-white/15
+                      text-[11px] font-medium
                       transition-colors
                     "
+                    style={isDark
+                      ? { color: 'rgba(255,255,255,0.65)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)' }
+                      : { color: '#475569', background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(99,102,241,0.24)' }
+                    }
                   >
                     <RotateCcw size={11} />
                     Clear details
@@ -271,10 +286,12 @@ export default function FlowContextModal({
                     onClick={handleFillExample}
                     className="
                       flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
-                      text-[11px] font-medium text-amber-300/80
-                      bg-amber-400/8 hover:bg-amber-400/15 border border-amber-400/20
-                      transition-colors
+                      text-[11px] font-medium transition-colors
                     "
+                    style={isDark
+                      ? { color: 'rgba(252,211,77,0.9)', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }
+                      : { color: '#92400e', background: 'rgba(251,191,36,0.16)', border: '1px solid rgba(251,191,36,0.34)' }
+                    }
                   >
                     <Sparkles size={11} />
                     Fill with example
@@ -282,7 +299,7 @@ export default function FlowContextModal({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                    className={`p-1.5 rounded-lg transition-colors ${isDark ? 'text-white/40 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
                   >
                     <X size={15} />
                   </button>
@@ -297,21 +314,22 @@ export default function FlowContextModal({
                   <SectionLabel>Flow info</SectionLabel>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-[11px] text-white/50 mb-1">Flow name</label>
+                      <label className={`block text-[11px] mb-1 ${isDark ? 'text-white/50' : 'text-slate-600'}`}>Flow name</label>
                       <input
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="e.g. Customer Support Agent"
-                        className="
-                          w-full px-3 py-2 rounded-lg text-[13px] text-white
-                          bg-white/5 border border-white/10
-                          placeholder:text-white/20
-                          focus:outline-none focus:border-sky-500/60
-                        "
+                        className={`
+                          w-full px-3 py-2 rounded-lg text-[13px]
+                          focus:outline-none
+                          ${isDark
+                            ? 'text-white bg-white/5 border border-white/10 placeholder:text-white/20 focus:border-sky-500/60'
+                            : 'text-slate-900 bg-white border border-indigo-200/80 placeholder:text-slate-400 focus:border-indigo-500/60'}
+                        `}
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-white/50 mb-1">
+                      <label className={`block text-[11px] mb-1 ${isDark ? 'text-white/50' : 'text-slate-600'}`}>
                         What does this agent do?
                       </label>
                       <textarea
@@ -319,13 +337,13 @@ export default function FlowContextModal({
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="e.g. Answers customer questions about orders and returns using a knowledge base and escalates complex cases to human agents."
                         rows={3}
-                        className="
-                          w-full px-3 py-2.5 rounded-lg text-[12px] text-white/80
-                          bg-white/5 border border-white/10 leading-relaxed
-                          placeholder:text-white/20
-                          focus:outline-none focus:border-sky-500/60
-                          resize-none
-                        "
+                        className={`
+                          w-full px-3 py-2.5 rounded-lg text-[12px] leading-relaxed
+                          focus:outline-none resize-none
+                          ${isDark
+                            ? 'text-white/80 bg-white/5 border border-white/10 placeholder:text-white/20 focus:border-sky-500/60'
+                            : 'text-slate-800 bg-white border border-indigo-200/80 placeholder:text-slate-400 focus:border-indigo-500/60'}
+                        `}
                       />
                     </div>
                   </div>
@@ -339,13 +357,13 @@ export default function FlowContextModal({
                     onChange={(e) => setHowItWorks(e.target.value)}
                     placeholder={`Describe the architecture, data flow, key decisions, and edge cases.\n\ne.g. User query → classifier (routes to FAQ vs order lookup) → retriever pulls from vector DB → LLM synthesises answer → guardrail checks for PII before response.`}
                     rows={5}
-                    className="
-                      w-full px-3 py-2.5 rounded-lg text-[12px] text-white/80
-                      bg-white/5 border border-white/10 leading-relaxed
-                      placeholder:text-white/20
-                      focus:outline-none focus:border-sky-500/60
-                      resize-none
-                    "
+                  className={`
+                      w-full px-3 py-2.5 rounded-lg text-[12px] leading-relaxed
+                      focus:outline-none resize-none
+                      ${isDark
+                        ? 'text-white/80 bg-white/5 border border-white/10 placeholder:text-white/20 focus:border-sky-500/60'
+                        : 'text-slate-800 bg-white border border-indigo-200/80 placeholder:text-slate-400 focus:border-indigo-500/60'}
+                    `}
                   />
                 </div>
 
@@ -359,9 +377,12 @@ export default function FlowContextModal({
                         onClick={() => fileInputRef.current?.click()}
                         className="
                           flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium
-                          text-white/40 hover:text-white/70 hover:bg-white/5
-                          border border-white/10 transition-colors
+                          transition-colors
                         "
+                        style={isDark
+                          ? { color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }
+                          : { color: '#475569', border: '1px solid rgba(99,102,241,0.22)', background: 'rgba(255,255,255,0.92)' }
+                        }
                       >
                         <Upload size={11} />
                         Upload
@@ -371,9 +392,12 @@ export default function FlowContextModal({
                         onClick={addDocument}
                         className="
                           flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium
-                          text-sky-400 hover:text-sky-300 hover:bg-sky-900/20
-                          border border-sky-700/30 transition-colors
+                          transition-colors
                         "
+                        style={isDark
+                          ? { color: '#38bdf8', border: '1px solid rgba(3,105,161,0.45)' }
+                          : { color: '#4338ca', border: '1px solid rgba(99,102,241,0.35)', background: 'rgba(79,70,229,0.08)' }
+                        }
                       >
                         <Plus size={11} />
                         Add doc
@@ -393,13 +417,11 @@ export default function FlowContextModal({
                     <button
                       type="button"
                       onClick={addDocument}
-                      className="
-                        w-full py-6 rounded-xl
-                        border border-dashed border-white/15
-                        text-[12px] text-white/30
-                        hover:border-white/25 hover:text-white/50
-                        transition-colors
-                      "
+                      className="w-full py-6 rounded-xl border border-dashed text-[12px] transition-colors"
+                      style={isDark
+                        ? { borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.3)' }
+                        : { borderColor: 'rgba(99,102,241,0.28)', color: 'rgba(71,85,105,0.85)', background: 'rgba(255,255,255,0.76)' }
+                      }
                     >
                       + Add business documents, policies, or SLA requirements
                     </button>
@@ -419,7 +441,7 @@ export default function FlowContextModal({
               </div>
 
               {/* Footer */}
-              <div className="flex items-center gap-3 px-5 py-4 border-t border-white/8 shrink-0">
+              <div className="flex items-center gap-3 px-5 py-4 shrink-0" style={{ borderTop: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(99,102,241,0.16)' }}>
 
                 {/* Clear / keep toggle — new mode only, only relevant when nodes exist */}
                 {isNew && hasNodes && (
@@ -427,7 +449,7 @@ export default function FlowContextModal({
                     {(['keep', 'clear'] as const).map((opt) => (
                       <label
                         key={opt}
-                        className="flex items-center gap-1.5 cursor-pointer text-[12px] text-white/50 hover:text-white/70 transition-colors"
+                        className={`flex items-center gap-1.5 cursor-pointer text-[12px] transition-colors ${isDark ? 'text-white/50 hover:text-white/70' : 'text-slate-600 hover:text-slate-800'}`}
                       >
                         <input
                           type="radio"
@@ -449,18 +471,18 @@ export default function FlowContextModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3 py-1.5 rounded-lg text-[12px] text-white/40 hover:text-white/70 transition-colors"
+                  className={`px-3 py-1.5 rounded-lg text-[12px] transition-colors ${isDark ? 'text-white/40 hover:text-white/70' : 'text-slate-500 hover:text-slate-800'}`}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleSave}
-                  className="
-                    px-4 py-1.5 rounded-lg text-[13px] font-medium
-                    bg-teal-700/80 border border-teal-500/40 text-white
-                    hover:bg-teal-600/90 transition-colors
-                  "
+                  className="px-4 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
+                  style={isDark
+                    ? { background: 'rgba(15,118,110,0.8)', border: '1px solid rgba(20,184,166,0.4)', color: '#fff' }
+                    : { background: 'rgba(79,70,229,0.9)', border: '1px solid rgba(79,70,229,0.5)', color: '#fff' }
+                  }
                 >
                   {isNew ? 'Create flow' : 'Save changes'}
                 </button>

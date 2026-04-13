@@ -24,16 +24,21 @@ interface IconButtonProps {
   variant?: 'default' | 'accent' | 'ghost'
   disabled?: boolean
   active?: boolean
+  isDark?: boolean
 }
 
-function IconButton({ onClick, title, children, variant = 'default', disabled, active = false }: IconButtonProps) {
+function IconButton({ onClick, title, children, variant = 'default', disabled, active = false, isDark = true }: IconButtonProps) {
   const classes = variant === 'accent'
-    ? 'bg-teal-700/80 border-teal-500/40 text-white hover:bg-teal-600/90 hover:border-teal-400/60'
+    ? isDark
+      ? 'bg-teal-700/80 border-teal-500/40 text-white hover:bg-teal-600/90 hover:border-teal-400/60'
+      : 'bg-teal-600/90 border-teal-500/45 text-white hover:bg-teal-500/95 hover:border-teal-400/65'
     : variant === 'ghost'
-      ? 'bg-transparent border-white/10 text-white/55 hover:bg-white/7 hover:text-white'
+      ? isDark
+        ? 'bg-transparent border-white/10 text-white/55 hover:bg-white/7 hover:text-white'
+        : 'bg-transparent border-slate-300/80 text-slate-500 hover:bg-slate-100/80 hover:text-slate-800'
       : active
-        ? 'bg-white/10 border-white/15 text-white'
-        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
+        ? (isDark ? 'bg-white/10 border-white/15 text-white' : 'bg-indigo-100 border-indigo-200 text-indigo-700')
+        : (isDark ? 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white' : 'bg-white/80 border-slate-300/80 text-slate-600 hover:bg-slate-100 hover:text-slate-800')
 
   return (
     <button
@@ -59,12 +64,13 @@ interface ToolbarMenuProps {
   open: boolean
   onToggle: () => void
   children: React.ReactNode
+  isDark: boolean
 }
 
-function ToolbarMenu({ label, title, open, onToggle, children }: ToolbarMenuProps) {
+function ToolbarMenu({ label, title, open, onToggle, children, isDark }: ToolbarMenuProps) {
   return (
     <div className="relative">
-      <IconButton onClick={onToggle} title={title} variant="default" active={open}>
+      <IconButton onClick={onToggle} title={title} variant="default" active={open} isDark={isDark}>
         {label}
         <ChevronDown
           size={13}
@@ -74,13 +80,14 @@ function ToolbarMenu({ label, title, open, onToggle, children }: ToolbarMenuProp
       </IconButton>
       {open && (
         <div
-          className="
-            absolute top-[calc(100%+8px)] left-0 z-30 min-w-52
-            rounded-xl border border-white/12 bg-[#0B1117]
-            shadow-[0_18px_42px_rgba(0,0,0,0.52)] overflow-hidden
-          "
+          className="absolute top-[calc(100%+8px)] left-0 z-30 min-w-52 rounded-xl overflow-hidden"
+          style={{
+            border: isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(99,102,241,0.18)',
+            background: isDark ? '#0B1117' : '#f8faff',
+            boxShadow: isDark ? '0 18px 42px rgba(0,0,0,0.52)' : '0 14px 30px rgba(67,56,202,0.14)',
+          }}
         >
-          <div className="p-1.5 space-y-1 bg-[#0B1117]">
+          <div className="p-1.5 space-y-1" style={{ background: isDark ? '#0B1117' : '#f8faff' }}>
             {children}
           </div>
         </div>
@@ -96,13 +103,14 @@ interface MenuActionProps {
   description: string
   disabled?: boolean
   tone?: 'default' | 'accent'
+  isDark: boolean
 }
 
 function MenuDivider() {
   return <div className="my-1 border-t border-white/10" role="separator" />
 }
 
-function MenuAction({ onClick, icon, label, description, disabled, tone = 'default' }: MenuActionProps) {
+function MenuAction({ onClick, icon, label, description, disabled, tone = 'default', isDark }: MenuActionProps) {
   return (
     <button
       type="button"
@@ -112,16 +120,20 @@ function MenuAction({ onClick, icon, label, description, disabled, tone = 'defau
         w-full flex items-start gap-3 rounded-lg px-3 py-2.5 text-left
         transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none
         ${tone === 'accent'
-          ? 'bg-teal-950/90 text-white hover:bg-teal-900/80'
-          : 'bg-[#0F1720] text-white/75 hover:bg-[#16212C] hover:text-white'}
+          ? isDark
+            ? 'bg-teal-950/90 text-white hover:bg-teal-900/80'
+            : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
+          : isDark
+            ? 'bg-[#0F1720] text-white/75 hover:bg-[#16212C] hover:text-white'
+            : 'bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900'}
       `}
     >
-      <div className={`mt-0.5 shrink-0 ${tone === 'accent' ? 'text-cyan-300' : 'text-white/45'}`}>
+      <div className={`mt-0.5 shrink-0 ${tone === 'accent' ? (isDark ? 'text-cyan-300' : 'text-indigo-500') : (isDark ? 'text-white/45' : 'text-slate-400')}`}>
         {icon}
       </div>
       <div className="min-w-0">
         <div className="text-[12px] font-medium leading-tight">{label}</div>
-        <div className="mt-0.5 text-[10px] leading-snug text-white/35">{description}</div>
+        <div className={`mt-0.5 text-[10px] leading-snug ${isDark ? 'text-white/35' : 'text-slate-500'}`}>{description}</div>
       </div>
     </button>
   )
@@ -194,6 +206,7 @@ export default function Toolbar({
     gifCapturePaddingPercent, setGifCapturePaddingPercent,
   } = useFlowStore()
   const { getViewport, setViewport } = useReactFlow()
+  const isDark = theme === 'dark'
 
   const [editingName, setEditingName] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -354,10 +367,11 @@ export default function Toolbar({
     <>
     <header
       ref={toolbarRef}
-      className="
-        flex items-center gap-3 px-4 h-14 shrink-0
-        bg-[#0A0F14]/95 border-b border-white/5 backdrop-blur-md z-10
-      "
+      className="flex items-center gap-3 px-4 h-14 shrink-0 backdrop-blur-md z-10"
+      style={{
+        background: isDark ? 'rgba(10,15,20,0.95)' : 'rgba(248,250,255,0.9)',
+        borderBottom: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(99,102,241,0.16)',
+      }}
     >
 
       {/* App logo + name */}
@@ -374,12 +388,12 @@ export default function Toolbar({
             <line x1="3.4" y1="5.7" x2="6.6" y2="7.3" stroke="white" strokeWidth="1" />
           </svg>
         </div>
-        <span className="text-[13px] font-semibold text-white tracking-tight">
+        <span className={`text-[13px] font-semibold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
           AgentFlow
         </span>
       </div>
 
-      <div className="w-px h-5 bg-white/10 shrink-0" />
+      <div className="w-px h-5 shrink-0" style={{ background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)' }} />
 
       {/* Editable diagram name */}
       {editingName ? (
@@ -391,10 +405,13 @@ export default function Toolbar({
           onBlur={handleNameBlur}
           onKeyDown={handleNameKeyDown}
           className="
-            px-2 py-1 rounded-md text-[13px] font-medium text-white
-            bg-white/10 border border-white/20 focus:outline-none
+            px-2 py-1 rounded-md text-[13px] font-medium focus:outline-none
             min-w-0 w-44
           "
+          style={isDark
+            ? { color: 'white', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)' }
+            : { color: '#0f172a', background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(99,102,241,0.22)' }
+          }
         />
       ) : (
         <button
@@ -402,10 +419,13 @@ export default function Toolbar({
           onClick={() => setEditingName(true)}
           title="Click to rename"
           className="
-            px-2 py-1 rounded-md text-[13px] font-medium text-white/70
-            hover:text-white hover:bg-white/10 transition-colors duration-150
+            px-2 py-1 rounded-md text-[13px] font-medium transition-colors duration-150
             truncate max-w-[180px]
           "
+          style={isDark
+            ? { color: 'rgba(255,255,255,0.7)' }
+            : { color: 'rgba(30,41,59,0.85)' }
+          }
         >
           {flowName}
         </button>
@@ -420,8 +440,12 @@ export default function Toolbar({
           flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg shrink-0
           text-[11px] font-medium border transition-colors duration-150
           ${hasContext
-            ? 'text-sky-300/80 bg-sky-900/20 border-sky-700/30 hover:bg-sky-900/35 hover:text-sky-200'
-            : 'text-white/35 bg-transparent border-white/8 hover:bg-white/6 hover:text-white/60'}
+            ? isDark
+              ? 'text-sky-300/80 bg-sky-900/20 border-sky-700/30 hover:bg-sky-900/35 hover:text-sky-200'
+              : 'text-indigo-700 bg-indigo-100 border-indigo-300/70 hover:bg-indigo-200/70 hover:text-indigo-800'
+            : isDark
+              ? 'text-white/35 bg-transparent border-white/8 hover:bg-white/6 hover:text-white/60'
+              : 'text-slate-500 bg-transparent border-slate-300/80 hover:bg-slate-100 hover:text-slate-700'}
         `}
       >
         <Info size={12} />
@@ -431,7 +455,7 @@ export default function Toolbar({
         )}
       </button>
 
-      <div className="w-px h-5 bg-white/10 shrink-0" />
+      <div className="w-px h-5 shrink-0" style={{ background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)' }} />
 
       {/* Grouped menus */}
       <div className="flex items-center gap-1 shrink-0">
@@ -440,12 +464,14 @@ export default function Toolbar({
           title="New flow, templates, load, and document export"
           open={openMenu === 'flow'}
           onToggle={() => handleToggleMenu('flow')}
+          isDark={isDark}
         >
           <MenuAction
             onClick={() => handleMenuAction(onNewFlow)}
             icon={<FilePlus size={14} />}
             label="New flow"
             description="Open the new-flow dialog"
+            isDark={isDark}
           />
           {hasContext && (
             <MenuAction
@@ -453,6 +479,7 @@ export default function Toolbar({
               icon={<BookOpen size={14} />}
               label="Flow context"
               description="Edit context and business documents"
+              isDark={isDark}
             />
           )}
           <MenuAction
@@ -460,18 +487,21 @@ export default function Toolbar({
             icon={<LayoutTemplate size={14} />}
             label="Browse templates"
             description="Starter flows and built-in layouts"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(() => onOpenTemplates('import'))}
             icon={<FileCode size={14} />}
             label="Import YAML"
             description="Paste or upload a .yaml file"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(handleLoad)}
             icon={<FolderOpen size={14} />}
             label="Load from browser"
             description="Restore the last flow saved in this browser"
+            isDark={isDark}
           />
           <MenuDivider />
           <MenuAction
@@ -480,6 +510,7 @@ export default function Toolbar({
             label="Export YAML"
             description="Download the flow as editable YAML"
             disabled={nodes.length === 0}
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(handleExportJSON)}
@@ -487,6 +518,7 @@ export default function Toolbar({
             label="Export JSON"
             description="Full document with viewport for backup"
             disabled={nodes.length === 0}
+            isDark={isDark}
           />
         </ToolbarMenu>
 
@@ -495,12 +527,14 @@ export default function Toolbar({
           title="Layout and view options"
           open={openMenu === 'view'}
           onToggle={() => handleToggleMenu('view')}
+          isDark={isDark}
         >
           <MenuAction
             onClick={() => handleMenuAction(handleToggleLayoutDirection)}
             icon={layoutDirection === 'TB' ? <AlignVerticalJustifyStart size={14} /> : <AlignHorizontalJustifyStart size={14} />}
             label={layoutDirection === 'TB' ? 'Horizontal layout' : 'Vertical layout'}
             description={`Switch to ${layoutDirection === 'TB' ? 'left-to-right' : 'top-to-bottom'} auto layout`}
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(handleTidy)}
@@ -508,6 +542,7 @@ export default function Toolbar({
             label="Tidy canvas"
             description="Auto-arrange nodes with the current layout direction"
             disabled={nodes.length === 0}
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(() => { createFrameFromSelection() })}
@@ -515,45 +550,58 @@ export default function Toolbar({
             label="Group selected nodes"
             description="Create an auto-sized frame around selected nodes"
             disabled={selectedNonFrameCount === 0}
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(toggleCompactMode)}
             icon={<Layers size={14} />}
             label={compactMode ? 'Switch to full view' : 'Switch to compact view'}
             description="Change how nodes render on the canvas"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(togglePresentationMode)}
             icon={<Maximize2 size={14} />}
             label="Presentation mode"
             description="Focus on the canvas with minimal chrome"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(toggleExecutionPriorities)}
             icon={<ListOrdered size={14} />}
             label={showExecutionPriorities ? 'Hide execution priorities' : 'Show execution priorities'}
             description="Toggle P1/P2 priority badges on all paths"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(toggleShowAllNotes)}
             icon={<BookOpen size={14} />}
             label={showAllNotes ? 'Hide all notes' : 'Show all notes'}
             description="Temporarily show every node note for layout tuning"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(toggleHideNotesDuringPlayback)}
             icon={<BookOpen size={14} />}
             label={hideNotesDuringPlayback ? 'Show notes while playing' : 'Hide notes while playing'}
             description="Automatically hide note cards during playback"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(handleThemeToggle)}
             icon={theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
             label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             description="Toggle the overall application theme"
+            isDark={isDark}
           />
-          <div className="px-3 py-2 rounded-lg bg-[#0F1720] border border-white/10">
-            <div className="text-[10px] uppercase tracking-wide text-white/45 mb-1.5">
+          <div
+            className="px-3 py-2 rounded-lg border"
+            style={{
+              background: isDark ? '#0F1720' : '#ffffff',
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)',
+            }}
+          >
+            <div className={`text-[10px] uppercase tracking-wide mb-1.5 ${isDark ? 'text-white/45' : 'text-slate-500'}`}>
               Global Path Thickness
             </div>
             <div className="flex items-center gap-2">
@@ -564,17 +612,25 @@ export default function Toolbar({
                 step={0.25}
                 value={globalPathThickness}
                 onChange={(e) => setGlobalPathThickness(Number(e.target.value))}
-                className="
+                className={`
                   w-20 px-2 py-1 rounded-md text-[11px]
-                  bg-white/5 border border-white/10 text-white/85
-                  focus:outline-none focus:border-white/30
-                "
+                  focus:outline-none
+                  ${isDark
+                    ? 'bg-white/5 border border-white/10 text-white/85 focus:border-white/30'
+                    : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60'}
+                `}
               />
-              <span className="text-[11px] text-white/45">x</span>
+              <span className={`text-[11px] ${isDark ? 'text-white/45' : 'text-slate-500'}`}>x</span>
             </div>
           </div>
-          <div className="px-3 py-2 rounded-lg bg-[#0F1720] border border-white/10">
-            <div className="text-[10px] uppercase tracking-wide text-white/45 mb-1.5">
+          <div
+            className="px-3 py-2 rounded-lg border"
+            style={{
+              background: isDark ? '#0F1720' : '#ffffff',
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)',
+            }}
+          >
+            <div className={`text-[10px] uppercase tracking-wide mb-1.5 ${isDark ? 'text-white/45' : 'text-slate-500'}`}>
               Global Path Color
             </div>
             <div className="flex items-center gap-2">
@@ -582,9 +638,9 @@ export default function Toolbar({
                 type="color"
                 value={globalPathColor}
                 onChange={(e) => setGlobalPathColor(e.target.value)}
-                className="h-8 w-10 rounded border border-white/10 bg-transparent cursor-pointer"
+                className={`h-8 w-10 rounded bg-transparent cursor-pointer ${isDark ? 'border border-white/10' : 'border border-indigo-200/80'}`}
               />
-              <span className="text-[11px] font-mono text-white/45">{globalPathColor}</span>
+              <span className={`text-[11px] font-mono ${isDark ? 'text-white/45' : 'text-slate-600'}`}>{globalPathColor}</span>
             </div>
           </div>
         </ToolbarMenu>
@@ -594,6 +650,7 @@ export default function Toolbar({
           title="Images, GIF, and sharing"
           open={openMenu === 'export'}
           onToggle={() => handleToggleMenu('export')}
+          isDark={isDark}
         >
           <MenuAction
             onClick={() => handleMenuAction(handleDownload)}
@@ -601,6 +658,7 @@ export default function Toolbar({
             label="Export PNG"
             description="Render the current canvas as an image"
             disabled={nodes.length === 0}
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(onExportGIF)}
@@ -608,6 +666,7 @@ export default function Toolbar({
             label={exportGIFBusy ? 'Export GIF (recording...)' : 'Export GIF (1 cycle)'}
             description="Record playback once and download an animated GIF"
             disabled={exportGIFDisabled}
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(onExportGIFSelection)}
@@ -615,13 +674,20 @@ export default function Toolbar({
             label="Export GIF (selection)"
             description="Export only currently selected nodes/frame"
             disabled={exportGIFSelectionDisabled}
+            isDark={isDark}
           />
-          <div className="px-3 py-2 rounded-lg bg-[#0F1720] border border-white/10">
+          <div
+            className="px-3 py-2 rounded-lg border"
+            style={{
+              background: isDark ? '#0F1720' : '#ffffff',
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)',
+            }}
+          >
             <div className="flex items-center justify-between mb-1.5">
-              <div className="text-[10px] uppercase tracking-wide text-white/45">
+              <div className={`text-[10px] uppercase tracking-wide ${isDark ? 'text-white/45' : 'text-slate-500'}`}>
                 GIF Capture Padding
               </div>
-              <span className="text-[11px] font-mono text-white/55">
+              <span className={`text-[11px] font-mono ${isDark ? 'text-white/55' : 'text-slate-600'}`}>
                 {gifCapturePaddingPercent}%
               </span>
             </div>
@@ -632,7 +698,7 @@ export default function Toolbar({
               step={1}
               value={gifCapturePaddingPercent}
               onChange={(e) => setGifCapturePaddingPercent(Number(e.target.value))}
-              className="w-full accent-cyan-400 cursor-pointer"
+              className={`w-full cursor-pointer ${isDark ? 'accent-cyan-400' : 'accent-indigo-500'}`}
             />
           </div>
           <MenuAction
@@ -641,6 +707,7 @@ export default function Toolbar({
             label={copied ? 'Copied image' : 'Copy image'}
             description="Copy a PNG snapshot to the clipboard"
             disabled={nodes.length === 0}
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(handleShare)}
@@ -648,6 +715,7 @@ export default function Toolbar({
             label={shared ? 'Copied share URL' : 'Copy share URL'}
             description="Copy a shareable link with the flow encoded in the URL"
             disabled={nodes.length === 0}
+            isDark={isDark}
           />
         </ToolbarMenu>
 
@@ -656,6 +724,7 @@ export default function Toolbar({
           title="AI-assisted actions"
           open={openMenu === 'ai'}
           onToggle={() => handleToggleMenu('ai')}
+          isDark={isDark}
         >
           <MenuAction
             onClick={() => handleMenuAction(onExplain)}
@@ -664,6 +733,7 @@ export default function Toolbar({
             description="Generate an explanation of the current pipeline"
             disabled={explainDisabled}
             tone="accent"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(onReview)}
@@ -672,6 +742,7 @@ export default function Toolbar({
             description="Find missing pieces, risks, and design issues"
             disabled={reviewDisabled}
             tone="accent"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(onEval)}
@@ -680,6 +751,7 @@ export default function Toolbar({
             description="Suggest evaluation coverage for the flow"
             disabled={evalDisabled}
             tone="accent"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(onSuccess)}
@@ -688,6 +760,7 @@ export default function Toolbar({
             description="Define what 'working correctly' looks like for this flow"
             disabled={successDisabled}
             tone="accent"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(onRisks)}
@@ -696,6 +769,7 @@ export default function Toolbar({
             description="Identify failure modes and architectural risks"
             disabled={risksDisabled}
             tone="accent"
+            isDark={isDark}
           />
           <MenuAction
             onClick={() => handleMenuAction(onGeneratePrompt)}
@@ -704,15 +778,17 @@ export default function Toolbar({
             description="Create an implementation brief for coding agents"
             disabled={generatePromptDisabled}
             tone="accent"
+            isDark={isDark}
           />
         </ToolbarMenu>
 
-        <div className="w-px h-5 bg-white/10 shrink-0 self-center" />
+        <div className="w-px h-5 shrink-0 self-center" style={{ background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)' }} />
 
         <IconButton
           onClick={handleSave}
           title={saveFailed ? 'Save failed (check browser storage permissions)' : 'Save to browser (Ctrl+S)'}
           variant="accent"
+          isDark={isDark}
         >
           {saved ? <Check size={13} /> : saveFailed ? <AlertCircle size={13} className="text-red-300" /> : <Save size={13} />}
           {saveFailed ? 'Save failed' : saved ? 'Saved' : 'Save'}
@@ -722,6 +798,7 @@ export default function Toolbar({
           onClick={() => setConfirmClear(true)}
           title="Clear canvas"
           variant="ghost"
+          isDark={isDark}
         >
           <Trash2 size={13} />
           Clear
@@ -733,13 +810,20 @@ export default function Toolbar({
 
       {/* Right side */}
       <div className="flex items-center gap-2 shrink-0">
-        <div className="px-1.5 py-1 rounded-lg border border-white/8 bg-white/[0.03]">
+        <div
+          className="px-1.5 py-1 rounded-lg border"
+          style={{
+            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(99,102,241,0.2)',
+            background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.88)',
+          }}
+        >
           {animControls}
         </div>
         <IconButton
           onClick={handleThemeToggle}
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           variant="ghost"
+          isDark={isDark}
         >
           {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
         </IconButton>

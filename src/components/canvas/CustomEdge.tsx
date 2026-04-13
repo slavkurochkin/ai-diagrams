@@ -154,6 +154,7 @@ export default function CustomEdge({
   markerEnd,
   data,
 }: EdgeProps) {
+  const theme = useFlowStore((s) => s.theme)
   const globalPathThickness = useFlowStore((s) => s.globalPathThickness)
   const globalPathColor = useFlowStore((s) => s.globalPathColor)
   const edgeData = (data ?? {}) as SignalData
@@ -183,7 +184,11 @@ export default function CustomEdge({
     return 1
   })()
   const effectiveThickness = Math.max(0.5, Math.min(6, pathThickness * globalPathThickness))
-  const resolvedPathColor = edgeData.pathColor || globalPathColor || '#FFFFFF'
+  const isDark = theme === 'dark'
+  const defaultPathColor = isDark ? '#FFFFFF' : '#4F46E5'
+  const resolvedPathColor = edgeData.pathColor
+    || (isDark || globalPathColor.toUpperCase() !== '#FFFFFF' ? globalPathColor : defaultPathColor)
+    || defaultPathColor
   const isVerticalLayout =
     (sourcePosition === Position.Top || sourcePosition === Position.Bottom) &&
     (targetPosition === Position.Top || targetPosition === Position.Bottom)
@@ -292,10 +297,10 @@ export default function CustomEdge({
         markerEnd={markerEnd}
         style={{
           stroke: selected
-            ? withOpacity(resolvedPathColor, isLoopback ? 0.9 : isEvalEdge ? 0.75 : 0.8)
+            ? withOpacity(resolvedPathColor, isLoopback ? 0.9 : isEvalEdge ? (isDark ? 0.75 : 0.82) : (isDark ? 0.8 : 0.9))
             : hovered
-              ? withOpacity(resolvedPathColor, isLoopback ? 0.7 : isEvalEdge ? 0.55 : 0.55)
-              : withOpacity(resolvedPathColor, isLoopback ? 0.35 : isEvalEdge ? 0.2 : 0.2),
+              ? withOpacity(resolvedPathColor, isLoopback ? (isDark ? 0.7 : 0.78) : isEvalEdge ? (isDark ? 0.55 : 0.62) : (isDark ? 0.55 : 0.7))
+              : withOpacity(resolvedPathColor, isLoopback ? (isDark ? 0.35 : 0.5) : isEvalEdge ? (isDark ? 0.2 : 0.34) : (isDark ? 0.2 : 0.45)),
           strokeWidth: (hovered || selected ? 2 : isEvalEdge ? 1.15 : 1.5) * effectiveThickness,
           strokeDasharray: isLoopback ? '5 6' : isEvalEdge ? '2 6' : undefined,
           transition: 'stroke 0.15s ease, stroke-width 0.15s ease, stroke-dasharray 0.15s ease',
@@ -338,13 +343,13 @@ export default function CustomEdge({
             className="nodrag nopan"
           >
             <div
-              className="
+              className={`
                 px-2 py-0.5 rounded-full
-                bg-gray-950/95 border border-white/15
-                text-[10px] font-mono text-white/55
-                whitespace-nowrap backdrop-blur-sm
-                shadow-lg
-              "
+                text-[10px] font-mono whitespace-nowrap backdrop-blur-sm shadow-lg
+                ${isDark
+                  ? 'bg-gray-950/95 border border-white/15 text-white/55'
+                  : 'bg-white/96 border border-indigo-200/70 text-slate-600'}
+              `}
             >
               {label}
             </div>
@@ -364,13 +369,13 @@ export default function CustomEdge({
             className="nodrag nopan"
           >
             <div
-              className="
+              className={`
                 px-2 py-0.5 rounded-full
-                bg-cyan-950/95 border border-cyan-400/35
-                text-[10px] font-mono text-cyan-200
-                whitespace-nowrap backdrop-blur-sm
-                shadow-lg
-              "
+                text-[10px] font-mono whitespace-nowrap backdrop-blur-sm shadow-lg
+                ${isDark
+                  ? 'bg-cyan-950/95 border border-cyan-400/35 text-cyan-200'
+                  : 'bg-indigo-50 border border-indigo-300/80 text-indigo-700'}
+              `}
             >
               {`P${executionPriority}`}
             </div>

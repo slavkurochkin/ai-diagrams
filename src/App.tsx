@@ -500,7 +500,12 @@ function AppInner() {
   }, [nodes, selectedNodeId, exportingGIF, flowName, theme, animation, gifCapturePaddingPercent])
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0F1117] text-white">
+    <div
+      className={`
+        flex flex-col h-screen w-screen overflow-hidden
+        ${theme === 'dark' ? 'bg-[#0F1117] text-white' : 'bg-[#f4f7ff] text-slate-900'}
+      `}
+    >
 
       {/* Normal layout */}
       {!presentationMode && (
@@ -598,7 +603,13 @@ function AppInner() {
 
           {/* Playback controls overlay */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black/50 backdrop-blur-sm border border-white/10">
+            <div
+              className="flex items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-sm border"
+              style={theme === 'dark'
+                ? { background: 'rgba(0,0,0,0.5)', borderColor: 'rgba(255,255,255,0.1)' }
+                : { background: 'rgba(255,255,255,0.92)', borderColor: 'rgba(99,102,241,0.24)' }
+              }
+            >
               {presentationAnimControls}
             </div>
           </div>
@@ -610,15 +621,19 @@ function AppInner() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={togglePresentation}
-              className="
+              className={`
                 absolute top-4 right-4 z-50
                 flex items-center gap-1.5 px-3 py-1.5 rounded-lg
-                bg-black/40 backdrop-blur-sm
-                text-white/50 text-[11px] font-medium
-                border border-white/10
-                hover:text-white/80 hover:bg-black/60
-                transition-all duration-200
-              "
+                backdrop-blur-sm text-[11px] font-medium
+                border transition-all duration-200
+                ${theme === 'dark'
+                  ? 'text-white/50 border-white/10 hover:text-white/80'
+                  : 'text-slate-600 border-indigo-300/60 hover:text-slate-900'}
+              `}
+              style={theme === 'dark'
+                ? { background: 'rgba(0,0,0,0.4)' }
+                : { background: 'rgba(255,255,255,0.92)' }
+              }
             >
               <Minimize2 size={12} />
               Press P to exit

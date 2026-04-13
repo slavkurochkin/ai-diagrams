@@ -54,7 +54,7 @@ const FLOW_PROPS = {
 
 const THEME = {
   dark:  { bg: '#0F1117', dot: '#ffffff18' },
-  light: { bg: '#F8FAFC', dot: '#00000012' },
+  light: { bg: '#f4f7ff', dot: '#3b82f620' },
 }
 
 export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode, onEvalTargets, onPlayFromNode, onSuccessNode, onRisksNode }: FlowCanvasProps) {
@@ -64,6 +64,7 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
   const showExecutionPriorities = useFlowStore((s) => s.showExecutionPriorities)
   const removeNode    = useFlowStore((s) => s.removeNode)
   const duplicateNode = useFlowStore((s) => s.duplicateNode)
+  const isDark = theme === 'dark'
 
   const colors = THEME[theme]
 
@@ -172,7 +173,10 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
         />
         <Controls
           showInteractive={false}
-          className="!bg-gray-900/80 !border-white/10 !shadow-xl [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!text-gray-400 [&_button:hover]:!bg-white/10 [&_button:hover]:!text-white"
+          className={isDark
+            ? '!bg-gray-900/80 !border-white/10 !shadow-xl [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!text-gray-400 [&_button:hover]:!bg-white/10 [&_button:hover]:!text-white'
+            : '!bg-white/85 !border-sky-200/70 !shadow-lg [&_button]:!bg-transparent [&_button]:!border-sky-200/70 [&_button]:!text-slate-500 [&_button:hover]:!bg-sky-50 [&_button:hover]:!text-sky-700'
+          }
         />
       </ReactFlow>
 
@@ -183,12 +187,21 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-4 text-center pointer-events-auto">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center border border-white/10"
-              style={{ background: 'linear-gradient(135deg, #0F766E22, #1D4ED822)' }}>
-              <MousePointerClick size={24} className="text-white/30" />
+              style={{
+                borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(59,130,246,0.22)',
+                background: isDark
+                  ? 'linear-gradient(135deg, #0F766E22, #1D4ED822)'
+                  : 'linear-gradient(135deg, #4f46e51c, #14b8a622)',
+              }}>
+              <MousePointerClick size={24} className={isDark ? 'text-white/30' : 'text-sky-600/55'} />
             </div>
             <div>
-              <p className="text-[14px] font-medium text-white/50">Drag a component from the sidebar</p>
-              <p className="text-[12px] text-white/25 mt-1">or start from a template</p>
+              <p className={isDark ? 'text-[14px] font-medium text-white/50' : 'text-[14px] font-medium text-slate-700/80'}>
+                Drag a component from the sidebar
+              </p>
+              <p className={isDark ? 'text-[12px] text-white/25 mt-1' : 'text-[12px] text-slate-500/90 mt-1'}>
+                or start from a template
+              </p>
             </div>
             {onOpenTemplates && (
               <button
@@ -196,9 +209,12 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
                 onClick={onOpenTemplates}
                 className="
                   flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium
-                  bg-teal-700/35 border border-teal-500/30 text-cyan-200
-                  hover:bg-teal-700/55 hover:text-white transition-colors
+                  transition-colors
                 "
+                style={isDark
+                  ? { background: 'rgba(15,118,110,0.35)', borderColor: 'rgba(20,184,166,0.3)', color: 'rgb(165,243,252)' }
+                  : { background: 'rgba(79,70,229,0.1)', borderColor: 'rgba(79,70,229,0.3)', color: 'rgb(67,56,202)' }
+                }
               >
                 <LayoutTemplate size={13} />
                 Browse templates

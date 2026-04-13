@@ -2,14 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getAllNodeDefinitions } from '../../lib/nodeDefinitions'
 import type { NodeDefinition } from '../../types/nodes'
 import { CHARACTER_VARIANTS } from '../nodes/CharacterNode'
+import { useFlowStore } from '../../hooks/useFlowStore'
 
 // ── Palette card ──────────────────────────────────────────────────────────────
 
 interface PaletteCardProps {
   def: NodeDefinition
+  isDark: boolean
 }
 
-function PaletteCard({ def }: PaletteCardProps) {
+function PaletteCard({ def, isDark }: PaletteCardProps) {
   const Icon = def.icon
 
   const handleDragStart = useCallback(
@@ -26,14 +28,16 @@ function PaletteCard({ def }: PaletteCardProps) {
       onDragStart={handleDragStart}
       className="
         group flex items-center gap-3 px-3 py-2.5
-        rounded-lg border border-white/5
-        bg-gray-900/60 hover:bg-gray-800/80
+        rounded-lg border
         cursor-grab active:cursor-grabbing
         transition-all duration-150
-        hover:border-white/15
         hover:shadow-md
         select-none
       "
+      style={isDark
+        ? { borderColor: 'rgba(255,255,255,0.05)', background: 'rgba(17,24,39,0.6)' }
+        : { borderColor: 'rgba(99,102,241,0.12)', background: 'rgba(255,255,255,0.88)' }
+      }
       title={def.description}
     >
       {/* Color accent strip */}
@@ -52,16 +56,16 @@ function PaletteCard({ def }: PaletteCardProps) {
 
       {/* Label + description */}
       <div className="min-w-0 flex-1">
-        <p className="text-[12px] font-medium text-white/90 leading-tight">
+        <p className={`text-[12px] font-medium leading-tight ${isDark ? 'text-white/90' : 'text-slate-800'}`}>
           {def.label}
         </p>
-        <p className="text-[10px] text-white/40 leading-snug mt-0.5">
+        <p className={`text-[10px] leading-snug mt-0.5 ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
           {def.description}
         </p>
       </div>
 
       {/* Drag hint */}
-      <div className="shrink-0 text-white/20 group-hover:text-white/40 transition-colors duration-150">
+      <div className={`shrink-0 transition-colors duration-150 ${isDark ? 'text-white/20 group-hover:text-white/40' : 'text-slate-400 group-hover:text-slate-600'}`}>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
           <circle cx="4" cy="3" r="1" />
           <circle cx="8" cy="3" r="1" />
@@ -82,19 +86,16 @@ interface CategoryHeaderProps {
   count: number
   expanded: boolean
   onToggle: () => void
+  isDark: boolean
 }
 
-function CategoryHeader({ label, count, expanded, onToggle }: CategoryHeaderProps) {
+function CategoryHeader({ label, count, expanded, onToggle, isDark }: CategoryHeaderProps) {
   return (
     <button
       type="button"
       onClick={onToggle}
-      className="
-        w-full flex items-center gap-2 px-1 py-1 mt-4 mb-1 first:mt-0
-        rounded-md text-left
-        hover:bg-white/[0.03]
-        transition-colors duration-150
-      "
+      className="w-full flex items-center gap-2 px-1 py-1 mt-4 mb-1 first:mt-0 rounded-md text-left transition-colors duration-150"
+      style={{ color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(51,65,85,0.7)' }}
       aria-expanded={expanded}
     >
       <svg
@@ -107,13 +108,13 @@ function CategoryHeader({ label, count, expanded, onToggle }: CategoryHeaderProp
       >
         <path d="M3 2 L7 5 L3 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-white/35">
+      <span className={`text-[10px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/35' : 'text-slate-600/80'}`}>
         {label}
       </span>
-      <span className="text-[10px] text-white/20 tabular-nums">
+      <span className={`text-[10px] tabular-nums ${isDark ? 'text-white/20' : 'text-slate-400'}`}>
         {count}
       </span>
-      <div className="flex-1 h-px bg-white/5" />
+      <div className="flex-1 h-px" style={{ background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(99,102,241,0.14)' }} />
     </button>
   )
 }
@@ -169,7 +170,7 @@ const CHAR_THUMB: Record<string, string> = {
     <path d="M40 58 L50 76" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
 }
 
-function CharacterCard({ variant, label }: { variant: string; label: string }) {
+function CharacterCard({ variant, label, isDark }: { variant: string; label: string; isDark: boolean }) {
   const thumb = CHAR_THUMB[variant] ?? ''
 
   const handleDragStart = useCallback(
@@ -191,17 +192,19 @@ function CharacterCard({ variant, label }: { variant: string; label: string }) {
       title={label}
       className="
         flex flex-col items-center gap-1 p-2 rounded-lg
-        border border-white/5 bg-gray-900/60
-        hover:bg-gray-800/80 hover:border-white/15
         cursor-grab active:cursor-grabbing
         transition-all duration-150 select-none
       "
+      style={isDark
+        ? { borderColor: 'rgba(255,255,255,0.05)', background: 'rgba(17,24,39,0.6)' }
+        : { borderColor: 'rgba(99,102,241,0.12)', background: 'rgba(255,255,255,0.88)' }
+      }
     >
       <svg
         viewBox="0 0 80 100"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        style={{ width: 36, height: 44, color: '#94a3b8' }}
+        style={{ width: 36, height: 44, color: isDark ? '#94a3b8' : '#475569' }}
         dangerouslySetInnerHTML={{ __html: thumb }}
       />
     </div>
@@ -233,6 +236,8 @@ const DEFAULT_EXPANDED: Record<string, boolean> = {
 
 export default function Sidebar() {
   const defs = getAllNodeDefinitions()
+  const theme = useFlowStore((s) => s.theme)
+  const isDark = theme === 'dark'
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(DEFAULT_EXPANDED)
 
   useEffect(() => {
@@ -277,18 +282,18 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="
-        w-56 h-full flex flex-col shrink-0
-        bg-gray-950/90 dark:bg-gray-950/90 border-r border-white/5
-        backdrop-blur-sm
-      "
+      className="w-56 h-full flex flex-col shrink-0 backdrop-blur-sm"
+      style={{
+        background: isDark ? 'rgba(3,7,18,0.9)' : 'rgba(248,250,255,0.88)',
+        borderRight: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(99,102,241,0.14)',
+      }}
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/5">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-white/40">
+      <div className="px-4 py-3" style={{ borderBottom: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(99,102,241,0.14)' }}>
+        <p className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/40' : 'text-slate-600'}`}>
           Node Palette
         </p>
-        <p className="text-[10px] text-white/25 mt-0.5">
+        <p className={`text-[10px] mt-0.5 ${isDark ? 'text-white/25' : 'text-slate-500'}`}>
           Drag to canvas to add
         </p>
       </div>
@@ -302,11 +307,12 @@ export default function Sidebar() {
               count={items.length}
               expanded={expandedSections[cat] ?? DEFAULT_EXPANDED[cat] ?? true}
               onToggle={() => toggleCategory(cat)}
+              isDark={isDark}
             />
             {(expandedSections[cat] ?? DEFAULT_EXPANDED[cat] ?? true) && (
               <div className="space-y-1">
                 {items.map((def) => (
-                  <PaletteCard key={def.type} def={def} />
+                  <PaletteCard key={def.type} def={def} isDark={isDark} />
                 ))}
               </div>
             )}
@@ -320,11 +326,12 @@ export default function Sidebar() {
             count={CHARACTER_VARIANTS.length}
             expanded={expandedSections.characters ?? false}
             onToggle={() => toggleCategory('characters')}
+            isDark={isDark}
           />
           {(expandedSections.characters ?? false) && (
             <div className="grid grid-cols-3 gap-1.5 mt-1">
               {CHARACTER_VARIANTS.map(({ key, label }) => (
-                <CharacterCard key={key} variant={key} label={label} />
+                <CharacterCard key={key} variant={key} label={label} isDark={isDark} />
               ))}
             </div>
           )}
@@ -332,8 +339,8 @@ export default function Sidebar() {
       </div>
 
       {/* Footer hint */}
-      <div className="px-4 py-2.5 border-t border-white/5">
-        <p className="text-[10px] text-white/20 text-center">
+      <div className="px-4 py-2.5" style={{ borderTop: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(99,102,241,0.14)' }}>
+        <p className={`text-[10px] text-center ${isDark ? 'text-white/20' : 'text-slate-500'}`}>
           {defs.length} node types
         </p>
       </div>

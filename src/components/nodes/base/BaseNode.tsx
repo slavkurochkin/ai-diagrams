@@ -24,9 +24,10 @@ const ANIM_RING: Record<string, string> = {
 interface PreviewRowProps {
   label: string
   value: string | number | boolean | undefined
+  isDark?: boolean
 }
 
-function PreviewRow({ label, value }: PreviewRowProps) {
+function PreviewRow({ label, value, isDark }: PreviewRowProps) {
   const display =
     value === undefined || value === '' || value === null
       ? '—'
@@ -37,10 +38,10 @@ function PreviewRow({ label, value }: PreviewRowProps) {
 
   return (
     <div className="flex items-center gap-1.5 min-w-0">
-      <span className="text-[10px] text-white/40 uppercase tracking-wider shrink-0">
+      <span className={`text-[10px] uppercase tracking-wider shrink-0 ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
         {label}
       </span>
-      <span className="text-[11px] text-white/80 truncate font-mono">
+      <span className={`text-[11px] truncate font-mono ${isDark ? 'text-white/80' : 'text-slate-700'}`}>
         {truncated}
       </span>
     </div>
@@ -340,7 +341,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
           }}
         >
           {preview.map((row) => (
-            <PreviewRow key={row.label} label={row.label} value={row.value} />
+            <PreviewRow key={row.label} label={row.label} value={row.value} isDark={isDark} />
           ))}
         </div>
       </div>

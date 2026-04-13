@@ -778,13 +778,13 @@ export default function ConfigPanel() {
                       }`}
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className={`text-[10px] truncate min-w-0 flex-1 text-right ${isDark ? 'text-white/50' : 'text-slate-600'}`} title={port.id}>
-                          Out · {port.label}
-                        </span>
                         <span
                           className={`w-1.5 h-1.5 rounded-full shrink-0 ring-1 ${isDark ? 'ring-white/10' : 'ring-slate-300/80'}`}
                           style={{ background: dot }}
                         />
+                        <span className={`text-[10px] truncate min-w-0 flex-1 ${isDark ? 'text-white/50' : 'text-slate-600'}`} title={port.id}>
+                          Out · {port.label}
+                        </span>
                         {hasOverride && (
                           <button
                             type="button"

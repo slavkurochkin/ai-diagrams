@@ -117,7 +117,13 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
 
   // Gradient stops derived from the accent color
   const accentHex = data.accentColor ?? def.accentColor
-  const accentFaint = `${accentHex}22`
+  const headerTint = (data.headerTextColor?.trim() || '#ffffff')
+  /** Light cards use a very faint body tint so they stay crisp on colored frames; dark keeps a bit more wash. */
+  const accentFaint = isDark ? `${accentHex}22` : `${accentHex}0c`
+  /** Layered shadow + hairline so cards read as physical layers above frames (not blended into them). */
+  const cardElevation = isDark
+    ? '0 0 0 1px rgba(255,255,255,0.10), 0 2px 4px -1px rgba(0,0,0,0.45), 0 8px 20px -4px rgba(0,0,0,0.55), 0 18px 44px -14px rgba(0,0,0,0.5)'
+    : 'inset 0 1px 0 0 rgba(255,255,255,0.95), 0 0 0 1px rgba(15,23,42,0.08), 0 2px 4px -1px rgba(15,23,42,0.06), 0 8px 18px -4px rgba(15,23,42,0.10), 0 16px 40px -12px rgba(15,23,42,0.08)'
 
   const SIZE = 80
 
@@ -170,7 +176,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
               transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
             />
           )}
-          <div className="text-white/95 relative z-10">
+          <div className="relative z-10" style={{ color: headerTint }}>
             <Icon size={48} />
           </div>
         </div>
@@ -283,17 +289,14 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
         }
       />
 
-      {/* Card shell */}
+      {/* Card shell — opaque fill + elevation so nodes don’t visually melt into frame backgrounds */}
       <div
         className={`
           rounded-xl overflow-hidden
-          backdrop-blur-sm shadow-2xl
           cursor-pointer select-none
-          ${isDark
-            ? 'bg-gray-900/80 border border-white/10'
-            : 'bg-white/90 border border-black/10 shadow-lg'
-          }
+          ${isDark ? 'bg-gray-950' : 'bg-white'}
         `}
+        style={{ boxShadow: cardElevation }}
       >
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div
@@ -313,10 +316,10 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
               transition={{ repeat: Infinity, duration: 1.4, ease: 'linear' }}
             />
           )}
-          <div className="shrink-0 text-white/90">
+          <div className="shrink-0" style={{ color: headerTint }}>
             <Icon size={16} />
           </div>
-          <span className="text-[12px] font-semibold text-white tracking-wide truncate">
+          <span className="text-[12px] font-semibold tracking-wide truncate" style={{ color: headerTint }}>
             {data.label}
           </span>
 
@@ -346,7 +349,9 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
         <div
           className="px-3 py-2 space-y-1"
           style={{
-            background: `linear-gradient(180deg, ${accentFaint} 0%, transparent 60%)`,
+            background: isDark
+              ? `linear-gradient(180deg, ${accentFaint} 0%, transparent 60%)`
+              : `linear-gradient(180deg, ${accentFaint} 0%, #ffffff 42%, #fafbfc 100%)`,
           }}
         >
           {preview.map((row) => (

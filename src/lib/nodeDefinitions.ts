@@ -722,6 +722,9 @@ const ClassifierNodeDefinition: NodeDefinition = {
   ],
 }
 
+/** Default frame tint strength (0–1). 15% keeps frames subtle; raise for a stronger panel. */
+export const DEFAULT_FRAME_OPACITY = 0.15
+
 const FrameNodeDefinition: NodeDefinition = {
   type: 'frame',
   label: 'Frame',
@@ -756,6 +759,16 @@ const FrameNodeDefinition: NodeDefinition = {
       min: 120,
       max: 1800,
       step: 10,
+    },
+    {
+      key: 'opacity',
+      label: 'Opacity',
+      type: 'slider',
+      defaultValue: DEFAULT_FRAME_OPACITY,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      description: '0% hides the frame; 100% uses a strong tint (near-solid). Default 15% for a light grouping tint.',
     },
     {
       key: 'groupGlow',

@@ -81,6 +81,8 @@ export interface BaseNodeData {
   label: string
   /** Optional accent color override for this specific node instance. */
   accentColor?: string
+  /** Title row text + icon color on the node card (defaults to white on the header gradient). */
+  headerTextColor?: string
   /** Freeform config values keyed by ConfigField.key */
   config: Record<string, string | number | boolean>
   /** Animation state for Phase 2 */
@@ -123,6 +125,8 @@ export interface FrameNodeConfig {
   title: string
   width: number
   height: number
+  /** 0 = fully transparent, 1 = opaque (fill, border, and chrome). */
+  opacity: number
   groupGlow: boolean
 }
 

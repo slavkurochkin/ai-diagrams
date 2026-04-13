@@ -115,7 +115,14 @@ function SelectField({ field, value, onChange }: FieldProps) {
 
 function SliderField({ field, value, onChange }: FieldProps) {
   const isDark = useFlowStore((s) => s.theme === 'dark')
-  const num = Number(value)
+  const raw = Number(value)
+  const num = Number.isFinite(raw)
+    ? raw
+    : typeof field.defaultValue === 'number'
+      ? field.defaultValue
+      : field.min ?? 0
+  const showPercent = field.key === 'opacity' && field.min === 0 && field.max === 1
+  const labelText = showPercent ? `${Math.round(num * 100)}%` : String(num)
   return (
     <div className="flex items-center gap-3">
       <input
@@ -128,7 +135,7 @@ function SliderField({ field, value, onChange }: FieldProps) {
         className="flex-1 accent-sky-500 cursor-pointer"
       />
       <span className={`text-[11px] font-mono w-10 text-right shrink-0 ${isDark ? 'text-white/60' : 'text-slate-500'}`}>
-        {num}
+        {labelText}
       </span>
     </div>
   )
@@ -225,7 +232,7 @@ function FieldRow({ field, value, onChange }: FieldProps) {
 // ── Config Panel ───────────────────────────────────────────────────────────────
 
 export default function ConfigPanel() {
-  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, layoutDirection, theme, updateNodeConfig, updateNodeLabel, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, toggleNodeNoteVisible, updateNodeNotePlacement, updateNodePortOffset, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
+  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, layoutDirection, theme, updateNodeConfig, updateNodeLabel, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, updateNodeHeaderTextColor, toggleNodeNoteVisible, updateNodeNotePlacement, updateNodePortOffset, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
     useFlowStore()
   const isDark = theme === 'dark'
 
@@ -465,6 +472,49 @@ export default function ConfigPanel() {
                   : 'Override this node’s accent color without changing the default color for the whole component type.'}
               </p>
             </div>
+
+            {!isTextNode && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
+                    {isFrameNode ? 'Title text' : 'Header text'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => updateNodeHeaderTextColor(selectedNode.id, undefined)}
+                    className={`text-[10px] transition-colors ${isDark ? 'text-white/35 hover:text-white/65' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Use default
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={selectedNode.data.headerTextColor?.trim() || '#ffffff'}
+                    onChange={(e) => updateNodeHeaderTextColor(selectedNode.id, e.target.value)}
+                    className={`h-9 w-12 rounded bg-transparent cursor-pointer ${isDark ? 'border border-white/10' : 'border border-indigo-200/80'}`}
+                  />
+                  <input
+                    type="text"
+                    value={selectedNode.data.headerTextColor ?? ''}
+                    placeholder="#1e293b"
+                    onChange={(e) => updateNodeHeaderTextColor(selectedNode.id, e.target.value || undefined)}
+                    className={`
+                      flex-1 px-2.5 py-1.5 rounded-md text-[12px] font-mono
+                      transition-colors duration-150 focus:outline-none
+                      ${isDark
+                        ? 'bg-white/5 border border-white/10 text-white/80 placeholder-white/25 focus:border-white/30 focus:bg-white/10'
+                        : 'bg-white border border-indigo-200/80 text-slate-800 placeholder-slate-400 focus:border-indigo-400/60 focus:bg-white'}
+                    `}
+                  />
+                </div>
+                <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
+                  {isFrameNode
+                    ? 'Color for the frame title. Default follows theme (light text on dark canvas, dark text on light).'
+                    : 'Color for the title and icon on the colored header bar — use a dark color on bright accents (e.g. green) for readability.'}
+                </p>
+              </div>
+            )}
 
             {isFrameNode && frameNodes.length > 1 && (
               <div className="space-y-1.5">

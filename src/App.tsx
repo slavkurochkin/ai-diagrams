@@ -11,6 +11,7 @@ import PromptPanel from './components/panels/PromptPanel'
 import TemplatesPanel from './components/panels/TemplatesPanel'
 import FlowContextModal from './components/panels/FlowContextModal'
 import AnimationControls from './components/animation/AnimationControls'
+import DrawingOverlay from './components/presentation/DrawingOverlay'
 import { useFlowStore } from './hooks/useFlowStore'
 import { useFlowAnimation } from './hooks/useFlowAnimation'
 import { streamExplain } from './lib/api/explain'
@@ -506,6 +507,7 @@ function AppInner() {
       {presentationMode && (
         <div className="flex-1 relative">
           <FlowCanvas activeEdges={animation.activeEdges} />
+          <DrawingOverlay />
 
           {/* Playback controls overlay */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">

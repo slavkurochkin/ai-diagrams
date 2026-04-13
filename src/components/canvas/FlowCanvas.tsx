@@ -3,13 +3,14 @@ import ReactFlow, {
   Background,
   BackgroundVariant,
   Controls,
+  ControlButton,
   ConnectionLineType,
   type Node,
   type NodeMouseHandler,
   type EdgeTypes,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { LayoutTemplate, MousePointerClick } from 'lucide-react'
+import { LayoutTemplate, MousePointerClick, Lock, Unlock } from 'lucide-react'
 import { AnimatePresence } from 'framer-motion'
 
 import { useFlowStore } from '../../hooks/useFlowStore'
@@ -62,6 +63,8 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
   const edges         = useFlowStore((s) => s.edges)
   const theme         = useFlowStore((s) => s.theme)
   const showExecutionPriorities = useFlowStore((s) => s.showExecutionPriorities)
+  const canvasNodesLocked = useFlowStore((s) => s.canvasNodesLocked)
+  const toggleCanvasNodesLocked = useFlowStore((s) => s.toggleCanvasNodesLocked)
   const removeNode    = useFlowStore((s) => s.removeNode)
   const duplicateNode = useFlowStore((s) => s.duplicateNode)
   const isDark = theme === 'dark'
@@ -162,6 +165,9 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
         onPaneClick={() => { handlePaneClick(); setCtxMenu(null); setCtxEvalTargetIds([]) }}
         onNodeContextMenu={handleNodeContextMenu}
         proOptions={{ hideAttribution: true }}
+        nodesDraggable={!canvasNodesLocked}
+        nodesConnectable={!canvasNodesLocked}
+        elementsSelectable={!canvasNodesLocked}
         {...FLOW_PROPS}
       >
         <Background
@@ -174,10 +180,25 @@ export default function FlowCanvas({ activeEdges, onOpenTemplates, onExplainNode
         <Controls
           showInteractive={false}
           className={isDark
-            ? '!bg-gray-900/80 !border-white/10 !shadow-xl [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!text-gray-400 [&_button:hover]:!bg-white/10 [&_button:hover]:!text-white'
-            : '!bg-white/85 !border-sky-200/70 !shadow-lg [&_button]:!bg-transparent [&_button]:!border-sky-200/70 [&_button]:!text-slate-500 [&_button:hover]:!bg-sky-50 [&_button:hover]:!text-sky-700'
+            ? '!bg-gray-900/80 !border-white/10 !shadow-xl [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!text-zinc-300 [&_button:hover]:!bg-white/10 [&_button:hover]:!text-white [&_button:disabled]:!text-zinc-600 [&_button:disabled]:!opacity-70'
+            : '!bg-white/85 !border-sky-200/70 !shadow-lg [&_button]:!bg-transparent [&_button]:!border-sky-200/70 [&_button]:!text-slate-600 [&_button:hover]:!bg-sky-50 [&_button:hover]:!text-sky-900 [&_button:disabled]:!text-slate-400 [&_button:disabled]:!opacity-70'
           }
-        />
+        >
+          <ControlButton
+            onClick={() => toggleCanvasNodesLocked()}
+            title={canvasNodesLocked ? 'Unlock canvas — drag nodes and frames' : 'Lock canvas — pan/zoom only'}
+            aria-label={canvasNodesLocked ? 'Unlock canvas' : 'Lock canvas'}
+            className={
+              canvasNodesLocked
+                ? (isDark ? '!bg-white/15 !text-white' : '!bg-sky-100 !text-sky-800')
+                : undefined
+            }
+          >
+            {canvasNodesLocked
+              ? <Lock size={14} strokeWidth={2} aria-hidden />
+              : <Unlock size={14} strokeWidth={2} aria-hidden />}
+          </ControlButton>
+        </Controls>
       </ReactFlow>
 
       <Watermark />

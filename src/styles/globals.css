@@ -86,6 +86,13 @@ html.dark {
   background: transparent;
 }
 
+/* Controls (+/−/fit): paths omit fill, so they default to black and ignore text color */
+.react-flow__controls .react-flow__controls-zoomin svg path,
+.react-flow__controls .react-flow__controls-zoomout svg path,
+.react-flow__controls .react-flow__controls-fitview svg path {
+  fill: currentColor;
+}
+
 /* Keep attribution but style it subtly */
 .react-flow__attribution {
   background: transparent !important;

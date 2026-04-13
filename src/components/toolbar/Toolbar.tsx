@@ -5,7 +5,7 @@ import {
   ImageDown, Copy, Maximize2, Check, Sparkles, FileCode, Share2,
   AlignVerticalJustifyStart, AlignHorizontalJustifyStart, Layers, LayoutTemplate, ListOrdered,
   FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown, AlertCircle, Trash2, Info, FileCode2,
-  CheckCircle2, ShieldAlert,
+  CheckCircle2, ShieldAlert, Lock, Unlock,
 } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { saveFlow, loadFlow, exportFlowAsFile } from '../../lib/flowSerializer'
@@ -194,6 +194,7 @@ export default function Toolbar({
   const {
     nodes, edges, theme, setTheme, setNodes, setEdges,
     flowName, setFlowName, togglePresentationMode,
+    canvasNodesLocked, toggleCanvasNodesLocked,
     compactMode, toggleCompactMode,
     layoutDirection, setLayoutDirection,
     flowContext, setFlowContext,
@@ -545,6 +546,17 @@ export default function Toolbar({
             isDark={isDark}
           />
           <MenuAction
+            onClick={() => handleMenuAction(toggleCanvasNodesLocked)}
+            icon={canvasNodesLocked ? <Lock size={14} /> : <Unlock size={14} />}
+            label={canvasNodesLocked ? 'Unlock canvas' : 'Lock canvas'}
+            description={
+              canvasNodesLocked
+                ? 'Allow dragging nodes, frames, and selections again'
+                : 'Pan and zoom only — avoids grabbing frames when moving the view'
+            }
+            isDark={isDark}
+          />
+          <MenuAction
             onClick={() => handleMenuAction(() => { createFrameFromSelection() })}
             icon={<Layers size={14} />}
             label="Group selected nodes"
@@ -803,6 +815,7 @@ export default function Toolbar({
           <Trash2 size={13} />
           Clear
         </IconButton>
+
       </div>
 
       {/* Spacer */}

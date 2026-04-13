@@ -19,6 +19,8 @@ interface FlowStore {
   theme: Theme
   flowName: string
   presentationMode: boolean
+  /** When true, nodes/edges are not draggable or selectable — pan/zoom the canvas without moving frames. */
+  canvasNodesLocked: boolean
   flowContext: FlowContext | null
   showExecutionPriorities: boolean
   showAllNotes: boolean
@@ -93,6 +95,7 @@ interface FlowStore {
 
   // ── Presentation mode ─────────────────────────────────────────────────────
   togglePresentationMode: () => void
+  toggleCanvasNodesLocked: () => void
 
   // ── Compact mode ──────────────────────────────────────────────────────────
   compactMode: boolean
@@ -180,6 +183,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
   theme: 'dark',
   flowName: 'Untitled Flow',
   presentationMode: false,
+  canvasNodesLocked: false,
   compactMode: false,
   layoutDirection: 'TB',
   flowContext: null,
@@ -621,6 +625,19 @@ export const useFlowStore = create<FlowStore>((set) => ({
   // ── Presentation mode ─────────────────────────────────────────────────────
   togglePresentationMode: () =>
     set((state) => ({ presentationMode: !state.presentationMode })),
+
+  toggleCanvasNodesLocked: () =>
+    set((state) => {
+      const locked = !state.canvasNodesLocked
+      if (!locked) return { canvasNodesLocked: false }
+      return {
+        canvasNodesLocked: true,
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        nodes: state.nodes.map((n) => ({ ...n, selected: false })),
+        edges: state.edges.map((e) => ({ ...e, selected: false })),
+      }
+    }),
 
   toggleCompactMode: () =>
     set((state) => ({ compactMode: !state.compactMode })),

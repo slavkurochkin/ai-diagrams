@@ -228,9 +228,18 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
               className="absolute pointer-events-none"
               style={notePos}
             >
-              <div className="rounded-xl border border-white/10 shadow-2xl overflow-hidden" style={{ background: `${accentHex}18`, backdropFilter: 'blur(8px)' }}>
+              <div
+                className={`rounded-xl shadow-2xl overflow-hidden ${isDark ? 'border border-white/10' : 'border border-indigo-200/70'}`}
+                style={{ background: isDark ? `${accentHex}18` : `${accentHex}12`, backdropFilter: 'blur(8px)' }}
+              >
                 <div className="h-0.5" style={{ background: `linear-gradient(90deg, ${accentHex}, transparent)` }} />
-                <div className="px-3 py-2.5 text-[12px] leading-relaxed text-white/80 prose prose-invert prose-sm max-w-none [&_strong]:text-white [&_ul]:my-1 [&_ul]:pl-4 [&_li]:my-0.5 [&_p]:my-1 [&_code]:text-sky-300 [&_code]:bg-white/10 [&_code]:px-1 [&_code]:rounded">
+                <div
+                  className={`px-3 py-2.5 text-[12px] leading-relaxed prose prose-sm max-w-none [&_ul]:my-1 [&_ul]:pl-4 [&_li]:my-0.5 [&_p]:my-1 [&_code]:px-1 [&_code]:rounded ${
+                    isDark
+                      ? 'text-white/80 prose-invert [&_strong]:text-white [&_code]:text-sky-300 [&_code]:bg-white/10'
+                      : 'text-slate-700 [&_strong]:text-slate-900 [&_code]:text-indigo-700 [&_code]:bg-indigo-100'
+                  }`}
+                >
                   <ReactMarkdown>{data.note}</ReactMarkdown>
                 </div>
               </div>
@@ -382,21 +391,23 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
             style={notePos}
           >
             <div
-              className="rounded-xl border border-white/10 shadow-2xl overflow-hidden"
-              style={{ background: `${accentHex}18`, backdropFilter: 'blur(8px)' }}
+              className={`rounded-xl shadow-2xl overflow-hidden ${isDark ? 'border border-white/10' : 'border border-indigo-200/70'}`}
+              style={{ background: isDark ? `${accentHex}18` : `${accentHex}12`, backdropFilter: 'blur(8px)' }}
             >
               {/* Accent top bar */}
               <div className="h-0.5" style={{ background: `linear-gradient(90deg, ${accentHex}, transparent)` }} />
               <div
-                className="px-3 py-2.5 text-[12px] leading-relaxed text-white/80 prose prose-invert prose-sm max-w-none
-                  [&_strong]:text-white [&_strong]:font-semibold
-                  [&_em]:text-white/70
+                className={`px-3 py-2.5 text-[12px] leading-relaxed prose prose-sm max-w-none
+                  [&_strong]:font-semibold
                   [&_ul]:my-1 [&_ul]:pl-4 [&_li]:my-0.5
                   [&_ol]:my-1 [&_ol]:pl-4
-                  [&_h1]:text-[13px] [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-1
-                  [&_h2]:text-[12px] [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-1
-                  [&_p]:my-1 [&_code]:text-sky-300 [&_code]:bg-white/10 [&_code]:px-1 [&_code]:rounded
-                "
+                  [&_h1]:text-[13px] [&_h1]:font-semibold [&_h1]:mb-1
+                  [&_h2]:text-[12px] [&_h2]:font-semibold [&_h2]:mb-1
+                  [&_p]:my-1 [&_code]:px-1 [&_code]:rounded
+                  ${isDark
+                    ? 'text-white/80 prose-invert [&_strong]:text-white [&_em]:text-white/70 [&_h1]:text-white [&_h2]:text-white [&_code]:text-sky-300 [&_code]:bg-white/10'
+                    : 'text-slate-700 [&_strong]:text-slate-900 [&_em]:text-slate-600 [&_h1]:text-slate-900 [&_h2]:text-slate-900 [&_code]:text-indigo-700 [&_code]:bg-indigo-100'}
+                `}
               >
                 <ReactMarkdown>{data.note}</ReactMarkdown>
               </div>

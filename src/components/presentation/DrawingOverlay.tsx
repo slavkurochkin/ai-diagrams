@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { MousePointer2, Pen, ArrowRight, Circle, Trash2 } from 'lucide-react'
+import { useReactFlow, useViewport } from 'reactflow'
 import { useFlowStore } from '../../hooks/useFlowStore'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -90,6 +91,9 @@ function ToolBtn({
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function DrawingOverlay() {
+  const { screenToFlowPosition } = useReactFlow()
+  const { x: vx, y: vy, zoom } = useViewport()
+
   const theme = useFlowStore((s) => s.theme)
   const isDark = theme === 'dark'
   const [tool, setTool]         = useState<DrawTool>(null)
@@ -130,14 +134,15 @@ export default function DrawingOverlay() {
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseleave', onLeave) }
   }, [])
 
-  const svgPos = (e: React.MouseEvent) => {
-    const rect = svgRef.current!.getBoundingClientRect()
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
-  }
+  /** Flow coordinates — strokes pan/zoom with the diagram (see viewport <g>). */
+  const flowPos = useCallback(
+    (e: React.MouseEvent) => screenToFlowPosition({ x: e.clientX, y: e.clientY }),
+    [screenToFlowPosition],
+  )
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    const pos = svgPos(e)
+    const pos = flowPos(e)
     isDrawing.current = true
     startPos.current = pos
     if (tool === 'pen') {
@@ -147,11 +152,11 @@ export default function DrawingOverlay() {
     } else if (tool === 'circle') {
       setActive({ type: 'circle', cx: pos.x, cy: pos.y, rx: 0, ry: 0, color })
     }
-  }, [tool, color])
+  }, [tool, color, flowPos])
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing.current || !startPos.current) return
-    const pos = svgPos(e)
+    const pos = flowPos(e)
     if (tool === 'pen') {
       setActive((prev) => prev?.type === 'pen' ? { ...prev, points: [...prev.points, [pos.x, pos.y]] } : prev)
     } else if (tool === 'arrow') {
@@ -163,7 +168,7 @@ export default function DrawingOverlay() {
       const ry = Math.abs(pos.y - startPos.current!.y) / 2
       setActive({ type: 'circle', cx, cy, rx, ry, color })
     }
-  }, [tool, color])
+  }, [tool, color, flowPos])
 
   const commit = useCallback(() => {
     if (!isDrawing.current) return
@@ -185,16 +190,19 @@ export default function DrawingOverlay() {
         onMouseUp={commit}
         onMouseLeave={commit}
       >
-        <defs>
-          {COLORS.map((c) => (
-            <marker key={c} id={`arrowhead-${c.slice(1)}`} markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-              <polygon points="0 0,10 3.5,0 7" fill={c} />
-            </marker>
-          ))}
-        </defs>
+        {/* Match FlowPlayer / React Flow viewport so ink lives in flow space */}
+        <g style={{ transform: `translate(${vx}px, ${vy}px) scale(${zoom})` }}>
+          <defs>
+            {COLORS.map((c) => (
+              <marker key={c} id={`arrowhead-${c.slice(1)}`} markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0,10 3.5,0 7" fill={c} />
+              </marker>
+            ))}
+          </defs>
 
-        {strokes.map((s, i) => <RenderStroke key={i} stroke={s} />)}
-        {active && <RenderStroke stroke={active} />}
+          {strokes.map((s, i) => <RenderStroke key={i} stroke={s} />)}
+          {active && <RenderStroke stroke={active} />}
+        </g>
 
         {tool === 'laser' && laserPos !== null && (
           <g style={{ pointerEvents: 'none' }}>
@@ -206,7 +214,8 @@ export default function DrawingOverlay() {
         )}
       </svg>
 
-      <div className="absolute bottom-6 left-6 z-30 flex flex-col items-start gap-1.5">
+      {/* left: clear React Flow <Controls /> (zoom column, default bottom-left) */}
+      <div className="absolute bottom-6 left-24 z-30 flex flex-col items-start gap-1.5 max-w-[calc(100vw-7rem)]">
       {tool && (
         <div
           className={`px-2 py-1 rounded-md backdrop-blur-sm text-[10px] select-none ${isDark ? 'text-white/40' : 'text-slate-500'}`}
@@ -216,7 +225,7 @@ export default function DrawingOverlay() {
         </div>
       )}
       <div
-        className="flex items-center gap-1 px-2.5 py-2 rounded-xl backdrop-blur-sm border shadow-xl"
+        className="flex items-center gap-1 px-2.5 py-2 rounded-xl backdrop-blur-sm border shadow-xl flex-wrap"
         style={isDark
           ? { background: 'rgba(0,0,0,0.55)', borderColor: 'rgba(255,255,255,0.1)' }
           : { background: 'rgba(255,255,255,0.92)', borderColor: 'rgba(99,102,241,0.24)' }

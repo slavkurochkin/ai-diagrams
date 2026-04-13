@@ -11,6 +11,7 @@ interface YAMLNodeSpec {
   type: string
   label?: string
   accentColor?: string
+  headerTextColor?: string
   config?: Record<string, string | number | boolean>
   note?: string
   noteAlwaysVisible?: boolean
@@ -144,6 +145,9 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
         nodeType: n.type,
         label: n.label ?? getNodeDefinition(n.type)!.label,
         ...(n.accentColor !== undefined && { accentColor: n.accentColor }),
+        ...(n.headerTextColor !== undefined &&
+          typeof n.headerTextColor === 'string' &&
+          n.headerTextColor.trim() && { headerTextColor: n.headerTextColor.trim() }),
         config: { ...buildDefaultConfig(n.type), ...(n.config ?? {}) },
         animationState: 'idle',
         ...(n.note !== undefined && { note: n.note }),
@@ -233,6 +237,9 @@ export function serializeFlowToYAML(
       const entry: Record<string, unknown> = { id: n.id, type: n.data.nodeType }
       if (n.data.label !== defLabel) entry.label = n.data.label
       if (n.data.accentColor && n.data.accentColor !== defAccent) entry.accentColor = n.data.accentColor
+      if (typeof n.data.headerTextColor === 'string' && n.data.headerTextColor.trim()) {
+        entry.headerTextColor = n.data.headerTextColor.trim()
+      }
       const cfg = n.data.config
       if (cfg && Object.keys(cfg).length > 0) entry.config = cfg
       if (n.data.note) entry.note = n.data.note

@@ -56,6 +56,8 @@ interface FlowStore {
   updateNodeNote: (nodeId: string, note: string) => void
   /** Updates this node instance's accent color. */
   updateNodeAccentColor: (nodeId: string, color?: string) => void
+  /** Updates header/title text color on the node card (omit to use default white). */
+  updateNodeHeaderTextColor: (nodeId: string, color?: string) => void
   /** Toggles whether the note is always visible. */
   toggleNodeNoteVisible: (nodeId: string) => void
   /** Updates where the note card is rendered around the node. */
@@ -397,6 +399,24 @@ export const useFlowStore = create<FlowStore>((set) => ({
       nodes: state.nodes.map((n) =>
         n.id === nodeId
           ? { ...n, data: { ...n.data, ...(accentColor ? { accentColor } : { accentColor: undefined }) } }
+          : n,
+      ),
+    }))
+  },
+
+  updateNodeHeaderTextColor: (nodeId, headerTextColor) => {
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                ...(headerTextColor && headerTextColor.trim()
+                  ? { headerTextColor: headerTextColor.trim() }
+                  : { headerTextColor: undefined }),
+              },
+            }
           : n,
       ),
     }))

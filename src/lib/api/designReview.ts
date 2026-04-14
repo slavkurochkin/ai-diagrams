@@ -68,3 +68,24 @@ export async function streamDesignReview(
 
   onDone()
 }
+
+/** Convenience wrapper for non-stream callers (returns full markdown). */
+export async function generateDesignReview(
+  nodes: Node<BaseNodeData>[],
+  edges: Edge[],
+  flowName: string,
+  flowContext: FlowContext | null,
+): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    let full = ''
+    void streamDesignReview(
+      nodes,
+      edges,
+      flowName,
+      flowContext,
+      (chunk) => { full += chunk },
+      () => resolve(full.trim()),
+      (msg) => reject(new Error(msg)),
+    )
+  })
+}

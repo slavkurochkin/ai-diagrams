@@ -66,12 +66,15 @@ function AppInner() {
   // Flow context modal
   const [contextModalOpen, setContextModalOpen] = useState(false)
   const [contextModalMode, setContextModalMode] = useState<'new' | 'edit'>('new')
+  const [contextDraft, setContextDraft] = useState<FlowContext | null>(null)
 
   type PanelStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error'
 
   // AI panel (explain + review + eval + success + risks tabs)
   const [aiPanelOpen, setAiPanelOpen]         = useState(false)
-  const [aiPanelTab, setAiPanelTab]           = useState<'explain' | 'review' | 'eval' | 'success' | 'risks'>('explain')
+  const [aiPanelTab, setAiPanelTab]           = useState<
+    'explain' | 'review' | 'eval' | 'success' | 'risks' | 'build'
+  >('explain')
 
   const [promptPanelOpen, setPromptPanelOpen] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
@@ -372,6 +375,7 @@ function AppInner() {
   ) => {
     setFlowName(newName)
     setFlowContext(newContext)
+    setContextDraft(null)
     if (clearCanvas) {
       setNodes([])
       setEdges([])
@@ -382,6 +386,7 @@ function AppInner() {
 
   const handleContextClose = useCallback(() => {
     localStorage.setItem(CONTEXT_PROMPT_KEY, '1')
+    setContextDraft(null)
     setContextModalOpen(false)
   }, [])
 
@@ -515,8 +520,8 @@ function AppInner() {
             onExplain={handleExplain}
             explainDisabled={nodes.length === 0 || explainStatus === 'loading' || explainStatus === 'streaming'}
             onOpenTemplates={openTemplatesPanel}
-            onNewFlow={() => { setContextModalMode('new'); setContextModalOpen(true) }}
-            onEditContext={() => { setContextModalMode('edit'); setContextModalOpen(true) }}
+            onNewFlow={() => { setContextDraft(null); setContextModalMode('new'); setContextModalOpen(true) }}
+            onEditContext={() => { setContextDraft(null); setContextModalMode('edit'); setContextModalOpen(true) }}
             onReview={handleReview}
             onEval={handleEval}
             onSuccess={() => handleSuccess()}
@@ -533,6 +538,14 @@ function AppInner() {
             exportGIFSelectionDisabled={nodes.length === 0 || exportingGIF || !nodes.some((n) => n.selected)}
             onGeneratePrompt={handleGeneratePrompt}
             generatePromptDisabled={nodes.length === 0}
+            onWorkflowChat={() => {
+              if (aiPanelOpen && aiPanelTab === 'build') {
+                setAiPanelOpen(false)
+              } else {
+                setAiPanelOpen(true)
+                setAiPanelTab('build')
+              }
+            }}
           />
           <div className="flex flex-1 overflow-hidden">
             <Sidebar />
@@ -571,6 +584,15 @@ function AppInner() {
               risksStatus={risksStatus}
               risksDisabled={nodes.length === 0 || risksStatus === 'loading' || risksStatus === 'streaming'}
               onGenerateRisks={() => handleRisks(risksNodeId)}
+              onUseReviewInContext={(draft) => {
+                setContextModalMode('edit')
+                setContextDraft({
+                  description: draft.description,
+                  howItWorks: draft.howItWorks,
+                  documents: flowContext?.documents ?? [],
+                })
+                setContextModalOpen(true)
+              }}
             />
             <TemplatesPanel
               open={templatesOpen}
@@ -586,7 +608,7 @@ function AppInner() {
               open={contextModalOpen}
               mode={contextModalMode}
               initialName={flowName}
-              initialContext={flowContext}
+              initialContext={contextDraft ?? flowContext}
               hasNodes={nodes.length > 0}
               onSave={handleContextSave}
               onClose={handleContextClose}

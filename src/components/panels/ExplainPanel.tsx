@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Sparkles, Loader2, FlaskConical, RefreshCw, ClipboardCheck, Copy, Check, CheckCircle2, ShieldAlert } from 'lucide-react'
+import { X, Sparkles, Loader2, FlaskConical, RefreshCw, ClipboardCheck, Copy, Check, CheckCircle2, ShieldAlert, Wand2 } from 'lucide-react'
+import WorkflowChatBody from './WorkflowChatBody'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type PanelStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error'
-type PanelTab = 'explain' | 'review' | 'eval' | 'success' | 'risks'
+type PanelTab = 'explain' | 'review' | 'eval' | 'success' | 'risks' | 'build'
 
 interface ExplainPanelProps {
   open: boolean
@@ -34,6 +35,7 @@ interface ExplainPanelProps {
   risksStatus: PanelStatus
   risksDisabled: boolean
   onGenerateRisks: () => void
+  onUseReviewInContext?: (draft: { description: string; howItWorks: string }) => void
 }
 
 // ── Markdown component map ─────────────────────────────────────────────────────
@@ -289,6 +291,7 @@ const TAB_LABELS: Record<PanelTab, string> = {
   eval:    'Eval',
   success: 'Success',
   risks:   'Risks',
+  build:   'Build',
 }
 
 const TAB_ICONS: Record<PanelTab, React.ReactNode> = {
@@ -297,6 +300,7 @@ const TAB_ICONS: Record<PanelTab, React.ReactNode> = {
   eval:    <FlaskConical size={14} className="text-sky-400 shrink-0" />,
   success: <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />,
   risks:   <ShieldAlert size={14} className="text-amber-400 shrink-0" />,
+  build:   <Wand2 size={14} className="text-violet-400 shrink-0" />,
 }
 
 const TAB_TITLES: Record<PanelTab, string> = {
@@ -305,6 +309,7 @@ const TAB_TITLES: Record<PanelTab, string> = {
   eval:    'Eval Suggestions',
   success: 'Success Criteria',
   risks:   'Risk Analysis',
+  build:   'Build with AI',
 }
 
 export default function ExplainPanel({
@@ -315,15 +320,20 @@ export default function ExplainPanel({
   evalText, evalStatus, evalDisabled, onGenerateEval,
   successText, successStatus, successDisabled, onGenerateSuccess,
   risksText, risksStatus, risksDisabled, onGenerateRisks,
+  onUseReviewInContext,
 }: ExplainPanelProps) {
-  const statusMap: Record<PanelTab, PanelStatus> = {
+  const [buildBusy, setBuildBusy] = useState(false)
+  const statusMap: Record<Exclude<PanelTab, 'build'>, PanelStatus> = {
     explain: explainStatus,
     review:  reviewStatus,
     eval:    evalStatus,
     success: successStatus,
     risks:   risksStatus,
   }
-  const isLoading = ['loading', 'streaming'].includes(statusMap[activeTab])
+  const isLoading =
+    activeTab === 'build'
+      ? buildBusy
+      : ['loading', 'streaming'].includes(statusMap[activeTab])
 
   return (
     <AnimatePresence>
@@ -334,7 +344,7 @@ export default function ExplainPanel({
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 320, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-          className="w-80 shrink-0 flex flex-col bg-gray-950/95 border-l border-white/10 overflow-hidden"
+          className="w-[380px] shrink-0 flex flex-col bg-gray-950/95 border-l border-white/10 overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0">
@@ -354,7 +364,7 @@ export default function ExplainPanel({
 
           {/* Tab bar */}
           <div className="flex gap-0.5 px-3 pt-2 border-b border-white/8 shrink-0 overflow-x-auto">
-            {(['explain', 'review', 'eval', 'success', 'risks'] as const).map((tab) => (
+            {(['explain', 'review', 'eval', 'success', 'risks', 'build'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -366,7 +376,9 @@ export default function ExplainPanel({
                       ? 'text-emerald-300 border-b-2 border-emerald-500 -mb-px'
                       : tab === 'risks'
                         ? 'text-amber-300 border-b-2 border-amber-500 -mb-px'
-                        : 'text-white border-b-2 border-sky-500 -mb-px'
+                        : tab === 'build'
+                          ? 'text-violet-300 border-b-2 border-violet-500 -mb-px'
+                          : 'text-white border-b-2 border-sky-500 -mb-px'
                     : 'text-white/40 hover:text-white/70'}
                 `}
               >
@@ -484,6 +496,23 @@ export default function ExplainPanel({
               <TabFooter status={risksStatus} onRegenerate={onGenerateRisks} />
             </>
           )}
+
+          {/* ── Build with AI — stays mounted so history survives Review / other tabs ── */}
+          <div
+            className={
+              activeTab === 'build'
+                ? 'flex flex-col flex-1 min-h-0 min-w-0'
+                : 'hidden'
+            }
+            aria-hidden={activeTab !== 'build'}
+          >
+            <WorkflowChatBody
+              embedded
+              showHeader={false}
+              onBusyChange={setBuildBusy}
+              onUseReviewInContext={onUseReviewInContext}
+            />
+          </div>
         </motion.aside>
       )}
     </AnimatePresence>

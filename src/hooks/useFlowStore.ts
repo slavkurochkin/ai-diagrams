@@ -37,7 +37,7 @@ interface FlowStore {
   setEdges: (edges: Edge[]) => void
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
-  addEdge: (connection: Connection) => void
+  addEdge: (connection: Connection, options?: { id?: string }) => void
   updateEdgePriority: (edgeId: string, priority: number) => void
   updateEdgeTravelSpeed: (edgeId: string, speed: number) => void
   updateEdgeThickness: (edgeId: string, thickness: number) => void
@@ -45,11 +45,21 @@ interface FlowStore {
 
   // ── Node management ───────────────────────────────────────────────────────
   /** Adds a new node of the given type at the given canvas position. */
-  addNode: (type: string, position: { x: number; y: number }, initialConfig?: Record<string, string | number | boolean>) => void
+  addNode: (
+    type: string,
+    position: { x: number; y: number },
+    initialConfig?: Record<string, string | number | boolean>,
+    options?: { id?: string; label?: string },
+  ) => void
   /** Renames the display label of a node. */
   updateNodeLabel: (nodeId: string, label: string) => void
   /** Deep-merges partial config into the node's data.config. */
-  updateNodeConfig: (nodeId: string, config: Partial<Record<string, string | number | boolean>>) => void
+  updateNodeConfig: (
+    nodeId: string,
+    config: Partial<Record<string, string | number | boolean>>,
+    merge?: boolean,
+  ) => void
+  removeEdge: (edgeId: string) => void
   /** Removes a node and all its connected edges. */
   removeNode: (nodeId: string) => void
   /** Duplicates a node, offset by 30px, and selects the copy. */
@@ -245,8 +255,11 @@ export const useFlowStore = create<FlowStore>((set) => ({
     })
   },
 
-  addEdge: (connection) => {
+  addEdge: (connection, options) => {
     set((state) => {
+      const customId = options?.id?.trim()
+      if (customId && state.edges.some((e) => e.id === customId)) return state
+
       // Prevent duplicate edges for the same source handle → target handle
       const exists = state.edges.some(
         (e) =>
@@ -258,7 +271,9 @@ export const useFlowStore = create<FlowStore>((set) => ({
       if (exists) return state
 
       const newEdge: Edge = {
-        id: `edge-${connection.source}-${connection.sourceHandle ?? 'out'}-${connection.target}-${connection.targetHandle ?? 'in'}-${Date.now()}`,
+        id:
+          customId ||
+          `edge-${connection.source}-${connection.sourceHandle ?? 'out'}-${connection.target}-${connection.targetHandle ?? 'in'}-${Date.now()}`,
         source: connection.source ?? '',
         target: connection.target ?? '',
         sourceHandle: connection.sourceHandle ?? null,
@@ -331,38 +346,53 @@ export const useFlowStore = create<FlowStore>((set) => ({
   },
 
   // ── Node management ───────────────────────────────────────────────────────
-  addNode: (type, position, initialConfig) => {
+  addNode: (type, position, initialConfig, options) => {
     const def = getNodeDefinition(type)
     if (!def) {
       console.warn(`[AgentFlow] Unknown node type: "${type}"`)
       return
     }
 
-    const id = generateNodeId(type)
+    const customId = options?.id?.trim()
     const defaultConfig = buildDefaultConfig(type)
     const mergedConfig = initialConfig ? { ...defaultConfig, ...initialConfig } : defaultConfig
     const isFrameNode = type === 'frame'
     const sizedStyle = getSizedNodeStyle(type, mergedConfig)
-    const newNode: Node<BaseNodeData> = {
-      id,
-      type,
-      position,
-      ...(isFrameNode || sizedStyle
-        ? {
-            ...(isFrameNode ? { zIndex: -1 } : {}),
-            ...(sizedStyle ? { style: sizedStyle } : {}),
-          }
-        : {}),
-      data: {
-        nodeType: type,
-        label: def.label,
-        config: mergedConfig,
-        animationState: 'idle',
-      },
-    }
 
+    set((state) => {
+      if (customId && state.nodes.some((n) => n.id === customId)) {
+        console.warn(`[AgentFlow] addNode: id already exists: ${customId}`)
+        return state
+      }
+      const id = customId || generateNodeId(type)
+      const newNode: Node<BaseNodeData> = {
+        id,
+        type,
+        position,
+        ...(isFrameNode || sizedStyle
+          ? {
+              ...(isFrameNode ? { zIndex: -1 } : {}),
+              ...(sizedStyle ? { style: sizedStyle } : {}),
+            }
+          : {}),
+        data: {
+          nodeType: type,
+          label: options?.label?.trim() ? options.label.trim() : def.label,
+          config: mergedConfig,
+          animationState: 'idle',
+        },
+      }
+      return {
+        nodes: [...state.nodes, newNode],
+        _history: [...state._history.slice(-49), { nodes: state.nodes, edges: state.edges }],
+      }
+    })
+  },
+
+  removeEdge: (edgeId) => {
     set((state) => ({
-      nodes: [...state.nodes, newNode],
+      edges: state.edges.filter((e) => e.id !== edgeId),
+      selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
       _history: [...state._history.slice(-49), { nodes: state.nodes, edges: state.edges }],
     }))
   },
@@ -375,15 +405,21 @@ export const useFlowStore = create<FlowStore>((set) => ({
     }))
   },
 
-  updateNodeConfig: (nodeId, config) => {
+  updateNodeConfig: (nodeId, config, merge = true) => {
     set((state) => ({
       nodes: state.nodes.map((node) => {
         if (node.id !== nodeId) return node
+        const nodeType = node.type ?? node.data.nodeType
+        const def = getNodeDefinition(nodeType)
+        const base = def ? buildDefaultConfig(nodeType) : ({} as Record<string, string | number | boolean>)
+        const nextConfig = merge
+          ? ({ ...node.data.config, ...config } as Record<string, string | number | boolean>)
+          : ({ ...base, ...config } as Record<string, string | number | boolean>)
         return {
           ...node,
           data: {
             ...node.data,
-            config: { ...node.data.config, ...config } as Record<string, string | number | boolean>,
+            config: nextConfig,
           },
         }
       }),

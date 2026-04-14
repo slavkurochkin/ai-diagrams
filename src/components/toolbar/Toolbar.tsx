@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useReactFlow } from 'reactflow'
 import {
   Sun, Moon, Save, FolderOpen, LayoutDashboard,
-  ImageDown, Copy, Maximize2, Check, Sparkles, FileCode, Share2,
+  ImageDown, Copy, Maximize2, Check, Sparkles, FileCode, Share2, MessageSquare,
   AlignVerticalJustifyStart, AlignHorizontalJustifyStart, Layers, LayoutTemplate, ListOrdered,
   FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown, AlertCircle, Trash2, Info, FileCode2,
   CheckCircle2, ShieldAlert, Lock, Unlock,
@@ -165,6 +165,7 @@ interface ToolbarProps {
   exportGIFSelectionDisabled?: boolean
   onGeneratePrompt: () => void
   generatePromptDisabled?: boolean
+  onWorkflowChat?: () => void
 }
 
 export default function Toolbar({
@@ -190,6 +191,7 @@ export default function Toolbar({
   exportGIFSelectionDisabled,
   onGeneratePrompt,
   generatePromptDisabled,
+  onWorkflowChat,
 }: ToolbarProps) {
   const {
     nodes, edges, theme, setTheme, setNodes, setEdges,
@@ -792,6 +794,17 @@ export default function Toolbar({
             tone="accent"
             isDark={isDark}
           />
+          {onWorkflowChat && (
+            <MenuAction
+              onClick={() => handleMenuAction(onWorkflowChat)}
+              icon={<MessageSquare size={14} />}
+              label="Build with AI"
+              description="AI panel → Build tab; switch to Review and back without losing the thread"
+              disabled={false}
+              tone="accent"
+              isDark={isDark}
+            />
+          )}
         </ToolbarMenu>
 
         <div className="w-px h-5 shrink-0 self-center" style={{ background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)' }} />

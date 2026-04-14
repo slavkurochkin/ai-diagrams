@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import OpenAI from 'openai'
+import { formatEvalNodeCatalogMarkdown } from '../../lib/nodeCatalogForAI.js'
 
 export const evalSuggestionsRouter = Router()
 
@@ -145,22 +146,7 @@ Each node may list **config** (model, thresholds, prompts, etc.) and an optional
 Your job is to produce actionable evaluation recommendations in two parts: strategy first, then test cases.
 
 Here is the catalog of available eval node types you can recommend adding to the diagram:
-  evaluator       — General-purpose evaluator node
-  llmJudge        — Uses an LLM to score another LLM's output
-  rubric          — Criterion-based scoring against a rubric
-  comparator      — A/B comparison of two outputs
-  groundTruth     — Compares output against a known correct answer
-  evalMetrics     — Computes quantitative metrics (BLEU, ROUGE, etc.)
-  critique        — Generates a written critique of an output
-  thresholdGate   — Pass/fail gate based on a score threshold
-  humanRater      — Human-in-the-loop rating step
-  ragEvaluator    — End-to-end RAG pipeline evaluation (faithfulness, relevance, etc.)
-  singleTurnEval  — Evaluates a single prompt-response pair
-  multiTurnEval   — Evaluates a multi-turn conversation
-  toolUseEval     — Evaluates correct tool selection and call accuracy
-  trajectoryEval  — Evaluates agent decision trajectory
-  taskCompletion  — Measures whether the agent completed its assigned task
-  agentEfficiency — Measures token cost and step count relative to task success
+${formatEvalNodeCatalogMarkdown()}
 
 Structure your response in exactly these three sections:
 

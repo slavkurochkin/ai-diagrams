@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import OpenAI from 'openai'
+import { formatFullNodeCatalogMarkdown } from '../../lib/nodeCatalogForAI.js'
 
 export const designReviewRouter = Router()
 
@@ -38,58 +39,6 @@ interface ReviewRequest {
   flowName: string
   flowContext: FlowContext | null
 }
-
-// ── Full node catalog ─────────────────────────────────────────────────────────
-// Keep this in sync with src/lib/nodeDefinitions.ts
-
-const NODE_CATALOG = `
-CORE
-  llm             — LLM call (GPT-4o, Claude, Gemini, etc.)
-  prompt          — Static prompt message (system / user / assistant role)
-  promptTemplate  — Dynamic prompt with variable injection (Jinja-style)
-  memory          — Stores and retrieves conversation history or entity state
-  agent           — Autonomous agent that reasons, plans, and calls tools iteratively
-  outputParser    — Parses / validates / transforms raw LLM output
-
-DATA & RETRIEVAL
-  dataLoader      — Ingests data from files, URLs, or databases
-  chunker         — Splits documents into token-bounded chunks
-  embedding       — Generates vector embeddings from text
-  vectorDB        — Stores and indexes vectors for similarity search
-  retriever       — Queries a vector store; returns top-K relevant chunks
-  reranker        — Reranks retrieved results using a cross-encoder model
-  cache           — Caches responses to reduce latency and cost
-
-ROUTING & CONTROL
-  router          — Routes data to one of several branches based on a condition
-  classifier      — Classifies input into categories
-  aggregator      — Merges outputs from multiple branches
-
-TOOLS & EXTERNAL
-  toolCall        — Calls an external tool or API
-  webSearch       — Searches the web and returns results
-
-SAFETY
-  guardrails      — Filters / validates input and output; blocks policy violations
-
-EVALUATION
-  evaluator       — General-purpose evaluator node
-  llmJudge        — Uses an LLM to score another LLM's output
-  rubric          — Criterion-based scoring against a rubric
-  comparator      — A/B comparison of two outputs
-  groundTruth     — Compares output against a known correct answer
-  evalMetrics     — Computes quantitative metrics (BLEU, ROUGE, etc.)
-  critique        — Generates a written critique of an output
-  thresholdGate   — Pass/fail gate based on a score threshold
-  humanRater      — Human-in-the-loop rating step
-  ragEvaluator    — End-to-end RAG pipeline evaluation (faithfulness, relevance, etc.)
-  singleTurnEval  — Evaluates a single prompt-response pair
-  multiTurnEval   — Evaluates a multi-turn conversation
-  toolUseEval     — Evaluates correct tool selection and call accuracy
-  trajectoryEval  — Evaluates agent decision trajectory
-  taskCompletion  — Measures whether the agent completed its assigned task
-  agentEfficiency — Measures token cost and step count relative to task success
-`.trim()
 
 // ── Serialisers ───────────────────────────────────────────────────────────────
 
@@ -172,7 +121,7 @@ You will receive a flow diagram of an AI/LLM pipeline, and optionally an agent c
 
 Here is the full catalog of available node types the user can add to their diagram:
 
-${NODE_CATALOG}
+${formatFullNodeCatalogMarkdown()}
 
 Your job is to identify design gaps, risks, and improvements. Structure your response in exactly these four sections:
 

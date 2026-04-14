@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useReactFlow } from 'reactflow'
-import { Loader2, Send, Wand2, AlertTriangle, X, CheckSquare } from 'lucide-react'
+import { Loader2, Send, Wand2, AlertTriangle, X, CheckSquare, FileText, Info } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { applyWorkflowPatchesToFlow } from '../../lib/applyWorkflowPatches'
 import {
@@ -18,11 +19,18 @@ interface ChatTurn {
   kind?: 'builder' | 'reviewer' | 'system'
 }
 
-interface ReviewSuggestion {
+export type DecisionStatus = 'pending' | 'accepted' | 'declined'
+
+export interface ReviewDecision {
   id: string
   text: string
+  status: DecisionStatus
+  note: string
   selected: boolean
 }
+
+const DECISION_SECTION_START = '<!-- review-decisions:start -->'
+const DECISION_SECTION_END = '<!-- review-decisions:end -->'
 
 const ARCHITECT_REFINE_TEMPLATE = `You are refactoring the CURRENT graph, not rebuilding from scratch.
 
@@ -87,6 +95,13 @@ export interface WorkflowChatBodyProps {
   onBusyChange?: (busy: boolean) => void
   /** Open Flow Context modal with mapped draft from reviewer text. */
   onUseReviewInContext?: (draft: { description: string; howItWorks: string }) => void
+  /** Optional externally-controlled decisions state (for workspace left panel). */
+  externalDecisions?: ReviewDecision[]
+  onDecisionsChange?: (next: ReviewDecision[]) => void
+  /** Hide inline decisions UI when rendered elsewhere. */
+  showDecisions?: boolean
+  /** Optional bridge for parent-controlled Improve action. */
+  onRegisterImproveAction?: (action: (() => void) | null) => void
 }
 
 export default function WorkflowChatBody({
@@ -95,6 +110,10 @@ export default function WorkflowChatBody({
   onClose,
   onBusyChange,
   onUseReviewInContext,
+  externalDecisions,
+  onDecisionsChange,
+  showDecisions = true,
+  onRegisterImproveAction,
 }: WorkflowChatBodyProps) {
   const theme = useFlowStore((s) => s.theme)
   const nodes = useFlowStore((s) => s.nodes)
@@ -109,10 +128,17 @@ export default function WorkflowChatBody({
   const [reviewing, setReviewing] = useState(false)
   const [improving, setImproving] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
-  const [suggestions, setSuggestions] = useState<ReviewSuggestion[]>([])
+  const [localDecisions, setLocalDecisions] = useState<ReviewDecision[]>([])
+  const [designDoc, setDesignDoc] = useState('')
+  const [docModalOpen, setDocModalOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const isDark = theme === 'dark'
+  const decisions = externalDecisions ?? localDecisions
+  const setDecisions = useCallback((updater: (prev: ReviewDecision[]) => ReviewDecision[]) => {
+    if (onDecisionsChange) onDecisionsChange(updater(externalDecisions ?? []))
+    else setLocalDecisions((prev) => updater(prev))
+  }, [onDecisionsChange, externalDecisions])
 
   useEffect(() => {
     onBusyChange?.(loading || reviewing || improving)
@@ -122,12 +148,98 @@ export default function WorkflowChatBody({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [turns, loading])
 
+  const docStorageKey = `agentflow:build-doc:${flowName || 'untitled'}`
+  useEffect(() => {
+    const stored = localStorage.getItem(docStorageKey)
+    setDesignDoc(stored ?? '')
+  }, [docStorageKey])
+
+  useEffect(() => {
+    localStorage.setItem(docStorageKey, designDoc)
+  }, [docStorageKey, designDoc])
+
+  const appendToDesignDoc = useCallback((title: string, body: string) => {
+    const text = body.trim()
+    if (!text) return
+    const stamp = new Date().toISOString().replace('T', ' ').slice(0, 16)
+    setDesignDoc((prev) => {
+      const section = `\n## ${title} (${stamp})\n${text}\n`
+      return prev.trim() ? `${prev.trim()}\n${section}` : section.trimStart()
+    })
+  }, [])
+
+  const buildDecisionSection = useCallback((items: ReviewDecision[]) => {
+    if (items.length === 0) return ''
+    const accepted = items.filter((d) => d.status === 'accepted')
+    const declined = items.filter((d) => d.status === 'declined')
+    const pending = items.filter((d) => d.status === 'pending')
+    const lines: string[] = [
+      DECISION_SECTION_START,
+      '## Review decisions',
+      '',
+    ]
+    const pushGroup = (title: string, list: ReviewDecision[]) => {
+      lines.push(`### ${title}`)
+      if (list.length === 0) {
+        lines.push('- (none)', '')
+        return
+      }
+      for (const d of list) {
+        lines.push(`- ${d.text}`)
+        if (d.note.trim()) lines.push(`  - rationale: ${d.note.trim()}`)
+        if (d.status === 'accepted') {
+          lines.push(`  - include in improve: ${d.selected ? 'yes' : 'no'}`)
+        }
+      }
+      lines.push('')
+    }
+    pushGroup('Accepted during review', accepted)
+    pushGroup('Declined during review', declined)
+    pushGroup('Pending review decisions', pending)
+    lines.push(DECISION_SECTION_END)
+    return lines.join('\n').trim()
+  }, [])
+
+  const upsertDecisionSection = useCallback((base: string, section: string) => {
+    const start = base.indexOf(DECISION_SECTION_START)
+    const end = base.indexOf(DECISION_SECTION_END)
+    if (!section) {
+      if (start >= 0 && end > start) {
+        const before = base.slice(0, start).trimEnd()
+        const after = base.slice(end + DECISION_SECTION_END.length).trimStart()
+        return [before, after].filter(Boolean).join('\n\n').trim()
+      }
+      return base
+    }
+    if (start >= 0 && end > start) {
+      const before = base.slice(0, start).trimEnd()
+      const after = base.slice(end + DECISION_SECTION_END.length).trimStart()
+      return [before, section, after].filter(Boolean).join('\n\n').trim()
+    }
+    // Recover gracefully from partially edited docs where start marker exists but end marker doesn't.
+    if (start >= 0 && end < 0) {
+      const before = base.slice(0, start).trimEnd()
+      return [before, section].filter(Boolean).join('\n\n').trim()
+    }
+    return [base.trim(), section].filter(Boolean).join('\n\n').trim()
+  }, [])
+
+  // Keep an up-to-date decision log block in the working doc.
+  useEffect(() => {
+    setDesignDoc((prev) => {
+      const section = buildDecisionSection(decisions)
+      const next = upsertDecisionSection(prev, section)
+      return next === prev ? prev : next
+    })
+  }, [decisions, buildDecisionSection, upsertDecisionSection])
+
   const handleSend = useCallback(async () => {
     const text = draft.trim()
     if (!text || loading || reviewing || improving) return
 
     setDraft('')
     setRequestError(null)
+    appendToDesignDoc('User request', text)
     const nextTurns: ChatTurn[] = [...turns, { role: 'user', content: text }]
     setTurns(nextTurns)
     setLoading(true)
@@ -166,6 +278,7 @@ export default function WorkflowChatBody({
           kind: 'builder',
         },
       ])
+      appendToDesignDoc('Builder response', assistantText)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Request failed'
       setRequestError(msg)
@@ -173,9 +286,9 @@ export default function WorkflowChatBody({
     } finally {
       setLoading(false)
     }
-  }, [draft, loading, reviewing, improving, turns, nodes, edges, flowName, flowContext, fitView])
+  }, [draft, loading, reviewing, improving, turns, nodes, edges, flowName, flowContext, fitView, appendToDesignDoc])
 
-  const extractSuggestions = useCallback((review: string): ReviewSuggestion[] => {
+  const extractSuggestions = useCallback((review: string): ReviewDecision[] => {
     const lines = review
       .split('\n')
       .map((l) => l.trim())
@@ -195,6 +308,8 @@ export default function WorkflowChatBody({
     return picked.map((text, i) => ({
       id: `s-${Date.now()}-${i}`,
       text,
+      status: 'pending',
+      note: '',
       selected: false,
     }))
   }, [])
@@ -249,50 +364,92 @@ export default function WorkflowChatBody({
         content: `Reviewer\n\n${review || 'No review output.'}`,
       }
       setTurns((prev) => [...prev, reviewTurn])
-      setSuggestions(extractSuggestions(review))
+      setDecisions(() => extractSuggestions(review))
+      appendToDesignDoc('Reviewer output', review)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Review failed'
       setRequestError(msg)
     } finally {
       setReviewing(false)
     }
-  }, [loading, reviewing, improving, extractSuggestions])
+  }, [loading, reviewing, improving, extractSuggestions, appendToDesignDoc])
 
-  const toggleSuggestion = useCallback((id: string) => {
-    setSuggestions((prev) =>
+  const setDecisionStatus = useCallback((id: string, status: DecisionStatus) => {
+    setDecisions((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              status,
+              // auto-select accepted suggestions for improve
+              selected: status === 'accepted' ? true : false,
+            }
+          : s,
+      ),
+    )
+  }, [setDecisions])
+
+  const updateDecisionNote = useCallback((id: string, note: string) => {
+    setDecisions((prev) => prev.map((s) => (s.id === id ? { ...s, note } : s)))
+  }, [setDecisions])
+
+  const toggleDecisionSelected = useCallback((id: string) => {
+    setDecisions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, selected: !s.selected } : s)),
     )
-  }, [])
+  }, [setDecisions])
 
-  const toggleAllSuggestions = useCallback(() => {
-    setSuggestions((prev) => {
-      const allSelected = prev.length > 0 && prev.every((s) => s.selected)
-      return prev.map((s) => ({ ...s, selected: !allSelected }))
-    })
-  }, [])
+  const acceptAllDecisions = useCallback(() => {
+    setDecisions((prev) =>
+      prev.map((s) => ({ ...s, status: 'accepted', selected: true })),
+    )
+  }, [setDecisions])
+
+  const declineAllDecisions = useCallback(() => {
+    setDecisions((prev) =>
+      prev.map((s) => ({ ...s, status: 'declined', selected: false })),
+    )
+  }, [setDecisions])
 
   const handleImproveSelected = useCallback(async () => {
     if (loading || reviewing || improving) return
-    const selected = suggestions.filter((s) => s.selected)
+    const accepted = decisions.filter((s) => s.status === 'accepted')
+    const selected = accepted.filter((s) => s.selected)
     if (selected.length === 0) {
-      setRequestError('Select at least one review suggestion first.')
+      setRequestError('Accept (and select) at least one suggestion first.')
       return
     }
     setRequestError(null)
     setImproving(true)
     try {
+      const declined = decisions.filter((s) => s.status === 'declined')
       const instruction: ChatTurn = {
         role: 'user',
         kind: 'system',
         content:
           'Apply ONLY these approved review suggestions as targeted graph edits.\n' +
-          selected.map((s, i) => `${i + 1}. ${s.text}`).join('\n') +
-          '\nDo not apply unselected suggestions.',
+          selected
+            .map((s, i) =>
+              `${i + 1}. ${s.text}${s.note.trim() ? `\n   rationale: ${s.note.trim()}` : ''}`,
+            )
+            .join('\n') +
+          (declined.length
+            ? '\n\nDo NOT apply these declined suggestions unless user explicitly changes decision:\n' +
+              declined
+                .map((s, i) =>
+                  `${i + 1}. ${s.text}${s.note.trim() ? `\n   reason declined: ${s.note.trim()}` : ''}`,
+                )
+                .join('\n')
+            : ''),
       }
       const localTurns = [...turns, instruction]
       setTurns(localTurns)
       const builderTurn = await callBuilderOnce(localTurns)
       setTurns((prev) => [...prev, builderTurn])
+      appendToDesignDoc(
+        'Improve pass',
+        `Accepted suggestions:\n${selected.map((s, i) => `${i + 1}. ${s.text}${s.note ? ` — ${s.note}` : ''}`).join('\n')}`,
+      )
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Improve selected failed'
       setRequestError(msg)
@@ -300,7 +457,15 @@ export default function WorkflowChatBody({
     } finally {
       setImproving(false)
     }
-  }, [loading, reviewing, improving, suggestions, turns, callBuilderOnce])
+  }, [loading, reviewing, improving, decisions, turns, callBuilderOnce, appendToDesignDoc])
+
+  useEffect(() => {
+    if (!onRegisterImproveAction) return
+    onRegisterImproveAction(() => {
+      void handleImproveSelected()
+    })
+    return () => onRegisterImproveAction(null)
+  }, [onRegisterImproveAction, handleImproveSelected])
 
   const insertArchitectTemplate = useCallback(() => {
     setDraft((prev) =>
@@ -364,7 +529,7 @@ export default function WorkflowChatBody({
               isDark ? 'text-white' : 'text-slate-900'
             }`}
           >
-            Build with AI
+            Design with AI
           </span>
           {loading && <Loader2 size={14} className="text-violet-500 animate-spin shrink-0" />}
           {onClose && (
@@ -383,12 +548,12 @@ export default function WorkflowChatBody({
         </div>
       )}
 
-      <p className={`px-4 py-2 text-[11px] leading-snug border-b shrink-0 ${border} ${subText}`}>
-        Describe what to build, then keep chatting to refine — each send includes your{' '}
-        <strong className="font-medium">current</strong> diagram. Switch tabs anytime (e.g. Review) and
-        come back here to apply changes. Requires API server and{' '}
-        <span className="font-mono">OPENAI_API_KEY</span>.
-      </p>
+      <div className={`px-4 py-1.5 border-b shrink-0 ${border}`}>
+        <div className={`flex items-center gap-1.5 text-[10px] ${subText}`}>
+          <Info size={11} />
+          Uses current graph + flow context each turn.
+        </div>
+      </div>
 
       {!flowContext && (
         <div className={`px-4 py-2 border-b shrink-0 ${border}`}>
@@ -399,50 +564,176 @@ export default function WorkflowChatBody({
       )}
 
       <div className={`px-3 py-2 border-b shrink-0 ${border}`}>
-        <button
-          type="button"
-          onClick={insertArchitectTemplate}
-          disabled={loading || reviewing || improving}
-          className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] border transition-colors ${
-            isDark
-              ? 'border-violet-500/35 text-violet-200 bg-violet-900/20 hover:bg-violet-900/30'
-              : 'border-violet-300 text-violet-800 bg-violet-50 hover:bg-violet-100'
-          } disabled:opacity-40`}
-          title="Insert reusable architecture-refinement prompt"
-        >
-          Insert architecture refine template
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={insertArchitectTemplate}
+            disabled={loading || reviewing || improving}
+            className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] border transition-colors ${
+              isDark
+                ? 'border-violet-500/35 text-violet-200 bg-violet-900/20 hover:bg-violet-900/30'
+                : 'border-violet-300 text-violet-800 bg-violet-50 hover:bg-violet-100'
+            } disabled:opacity-40`}
+            title="Insert reusable architecture-refinement prompt"
+          >
+            Insert template
+          </button>
+          <button
+            type="button"
+            onClick={() => setDocModalOpen(true)}
+            className={`w-full inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] border ${
+              isDark
+                ? 'border-white/15 text-white/75 hover:bg-white/10'
+                : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+            }`}
+            title="Open working document"
+          >
+            <FileText size={12} />
+            Working doc
+          </button>
+        </div>
       </div>
 
-      {suggestions.length > 0 && (
+      {showDecisions && decisions.length > 0 && (
         <div className={`px-3 py-2 border-b shrink-0 ${border}`}>
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <div className={`text-[11px] ${subText}`}>Review suggestions (select what to apply)</div>
-            <button
-              type="button"
-              onClick={toggleAllSuggestions}
-              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                isDark
-                  ? 'border-white/15 text-white/70 hover:bg-white/10'
-                  : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              {suggestions.every((s) => s.selected) ? 'Clear all' : 'Select all'}
-            </button>
+          {(() => {
+            const acceptedCount = decisions.filter((s) => s.status === 'accepted').length
+            const declinedCount = decisions.filter((s) => s.status === 'declined').length
+            const pendingCount = decisions.filter((s) => s.status === 'pending').length
+            return (
+              <>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className={`text-[11px] ${subText}`}>Architecture decisions from review</div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={acceptAllDecisions}
+                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                  isDark
+                    ? 'border-emerald-500/45 text-emerald-300 hover:bg-emerald-900/25'
+                    : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                }`}
+              >
+                Accept all
+              </button>
+              <button
+                type="button"
+                onClick={declineAllDecisions}
+                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                  isDark
+                    ? 'border-amber-500/45 text-amber-300 hover:bg-amber-900/25'
+                    : 'border-amber-300 text-amber-700 hover:bg-amber-50'
+                }`}
+              >
+                Decline all
+              </button>
+            </div>
           </div>
-          <div className="max-h-28 overflow-y-auto space-y-1 pr-1 sidebar-scroll">
-            {suggestions.map((s) => (
-              <label key={s.id} className="flex items-start gap-2 text-[11px] leading-snug cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={s.selected}
-                  onChange={() => toggleSuggestion(s.id)}
-                  className="mt-0.5 accent-violet-500"
-                />
-                <span className={isDark ? 'text-white/70' : 'text-slate-700'}>{s.text}</span>
-              </label>
-            ))}
+          <div className={`text-[10px] mb-2 ${subText}`}>
+            Accepted: {acceptedCount} · Declined: {declinedCount} · Pending: {pendingCount}
           </div>
+
+          <div className="max-h-48 overflow-y-auto space-y-2 pr-1 sidebar-scroll">
+            {(['accepted', 'declined', 'pending'] as const).map((section) => {
+              const items = decisions.filter((d) => d.status === section)
+              if (items.length === 0) return null
+              const title =
+                section === 'accepted'
+                  ? 'Accepted during review'
+                  : section === 'declined'
+                    ? 'Declined during review'
+                    : 'Pending review decisions'
+              const titleColor =
+                section === 'accepted'
+                  ? (isDark ? 'text-emerald-300/90' : 'text-emerald-700')
+                  : section === 'declined'
+                    ? (isDark ? 'text-amber-300/90' : 'text-amber-700')
+                    : subText
+              return (
+                <div key={section} className="space-y-1.5">
+                  <div className={`text-[10px] uppercase tracking-wide ${titleColor}`}>
+                    {title} ({items.length})
+                  </div>
+                  {items.map((s) => (
+                    <div
+                      key={s.id}
+                      className={`rounded-md border p-2 space-y-1 ${
+                        isDark ? 'border-white/10 bg-white/[0.03]' : 'border-slate-200 bg-white'
+                      }`}
+                    >
+                      <div className={`text-[11px] leading-snug ${isDark ? 'text-white/75' : 'text-slate-700'}`}>
+                        {s.text}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setDecisionStatus(s.id, 'accepted')}
+                          className={`text-[10px] px-2 py-1 rounded border ${
+                            s.status === 'accepted'
+                              ? (isDark ? 'bg-emerald-900/40 border-emerald-500/50 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800')
+                              : (isDark ? 'border-white/15 text-white/65 hover:bg-white/10' : 'border-slate-300 text-slate-700 hover:bg-slate-100')
+                          }`}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDecisionStatus(s.id, 'declined')}
+                          className={`text-[10px] px-2 py-1 rounded border ${
+                            s.status === 'declined'
+                              ? (isDark ? 'bg-amber-900/35 border-amber-500/50 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-800')
+                              : (isDark ? 'border-white/15 text-white/65 hover:bg-white/10' : 'border-slate-300 text-slate-700 hover:bg-slate-100')
+                          }`}
+                        >
+                          Decline
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDecisionStatus(s.id, 'pending')}
+                          className={`text-[10px] px-2 py-1 rounded border ${
+                            s.status === 'pending'
+                              ? (isDark ? 'bg-slate-800 border-slate-500/50 text-white/85' : 'bg-slate-100 border-slate-300 text-slate-800')
+                              : (isDark ? 'border-white/15 text-white/65 hover:bg-white/10' : 'border-slate-300 text-slate-700 hover:bg-slate-100')
+                          }`}
+                        >
+                          Pending
+                        </button>
+                        {s.status === 'accepted' && (
+                          <label className={`ml-auto flex items-center gap-1 text-[10px] ${subText}`}>
+                            <input
+                              type="checkbox"
+                              checked={s.selected}
+                              onChange={() => toggleDecisionSelected(s.id)}
+                              className="accent-violet-500"
+                            />
+                            Include in improve
+                          </label>
+                        )}
+                      </div>
+                      <textarea
+                        value={s.note}
+                        onChange={(e) => updateDecisionNote(s.id, e.target.value)}
+                        rows={2}
+                        placeholder={
+                          s.status === 'declined'
+                            ? 'Why declined? (optional but recommended)'
+                            : 'Decision rationale / constraints (optional)'
+                        }
+                        className={`w-full rounded-md px-2 py-1 text-[10px] resize-y min-h-[40px] max-h-24 border ${
+                          isDark
+                            ? 'bg-white/5 border-white/10 text-white/80 placeholder:text-white/35'
+                            : 'bg-white border-slate-300 text-slate-700 placeholder:text-slate-400'
+                        }`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+              </>
+            )
+          })()}
         </div>
       )}
 
@@ -542,7 +833,7 @@ export default function WorkflowChatBody({
           onKeyDown={onKeyDown}
           disabled={loading}
           rows={6}
-          placeholder="Describe what to build… (Enter to send, Shift+Enter for newline)"
+          placeholder="Describe what to build or improve... (Enter to send, Shift+Enter newline). Uses current graph + flow context."
           className={`w-full rounded-lg px-3 py-2 text-[12px] resize-y min-h-[120px] max-h-[45vh] outline-none border ${
             isDark
               ? 'bg-white/5 border-white/15 text-white placeholder:text-white/35 focus:border-violet-500/50'
@@ -562,7 +853,7 @@ export default function WorkflowChatBody({
           <Send size={14} />
           Send
         </button>
-        <div className="grid grid-cols-2 gap-2">
+        <div className={`grid gap-2 ${showDecisions ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <button
             type="button"
             onClick={() => void handleReviewOnly()}
@@ -576,21 +867,90 @@ export default function WorkflowChatBody({
             {reviewing ? <Loader2 size={14} className="animate-spin" /> : <CheckSquare size={14} />}
             {reviewing ? 'Reviewing…' : 'Review'}
           </button>
-          <button
-            type="button"
-            onClick={() => void handleImproveSelected()}
-            disabled={loading || reviewing || improving}
-            className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border ${
-              isDark
-                ? 'bg-emerald-700/80 hover:bg-emerald-600/90 text-white border-emerald-500/40 disabled:opacity-40'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-700/30 disabled:opacity-40'
-            }`}
-          >
-            {improving ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-            {improving ? 'Applying…' : 'Improve'}
-          </button>
+          {showDecisions && (
+            <button
+              type="button"
+              onClick={() => void handleImproveSelected()}
+              disabled={loading || reviewing || improving}
+              className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border ${
+                isDark
+                  ? 'bg-emerald-700/80 hover:bg-emerald-600/90 text-white border-emerald-500/40 disabled:opacity-40'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-700/30 disabled:opacity-40'
+              }`}
+            >
+              {improving ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+              {improving ? 'Applying…' : 'Improve'}
+            </button>
+          )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {docModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/50"
+              onClick={() => setDocModalOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: -8 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-6"
+            >
+              <div
+                className={`w-full max-w-2xl max-h-[82vh] rounded-xl border shadow-2xl flex flex-col overflow-hidden ${
+                  isDark ? 'bg-gray-950 border-white/15' : 'bg-white border-slate-300'
+                }`}
+              >
+                <div className={`flex items-center justify-between px-4 py-3 border-b ${border}`}>
+                  <div className={`inline-flex items-center gap-1.5 text-[13px] font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    <FileText size={14} />
+                    Working document
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDocModalOpen(false)}
+                    className={`p-1 rounded ${isDark ? 'text-white/60 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'}`}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="p-4 flex-1 min-h-0 overflow-hidden flex flex-col gap-2">
+                  <textarea
+                    value={designDoc}
+                    onChange={(e) => setDesignDoc(e.target.value)}
+                    rows={16}
+                    placeholder="Notes from build/review are tracked here. You can edit freely."
+                    className={`w-full flex-1 rounded-md px-2.5 py-2 text-[11px] leading-relaxed resize-y min-h-[220px] outline-none border ${
+                      isDark
+                        ? 'bg-white/5 border-white/10 text-white/80 placeholder:text-white/35'
+                        : 'bg-white border-slate-300 text-slate-700 placeholder:text-slate-400'
+                    }`}
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] ${subText}`}>Auto-saved locally per flow name.</span>
+                    <button
+                      type="button"
+                      onClick={() => setDesignDoc('')}
+                      className={`text-[10px] px-2 py-1 rounded border ${
+                        isDark
+                          ? 'border-white/15 text-white/65 hover:bg-white/10'
+                          : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      Clear doc
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

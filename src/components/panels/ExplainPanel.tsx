@@ -309,7 +309,7 @@ const TAB_TITLES: Record<PanelTab, string> = {
   eval:    'Eval Suggestions',
   success: 'Success Criteria',
   risks:   'Risk Analysis',
-  build:   'Build with AI',
+  build:   'Design with AI',
 }
 
 export default function ExplainPanel({
@@ -497,7 +497,7 @@ export default function ExplainPanel({
             </>
           )}
 
-          {/* ── Build with AI — stays mounted so history survives Review / other tabs ── */}
+          {/* ── Design with AI — stays mounted so history survives Review / other tabs ── */}
           <div
             className={
               activeTab === 'build'

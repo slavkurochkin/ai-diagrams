@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
 import { ReactFlowProvider, useReactFlow } from 'reactflow'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Minimize2 } from 'lucide-react'
+import { Loader2, Minimize2, Wand2 } from 'lucide-react'
 import FlowCanvas from './components/canvas/FlowCanvas'
 import Sidebar from './components/panels/Sidebar'
 import Toolbar from './components/toolbar/Toolbar'
@@ -10,6 +10,7 @@ import ExplainPanel from './components/panels/ExplainPanel'
 import PromptPanel from './components/panels/PromptPanel'
 import TemplatesPanel from './components/panels/TemplatesPanel'
 import FlowContextModal from './components/panels/FlowContextModal'
+import WorkflowChatBody, { type ReviewDecision } from './components/panels/WorkflowChatBody'
 import AnimationControls from './components/animation/AnimationControls'
 import DrawingOverlay from './components/presentation/DrawingOverlay'
 import { useFlowStore } from './hooks/useFlowStore'
@@ -27,6 +28,200 @@ import type { BaseNodeData } from './types/nodes'
 import type { FlowContext } from './types/flow'
 
 const CONTEXT_PROMPT_KEY = 'agentflow:contextPromptSeen'
+
+function BuildWorkspaceLeftPanel({
+  flowName,
+  flowContext,
+  decisions,
+  onDecisionsChange,
+  onImprove,
+  improveBusy,
+  onEditContext,
+  onExit,
+}: {
+  flowName: string
+  flowContext: FlowContext | null
+  decisions: ReviewDecision[]
+  onDecisionsChange: (updater: (prev: ReviewDecision[]) => ReviewDecision[]) => void
+  onImprove: () => void
+  improveBusy: boolean
+  onEditContext: () => void
+  onExit: () => void
+}) {
+  const [showContextDetails, setShowContextDetails] = useState(false)
+  const acceptedCount = decisions.filter((d) => d.status === 'accepted').length
+  const selectedCount = decisions.filter((d) => d.selected).length
+  const allSelected = decisions.length > 0 && selectedCount === decisions.length
+
+  return (
+    <aside className="w-72 shrink-0 border-r border-white/10 bg-gray-950/80 backdrop-blur-sm flex flex-col min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto sidebar-scroll p-3">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+          <p className="text-[12px] font-semibold text-white">Design with AI workspace</p>
+          <p className="text-[11px] text-white/55 leading-relaxed">
+            Dedicated mode for iterative build, review decisions, and architecture updates.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onEditContext}
+              className="text-[10px] px-2 py-1 rounded border border-sky-500/40 text-sky-300 hover:bg-sky-900/25"
+            >
+              Edit context
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowContextDetails((v) => !v)}
+              className="text-[10px] px-2 py-1 rounded border border-white/15 text-white/70 hover:bg-white/10"
+            >
+              {showContextDetails ? 'Hide context' : 'View context'}
+            </button>
+            <button
+              type="button"
+              onClick={onExit}
+              className="text-[10px] px-2 py-1 rounded border border-white/15 text-white/70 hover:bg-white/10"
+            >
+              Back to main canvas
+            </button>
+          </div>
+        </div>
+
+        {showContextDetails && (
+          <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
+            <p className="text-[10px] uppercase tracking-wide text-white/35">Current flow</p>
+            <p className="text-[12px] text-white/90 font-medium truncate" title={flowName}>
+              {flowName}
+            </p>
+            <div className="pt-1 border-t border-white/10">
+              <p className="text-[10px] uppercase tracking-wide text-white/35">Use case context</p>
+              {!flowContext ? (
+                <p className="mt-1 text-[11px] text-amber-300/85 leading-relaxed">
+                  No context yet. Add purpose and constraints to improve AI build quality.
+                </p>
+              ) : (
+                <>
+                  <p className="mt-1 text-[11px] text-white/80 leading-relaxed whitespace-pre-wrap">
+                    {flowContext.description || '(no description)'}
+                  </p>
+                  <p className="text-[10px] text-white/45">
+                    Documents: {flowContext.documents.length}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] uppercase tracking-wide text-white/35">
+              Architecture decisions from review
+            </p>
+            <p className="text-[10px] text-white/40">{decisions.length} items</p>
+          </div>
+
+          {decisions.length === 0 ? (
+            <p className="text-[11px] text-white/50 leading-relaxed">
+              Run Review in the chat panel to populate suggestions you can accept or decline here.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => onDecisionsChange((prev) => prev.map((d) => ({ ...d, status: 'accepted', selected: true })))}
+                  className="text-[10px] px-2 py-1 rounded border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/25"
+                >
+                  Accept all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDecisionsChange((prev) => prev.map((d) => ({ ...d, status: 'declined', selected: false })))}
+                  className="text-[10px] px-2 py-1 rounded border border-rose-500/40 text-rose-300 hover:bg-rose-900/25"
+                >
+                  Decline all
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onDecisionsChange((prev) =>
+                      prev.map((d) => ({
+                        ...d,
+                        selected: !allSelected,
+                      })),
+                    )
+                  }
+                  className="text-[10px] px-2 py-1 rounded border border-white/15 text-white/70 hover:bg-white/10"
+                >
+                  {allSelected ? 'Clear all' : 'Select all'}
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {decisions.map((d) => (
+                  <div key={d.id} className="rounded-lg border border-white/10 bg-black/20 p-2 space-y-1.5">
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={d.selected}
+                        onChange={() => onDecisionsChange((prev) => prev.map((x) => (x.id === d.id ? { ...x, selected: !x.selected } : x)))}
+                        className="mt-0.5 h-3.5 w-3.5 rounded border-white/20 bg-transparent text-sky-500"
+                      />
+                      <span className="text-[11px] leading-relaxed text-white/85">{d.text}</span>
+                    </label>
+                    <div className="flex gap-1">
+                      {(['accepted', 'declined', 'pending'] as const).map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          onClick={() => onDecisionsChange((prev) => prev.map((x) => (x.id === d.id ? { ...x, status, selected: status === 'accepted' ? true : x.selected } : x)))}
+                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                            d.status === status
+                              ? status === 'accepted'
+                                ? 'border-emerald-400/60 text-emerald-200 bg-emerald-900/30'
+                                : status === 'declined'
+                                  ? 'border-rose-400/60 text-rose-200 bg-rose-900/30'
+                                  : 'border-white/35 text-white bg-white/10'
+                              : 'border-white/15 text-white/60 hover:bg-white/10'
+                          }`}
+                        >
+                          {status[0].toUpperCase() + status.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={d.note}
+                      onChange={(e) => onDecisionsChange((prev) => prev.map((x) => (x.id === d.id ? { ...x, note: e.target.value } : x)))}
+                      placeholder="Rationale (optional)"
+                      rows={2}
+                      className="w-full rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-white placeholder:text-white/35 focus:outline-none focus:ring-1 focus:ring-sky-500/50 resize-y min-h-[44px]"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-[10px] text-white/45">
+                Accepted: {acceptedCount} / Selected: {selectedCount}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="shrink-0 p-3 pt-2 border-t border-white/10 bg-gray-950/90">
+        <button
+          type="button"
+          onClick={onImprove}
+          disabled={improveBusy}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border bg-emerald-700/80 hover:bg-emerald-600/90 text-white border-emerald-500/40 disabled:opacity-40"
+        >
+          {improveBusy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+          {improveBusy ? 'Applying changes…' : 'Apply selected changes'}
+        </button>
+      </div>
+    </aside>
+  )
+}
 
 // Inner component — needs to be inside ReactFlowProvider to use useFlowAnimation
 function AppInner() {
@@ -78,6 +273,10 @@ function AppInner() {
 
   const [promptPanelOpen, setPromptPanelOpen] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
+  const [buildWorkspaceMode, setBuildWorkspaceMode] = useState(false)
+  const [buildDecisions, setBuildDecisions] = useState<ReviewDecision[]>([])
+  const [buildChatBusy, setBuildChatBusy] = useState(false)
+  const improveFromLeftRef = useRef<(() => void) | null>(null)
 
   const [explainText, setExplainText]         = useState('')
   const [explainStatus, setExplainStatus]     = useState<PanelStatus>('idle')
@@ -539,61 +738,108 @@ function AppInner() {
             onGeneratePrompt={handleGeneratePrompt}
             generatePromptDisabled={nodes.length === 0}
             onWorkflowChat={() => {
-              if (aiPanelOpen && aiPanelTab === 'build') {
-                setAiPanelOpen(false)
-              } else {
-                setAiPanelOpen(true)
-                setAiPanelTab('build')
-              }
+              setBuildWorkspaceMode((v) => !v)
+              setAiPanelOpen(false)
             }}
           />
           <div className="flex flex-1 overflow-hidden">
-            <Sidebar />
-            <FlowCanvas
-              activeEdges={animation.activeEdges}
-              onOpenTemplates={() => openTemplatesPanel('templates')}
-              onExplainNode={(id) => handleExplain(id)}
-              onEvalTargets={handleEvalTargets}
-              onPlayFromNode={(id) => { animation.reset(); animation.playFrom(id) }}
-              onSuccessNode={(id) => handleSuccess(id)}
-              onRisksNode={(id) => handleRisks(id)}
-            />
-            <ConfigPanel />
-            <ExplainPanel
-              open={aiPanelOpen}
-              onClose={() => setAiPanelOpen(false)}
-              activeTab={aiPanelTab}
-              onTabChange={setAiPanelTab}
-              explainText={explainText}
-              explainStatus={explainStatus}
-              explainDisabled={nodes.length === 0 || explainStatus === 'loading' || explainStatus === 'streaming'}
-              onGenerateExplain={() => handleExplain(explainNodeId)}
-              reviewText={reviewText}
-              reviewStatus={reviewStatus}
-              reviewDisabled={nodes.length === 0 || reviewStatus === 'loading' || reviewStatus === 'streaming'}
-              onGenerateReview={handleReview}
-              evalText={evalText}
-              evalStatus={evalStatus}
-              evalDisabled={nodes.length === 0 || evalStatus === 'loading' || evalStatus === 'streaming'}
-              onGenerateEval={handleEval}
-              successText={successText}
-              successStatus={successStatus}
-              successDisabled={nodes.length === 0 || successStatus === 'loading' || successStatus === 'streaming'}
-              onGenerateSuccess={() => handleSuccess(successNodeId)}
-              risksText={risksText}
-              risksStatus={risksStatus}
-              risksDisabled={nodes.length === 0 || risksStatus === 'loading' || risksStatus === 'streaming'}
-              onGenerateRisks={() => handleRisks(risksNodeId)}
-              onUseReviewInContext={(draft) => {
-                setContextModalMode('edit')
-                setContextDraft({
-                  description: draft.description,
-                  howItWorks: draft.howItWorks,
-                  documents: flowContext?.documents ?? [],
-                })
-                setContextModalOpen(true)
-              }}
-            />
+            {buildWorkspaceMode ? (
+              <>
+                <BuildWorkspaceLeftPanel
+                  flowName={flowName}
+                  flowContext={flowContext}
+                  decisions={buildDecisions}
+                  onDecisionsChange={(updater) => setBuildDecisions((prev) => updater(prev))}
+                  onImprove={() => improveFromLeftRef.current?.()}
+                  improveBusy={buildChatBusy}
+                  onEditContext={() => {
+                    setContextDraft(null)
+                    setContextModalMode('edit')
+                    setContextModalOpen(true)
+                  }}
+                  onExit={() => setBuildWorkspaceMode(false)}
+                />
+                <FlowCanvas
+                  activeEdges={animation.activeEdges}
+                  onOpenTemplates={() => openTemplatesPanel('templates')}
+                  onExplainNode={(id) => handleExplain(id)}
+                  onEvalTargets={handleEvalTargets}
+                  onPlayFromNode={(id) => { animation.reset(); animation.playFrom(id) }}
+                  onSuccessNode={(id) => handleSuccess(id)}
+                  onRisksNode={(id) => handleRisks(id)}
+                />
+                <aside className="w-[360px] shrink-0 border-l border-white/10 bg-gray-950/95 overflow-hidden">
+                  <WorkflowChatBody
+                    showHeader
+                    externalDecisions={buildDecisions}
+                    onDecisionsChange={setBuildDecisions}
+                    showDecisions={false}
+                    onBusyChange={setBuildChatBusy}
+                    onRegisterImproveAction={(action) => {
+                      improveFromLeftRef.current = action
+                    }}
+                    onUseReviewInContext={(draft) => {
+                      setContextModalMode('edit')
+                      setContextDraft({
+                        description: draft.description,
+                        howItWorks: draft.howItWorks,
+                        documents: flowContext?.documents ?? [],
+                      })
+                      setContextModalOpen(true)
+                    }}
+                  />
+                </aside>
+              </>
+            ) : (
+              <>
+                <Sidebar />
+                <FlowCanvas
+                  activeEdges={animation.activeEdges}
+                  onOpenTemplates={() => openTemplatesPanel('templates')}
+                  onExplainNode={(id) => handleExplain(id)}
+                  onEvalTargets={handleEvalTargets}
+                  onPlayFromNode={(id) => { animation.reset(); animation.playFrom(id) }}
+                  onSuccessNode={(id) => handleSuccess(id)}
+                  onRisksNode={(id) => handleRisks(id)}
+                />
+                <ConfigPanel />
+                <ExplainPanel
+                  open={aiPanelOpen}
+                  onClose={() => setAiPanelOpen(false)}
+                  activeTab={aiPanelTab}
+                  onTabChange={setAiPanelTab}
+                  explainText={explainText}
+                  explainStatus={explainStatus}
+                  explainDisabled={nodes.length === 0 || explainStatus === 'loading' || explainStatus === 'streaming'}
+                  onGenerateExplain={() => handleExplain(explainNodeId)}
+                  reviewText={reviewText}
+                  reviewStatus={reviewStatus}
+                  reviewDisabled={nodes.length === 0 || reviewStatus === 'loading' || reviewStatus === 'streaming'}
+                  onGenerateReview={handleReview}
+                  evalText={evalText}
+                  evalStatus={evalStatus}
+                  evalDisabled={nodes.length === 0 || evalStatus === 'loading' || evalStatus === 'streaming'}
+                  onGenerateEval={handleEval}
+                  successText={successText}
+                  successStatus={successStatus}
+                  successDisabled={nodes.length === 0 || successStatus === 'loading' || successStatus === 'streaming'}
+                  onGenerateSuccess={() => handleSuccess(successNodeId)}
+                  risksText={risksText}
+                  risksStatus={risksStatus}
+                  risksDisabled={nodes.length === 0 || risksStatus === 'loading' || risksStatus === 'streaming'}
+                  onGenerateRisks={() => handleRisks(risksNodeId)}
+                  onUseReviewInContext={(draft) => {
+                    setContextModalMode('edit')
+                    setContextDraft({
+                      description: draft.description,
+                      howItWorks: draft.howItWorks,
+                      documents: flowContext?.documents ?? [],
+                    })
+                    setContextModalOpen(true)
+                  }}
+                />
+              </>
+            )}
             <TemplatesPanel
               open={templatesOpen}
               initialTab={templatesInitialTab}

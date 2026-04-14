@@ -1,5 +1,5 @@
 import type { ConfigField } from '../types/nodes'
-import { buildDefaultConfig, getNodeDefinition } from './nodeDefinitions'
+import { buildDefaultConfig, getAllNodeDefinitions, getNodeDefinition } from './nodeDefinitions'
 
 // ── Wire format (API / tool output) ───────────────────────────────────────────
 
@@ -168,6 +168,7 @@ function coerceConfigValue(
       return { ok: false, error: 'expected boolean' }
     case 'select': {
       if (typeof value !== 'string') return { ok: false, error: 'expected string for select' }
+      if (value === 'default') return { ok: true, value: String(field.defaultValue) }
       const allowed = field.options?.map((o) => o.value) ?? []
       if (allowed.length > 0 && !allowed.includes(value)) {
         return { ok: false, error: `invalid select value "${value}"` }
@@ -186,26 +187,98 @@ function coerceConfigValue(
  * Common LLM key aliases seen in patch outputs.
  * Keep this conservative: map only clear synonyms.
  */
+const DROPPED_CONFIG_KEY = '__drop__'
+
 const CONFIG_KEY_ALIASES: Record<string, string> = {
   sourceType: 'source',
   source_type: 'source',
   sources: 'source',
+  inputSourceType: 'source',
+  input_source_type: 'source',
+  inputType: 'source',
+  input_type: 'source',
+  fileType: 'source',
+  fileTypes: DROPPED_CONFIG_KEY,
   filePath: 'path',
   filepath: 'path',
   sourcePath: 'path',
   urlPath: 'path',
+  indexType: 'indexName',
+  retrievalCount: 'topK',
+}
+
+/**
+ * Node-specific aliases are applied after global aliases so they can
+ * intentionally override mappings when the same key exists across node types.
+ */
+const CONFIG_KEY_ALIASES_BY_NODE_TYPE: Record<string, Record<string, string>> = {
+  dataLoader: {
+    // Common LLM output; our dataLoader doesn't expose a formats field.
+    formats: DROPPED_CONFIG_KEY,
+    format: DROPPED_CONFIG_KEY,
+    // LLMs often send a file list; we only have a single path field.
+    files: 'path',
+    fileList: 'path',
+    paths: 'path',
+  },
+  vectorDB: {
+    persistent: DROPPED_CONFIG_KEY,
+    persist: DROPPED_CONFIG_KEY,
+    durability: DROPPED_CONFIG_KEY,
+  },
+  chunker: {
+    method: 'strategy',
+    chunkMethod: 'strategy',
+    splitMethod: 'strategy',
+  },
+  llm: {
+    provider: 'model',
+  },
 }
 
 function applyConfigAliases(
+  nodeType: string,
   config: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {}
+  const typeAliases = CONFIG_KEY_ALIASES_BY_NODE_TYPE[nodeType] ?? {}
   for (const [k, v] of Object.entries(config)) {
-    const mapped = CONFIG_KEY_ALIASES[k] ?? k
+    const mapped = typeAliases[k] ?? CONFIG_KEY_ALIASES[k] ?? k
+    if (mapped === DROPPED_CONFIG_KEY) continue
+    let val: unknown = v
+    if (nodeType === 'dataLoader' && mapped === 'path') {
+      if (Array.isArray(val)) {
+        val = val.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(', ')
+      } else if (val !== null && val !== undefined && typeof val === 'object') {
+        val = JSON.stringify(val)
+      }
+    }
     // Explicit key in payload wins over alias collisions.
-    if (out[mapped] === undefined || k === mapped) out[mapped] = v
+    if (out[mapped] === undefined || k === mapped) out[mapped] = val
   }
   return out
+}
+
+const SELECT_VALUE_ALIASES: Record<string, Record<string, Record<string, string>>> = {
+  embedding: {
+    model: {
+      'openai-embedding': 'text-embedding-3-small',
+      'openai-ada': 'text-embedding-3-small',
+      'text-embedding-ada-002': 'text-embedding-3-small',
+    },
+  },
+  llm: {
+    model: {
+      openai: 'gpt-4o',
+      'gpt-4': 'gpt-4o',
+      'gpt-4-turbo': 'gpt-4o',
+      'gpt-4-1106-preview': 'gpt-4o',
+      'text-davinci-003': 'gpt-4o',
+      'gpt-3.5-turbo': 'gpt-4o',
+      anthropic: 'claude-3-5-sonnet-20241022',
+      google: 'gemini-1.5-pro',
+    },
+  },
 }
 
 /** Merge with defaults and coerce every declared config field. */
@@ -215,7 +288,7 @@ function normalizeFullConfigForNodeType(
 ): { ok: true; config: Record<string, string | number | boolean> } | { ok: false; error: string } {
   const def = getNodeDefinition(nodeType)
   if (!def) return { ok: false, error: `unknown nodeType "${nodeType}"` }
-  const normalizedInput = applyConfigAliases(config)
+  const normalizedInput = applyConfigAliases(nodeType, config)
   for (const key of Object.keys(normalizedInput)) {
     if (!def.configFields.some((f) => f.key === key)) {
       return { ok: false, error: `unknown config key "${key}" for ${nodeType}` }
@@ -228,7 +301,12 @@ function normalizeFullConfigForNodeType(
       out[field.key] = field.defaultValue
       continue
     }
-    const coerced = coerceConfigValue(field, rawVal)
+    const rawAliasesForNode = SELECT_VALUE_ALIASES[nodeType]?.[field.key]
+    const valueForField =
+      field.type === 'select' && typeof rawVal === 'string'
+        ? (rawAliasesForNode?.[rawVal] ?? rawVal)
+        : rawVal
+    const coerced = coerceConfigValue(field, valueForField)
     if (!coerced.ok) return { ok: false, error: `config.${field.key}: ${coerced.error}` }
     out[field.key] = coerced.value
   }
@@ -254,6 +332,30 @@ const INPUT_HANDLE_PREFS = [
   'embedding', 'tools',
 ]
 
+const HANDLE_ALIASES_BY_NODE_TYPE: Record<string, { inputs?: Record<string, string>; outputs?: Record<string, string> }> = {
+  vectorDB: {
+    // Common model confusion: "store" is a vectorDB output, not an input.
+    inputs: {
+      store: 'embedding',
+      vector: 'embedding',
+      vectors: 'embedding',
+      index: 'embedding',
+    },
+  },
+}
+
+function applyHandleAlias(
+  nodeType: string,
+  kind: 'inputs' | 'outputs',
+  handle: string,
+): string {
+  const aliases = kind === 'inputs'
+    ? HANDLE_ALIASES_BY_NODE_TYPE[nodeType]?.inputs
+    : HANDLE_ALIASES_BY_NODE_TYPE[nodeType]?.outputs
+  if (!aliases) return handle
+  return aliases[handle] ?? aliases[handle.toLowerCase()] ?? handle
+}
+
 /**
  * Turn null/omitted handles into concrete port ids so React Flow edges attach to real handles.
  */
@@ -270,10 +372,11 @@ export function resolveEdgeHandles(
 
   let sh: string
   if (sourceHandle !== null) {
-    if (!outIds.includes(sourceHandle)) {
+    const mapped = applyHandleAlias(srcType, 'outputs', sourceHandle)
+    if (!outIds.includes(mapped)) {
       return { ok: false, error: `invalid sourceHandle "${sourceHandle}" for ${srcType}` }
     }
-    sh = sourceHandle
+    sh = mapped
   } else if (outIds.length === 1) {
     sh = outIds[0]
   } else {
@@ -282,10 +385,11 @@ export function resolveEdgeHandles(
 
   let th: string
   if (targetHandle !== null) {
-    if (!inIds.includes(targetHandle)) {
+    const mapped = applyHandleAlias(tgtType, 'inputs', targetHandle)
+    if (!inIds.includes(mapped)) {
       return { ok: false, error: `invalid targetHandle "${targetHandle}" for ${tgtType}` }
     }
-    th = targetHandle
+    th = mapped
   } else if (inIds.length === 1) {
     th = inIds[0]
   } else {
@@ -293,6 +397,35 @@ export function resolveEdgeHandles(
   }
 
   return { ok: true, sourceHandle: sh, targetHandle: th }
+}
+
+/** Normalized ref token → canonical nodeType token (normalize()) for fuzzy resolution. */
+const NODE_REF_ALIASES: Record<string, string> = {
+  pdfloader: 'dataloader',
+  fileloader: 'dataloader',
+  loader: 'dataloader',
+  embedder: 'embedding',
+  embeddings: 'embedding',
+  vectordatabase: 'vectordb',
+  vectorstore: 'vectordb',
+  vectorindex: 'vectordb',
+}
+
+function firstNodeIdByNormalizedType(nodes: Map<string, SimNode>, typeNorm: string): string | null {
+  const candidates = Array.from(nodes.values())
+    .filter((n) => n.nodeType.toLowerCase().replace(/[^a-z0-9]/g, '') === typeNorm)
+    .sort((a, b) => a.id.localeCompare(b.id))
+  return candidates.length > 0 ? candidates[0].id : null
+}
+
+let knownNodeTypeNorms: Set<string> | null = null
+function normalizedRegisteredNodeTypes(): Set<string> {
+  if (!knownNodeTypeNorms) {
+    knownNodeTypeNorms = new Set(
+      getAllNodeDefinitions().map((d) => d.type.toLowerCase().replace(/[^a-z0-9]/g, '')),
+    )
+  }
+  return knownNodeTypeNorms
 }
 
 /** Put all addEdge ops last so target nodes exist when edges are validated (models often emit edges first). */
@@ -323,6 +456,14 @@ export function resolveNodeRef(ref: string, nodes: Map<string, SimNode>): string
   const lower = t.toLowerCase()
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
   const normRef = normalize(t)
+  const aliasNormRef = NODE_REF_ALIASES[normRef]
+  if (aliasNormRef && aliasNormRef !== normRef) {
+    const viaAlias = resolveNodeRef(aliasNormRef, nodes)
+    if (viaAlias) return viaAlias
+    const first = firstNodeIdByNormalizedType(nodes, aliasNormRef)
+    if (first) return first
+  }
+  const indexed = normRef.match(/^([a-z]+)(\d+)$/)
   let caseId: string | null = null
   for (const id of nodes.keys()) {
     if (id.toLowerCase() === lower) {
@@ -350,9 +491,45 @@ export function resolveNodeRef(ref: string, nodes: Map<string, SimNode>): string
 
   const typeMatches: string[] = []
   for (const n of nodes.values()) {
-    if (n.nodeType.toLowerCase() === lower) typeMatches.push(n.id)
+    if (n.nodeType.toLowerCase() === lower || normalize(n.nodeType) === normRef) {
+      typeMatches.push(n.id)
+    }
   }
   if (typeMatches.length === 1) return typeMatches[0]
+
+  // Bare type token (e.g. "dataLoader", "vectorDB", "llm"): pick first of that type when ambiguous.
+  if (normalizedRegisteredNodeTypes().has(normRef)) {
+    const first = firstNodeIdByNormalizedType(nodes, normRef)
+    if (first) return first
+  }
+
+  // Fuzzy/semantic fallback: resolve unique partial matches across id/label/nodeType.
+  const containsMatches = Array.from(nodes.values()).filter((n) => {
+    const idNorm = normalize(n.id)
+    const labelNorm = normalize(n.label)
+    const typeNorm = normalize(n.nodeType)
+    return (
+      idNorm.includes(normRef) ||
+      labelNorm.includes(normRef) ||
+      typeNorm.includes(normRef) ||
+      normRef.includes(idNorm) ||
+      normRef.includes(labelNorm) ||
+      normRef.includes(typeNorm)
+    )
+  })
+  if (containsMatches.length === 1) return containsMatches[0].id
+
+  // Accept refs like "dataLoader1" / "embedding2" by nodeType + 1-based index.
+  if (indexed) {
+    const refType = indexed[1]
+    const refIndex = Number(indexed[2])
+    if (Number.isFinite(refIndex) && refIndex >= 1) {
+      const indexedMatches = Array.from(nodes.values())
+        .filter((n) => normalize(n.nodeType) === refType)
+        .sort((a, b) => a.id.localeCompare(b.id))
+      if (indexedMatches.length >= refIndex) return indexedMatches[refIndex - 1].id
+    }
+  }
 
   return null
 }

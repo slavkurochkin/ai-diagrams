@@ -798,8 +798,8 @@ export default function Toolbar({
             <MenuAction
               onClick={() => handleMenuAction(onWorkflowChat)}
               icon={<MessageSquare size={14} />}
-              label="Build with AI"
-              description="AI panel → Build tab; switch to Review and back without losing the thread"
+              label="Design with AI"
+              description="Open Design workspace; run Review and continue the same conversation thread"
               disabled={false}
               tone="accent"
               isDark={isDark}

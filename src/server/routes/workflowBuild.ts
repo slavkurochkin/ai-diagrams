@@ -6,7 +6,11 @@ import {
   getNodeCatalogForAI,
 } from '../../lib/nodeCatalogForAI.js'
 import type { SerializedEdge, SerializedNode, WorkflowPatch } from '../../lib/workflowPatch.js'
-import { validateWorkflowPatches } from '../../lib/workflowPatch.js'
+import {
+  graphAfterValidPatches,
+  validatePatchChain,
+  validateWorkflowPatches,
+} from '../../lib/workflowPatch.js'
 import type { FlowContext } from '../../types/flow.js'
 
 export const workflowBuildRouter = Router()
@@ -153,11 +157,36 @@ You may call the tool \`apply_workflow_changes\` with an ordered \`patches\` arr
 
 Rules:
 - Use only node \`type\` values that appear in the catalog.
-- **addEdge** \`source\` / \`target\`: use the same strings as \`id\` from each \`addNode\`, or the node's \`label\`, or \`nodeType\` when only one node of that type exists. Edges are auto-sorted after nodes if you list them first.
+- **addEdge** \`source\` / \`target\`: prefer the exact \`id:\` strings from **Current flow**. You may also use a node's \`label\` or \`nodeType\` when it uniquely identifies one node on the canvas — never invent names that are not in **Current flow** unless you \`addNode\` them in the same patch batch. Patches are applied with all \`addNode\` steps before \`addEdge\`, so new nodes exist before edges run.
+- **Ports:** use catalog port \`id\` strings (e.g. **guardrails** outputs are \`passed\` and \`blocked\`, not \`output\`; **outputParser** output is \`structured\`). If unsure, **omit** \`sourceHandle\` and \`targetHandle\` on \`addEdge\` so the server picks sensible defaults.
 - Prefer small, incremental patches. Explain your reasoning in normal assistant text, then call the tool when the user wants concrete graph changes.
 - If Agent use-case context is present, treat it as authoritative constraints; keep proposals aligned with it.
 
 If the user is only clarifying requirements or asking questions, reply without the tool.`
+}
+
+const PATCH_REPAIR_SYSTEM_SUFFIX = `
+
+## Patch repair round
+
+Your previous \`apply_workflow_changes\` tool call in this turn had **validation errors** (see the tool result message). The **Current flow** section below is the live graph **after** only the patches that passed validation — failed operations were not applied.
+
+Call \`apply_workflow_changes\` again with patches that complete the user's request against this graph: fix node ids and catalog port ids, add missing \`addNode\` steps, or correct \`addEdge\` source/target. Prefer small follow-up patches.`
+
+function buildRepairSystemPrompt(
+  flowName: string,
+  nodes: SerializedNode[],
+  edges: SerializedEdge[],
+  flowContext?: FlowContext | null,
+): string {
+  return buildSystemPrompt(flowName, nodes, edges, flowContext) + PATCH_REPAIR_SYSTEM_SUFFIX
+}
+
+function maxPatchRepairRounds(): number {
+  const raw = process.env.WORKFLOW_PATCH_REPAIR_ROUNDS
+  const n = raw === undefined || raw === '' ? 1 : Number(raw)
+  if (!Number.isFinite(n)) return 1
+  return Math.max(0, Math.min(3, Math.floor(n)))
 }
 
 workflowBuildRouter.get('/node-catalog', (_req, res) => {
@@ -194,43 +223,137 @@ workflowBuildRouter.post('/workflow-build', async (req, res) => {
 
   try {
     const client = new OpenAI({ apiKey })
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o',
-      messages: openaiMessages,
-      tools: [WORKFLOW_PATCH_TOOL],
-      tool_choice: 'auto',
-    })
+    const maxRepair = maxPatchRepairRounds()
 
-    const choice = completion.choices[0]
-    const msg = choice?.message
-    if (!msg) {
-      return res.status(502).json({ error: 'empty completion' })
-    }
-
-    const validatedPatches: WorkflowPatch[] = []
+    let conversation: ChatCompletionMessageParam[] = openaiMessages
+    let workingNodes: SerializedNode[] = nodes
+    let workingEdges: SerializedEdge[] = edges
+    let lastContent: string | null = null
+    let lastFinishReason: string | null = null
+    const patchAccumulator: WorkflowPatch[] = []
     const validationErrors: string[] = []
 
-    if (msg.tool_calls?.length) {
-      for (const tc of msg.tool_calls) {
-        if (tc.type !== 'function') continue
-        if (tc.function.name !== 'apply_workflow_changes') continue
-        try {
-          const args = JSON.parse(tc.function.arguments || '{}') as { patches?: unknown }
-          const raw = Array.isArray(args.patches) ? args.patches : []
-          const { validPatches, errors } = validateWorkflowPatches(raw, nodes, edges)
-          validatedPatches.push(...validPatches)
-          validationErrors.push(...errors)
-        } catch {
-          validationErrors.push(`tool call ${tc.id}: invalid JSON in arguments`)
+    for (let attempt = 0; attempt <= maxRepair; attempt++) {
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o',
+        messages: conversation,
+        tools: [WORKFLOW_PATCH_TOOL],
+        tool_choice: 'auto',
+      })
+
+      const choice = completion.choices[0]
+      const msg = choice?.message
+      if (!msg) {
+        return res.status(502).json({ error: 'empty completion' })
+      }
+
+      lastContent = msg.content ?? lastContent
+      lastFinishReason = choice.finish_reason ?? lastFinishReason
+
+      const collectedRaw: unknown[] = []
+      const attemptValid: WorkflowPatch[] = []
+      const attemptErrors: string[] = []
+
+      if (msg.tool_calls?.length) {
+        for (const tc of msg.tool_calls) {
+          if (tc.type !== 'function') continue
+          if (tc.function.name !== 'apply_workflow_changes') continue
+          try {
+            const args = JSON.parse(tc.function.arguments || '{}') as { patches?: unknown }
+            if (Array.isArray(args.patches)) {
+              for (const p of args.patches) collectedRaw.push(p)
+            }
+          } catch {
+            const jsonErr =
+              attempt === 0
+                ? `tool call ${tc.id}: invalid JSON in arguments`
+                : `repair ${attempt}: tool ${tc.id}: invalid JSON in arguments`
+            validationErrors.push(jsonErr)
+            attemptErrors.push(jsonErr)
+          }
         }
       }
+
+      if (collectedRaw.length > 0) {
+        const { validPatches, errors } = validateWorkflowPatches(
+          collectedRaw,
+          workingNodes,
+          workingEdges,
+        )
+        attemptValid.push(...validPatches)
+        for (const e of errors) {
+          attemptErrors.push(attempt === 0 ? e : `repair ${attempt}: ${e}`)
+        }
+      }
+
+      patchAccumulator.push(...attemptValid)
+      validationErrors.push(...attemptErrors)
+
+      const afterAttempt = graphAfterValidPatches(workingNodes, workingEdges, collectedRaw)
+      workingNodes = afterAttempt.nodes
+      workingEdges = afterAttempt.edges
+
+      const hadWorkflowTool = msg.tool_calls?.some(
+        (tc) => tc.type === 'function' && tc.function.name === 'apply_workflow_changes',
+      )
+      const needsRepair =
+        attempt < maxRepair && hadWorkflowTool && attemptErrors.length > 0
+
+      if (!needsRepair) break
+
+      const assistantMsg: ChatCompletionMessageParam = {
+        role: 'assistant',
+        content: msg.content,
+        tool_calls: msg.tool_calls,
+      }
+      const toolMsgs: ChatCompletionMessageParam[] = (msg.tool_calls ?? []).map((tc) => {
+        if (tc.type !== 'function') {
+          return { role: 'tool' as const, tool_call_id: tc.id, content: '{}' }
+        }
+        if (tc.function.name !== 'apply_workflow_changes') {
+          return {
+            role: 'tool' as const,
+            tool_call_id: tc.id,
+            content: JSON.stringify({ error: 'unsupported tool in repair turn' }),
+          }
+        }
+        return {
+          role: 'tool' as const,
+          tool_call_id: tc.id,
+          content: JSON.stringify({
+            validationErrors: attemptErrors,
+            patchesAccepted: attemptValid.length,
+            hint: 'Update your next apply_workflow_changes to fix these errors against the graph in the new system prompt.',
+          }),
+        }
+      })
+
+      conversation = [
+        {
+          role: 'system',
+          content: buildRepairSystemPrompt(
+            flowName ?? 'Untitled',
+            workingNodes,
+            workingEdges,
+            flowContext,
+          ),
+        },
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+        assistantMsg,
+        ...toolMsgs,
+      ]
+    }
+
+    const chain = validatePatchChain(patchAccumulator, nodes, edges)
+    for (const e of chain.errors) {
+      validationErrors.push(`chain: ${e}`)
     }
 
     return res.json({
       role: 'assistant' as const,
-      content: msg.content,
-      finish_reason: choice.finish_reason,
-      validatedPatches,
+      content: lastContent,
+      finish_reason: lastFinishReason,
+      validatedPatches: chain.validPatches,
       validationErrors,
     })
   } catch (err) {

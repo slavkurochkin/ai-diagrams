@@ -68,6 +68,22 @@ html.dark {
   }
 }
 
+/* One-shot exit shimmer (ReviewExitShimmerOverlay) — keep @keyframes outside @layer for reliable emit */
+@keyframes review-exit-shimmer-pulse {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+}
+
 /* ── Canvas dot-grid background ─────────────────────────────────────────── */
 @layer utilities {
   .canvas-dot-grid {
@@ -78,6 +94,38 @@ html.dark {
       transparent var(--canvas-dot-size)
     );
     background-size: var(--canvas-dot-spacing) var(--canvas-dot-spacing);
+  }
+
+  /** Review / apply panels — radial shimmer on exit */
+  .review-exit-shimmer-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+    border-radius: inherit;
+    isolation: isolate;
+    animation: review-exit-shimmer-pulse 0.58s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+  }
+
+  .review-exit-shimmer-overlay--dark {
+    background:
+      radial-gradient(ellipse 90% 75% at 48% 40%, rgba(167, 243, 208, 0.42) 0%, transparent 58%),
+      radial-gradient(ellipse 55% 50% at 78% 62%, rgba(255, 255, 255, 0.14) 0%, transparent 52%),
+      radial-gradient(ellipse 40% 35% at 22% 70%, rgba(52, 211, 153, 0.2) 0%, transparent 50%);
+  }
+
+  .review-exit-shimmer-overlay--light {
+    background:
+      radial-gradient(ellipse 90% 75% at 48% 40%, rgba(16, 185, 129, 0.38) 0%, transparent 58%),
+      radial-gradient(ellipse 55% 50% at 78% 62%, rgba(255, 255, 255, 0.75) 0%, transparent 52%),
+      radial-gradient(ellipse 40% 35% at 22% 70%, rgba(5, 150, 105, 0.18) 0%, transparent 50%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .review-exit-shimmer-overlay {
+      animation: none;
+      opacity: 0 !important;
+    }
   }
 }
 

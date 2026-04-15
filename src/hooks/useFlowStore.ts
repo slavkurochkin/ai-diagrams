@@ -128,6 +128,15 @@ interface FlowStore {
   _history: Array<{ nodes: Node<BaseNodeData>[]; edges: Edge[] }>
   _isDragging: boolean
   undo: () => void
+
+  /**
+   * One snapshot pushed immediately before each `applyWorkflowPatchesToFlow` batch
+   * (setNodeConfig does not participate in `_history`, so this stack is used for retry).
+   */
+  _workflowApplySnapshots: Array<{ nodes: Node<BaseNodeData>[]; edges: Edge[] }>
+  pushWorkflowApplySnapshot: () => void
+  /** Restores nodes/edges to before the last AI patch batch. Returns false if stack empty. */
+  restoreLastWorkflowApply: () => boolean
 }
 
 let nodeCounter = 1
@@ -208,9 +217,16 @@ export const useFlowStore = create<FlowStore>((set) => ({
   gifCapturePaddingPercent: 10,
   _history: [],
   _isDragging: false,
+  _workflowApplySnapshots: [],
 
   // ── Setters (used by load/restore) ────────────────────────────────────────
-  setNodes: (nodes) => set({ nodes, _history: [], _isDragging: false }),
+  setNodes: (nodes) =>
+    set({
+      nodes,
+      _history: [],
+      _isDragging: false,
+      _workflowApplySnapshots: [],
+    }),
   setEdges: (edges) => set({ edges }),
 
   // ── React Flow change handlers ────────────────────────────────────────────
@@ -714,6 +730,32 @@ export const useFlowStore = create<FlowStore>((set) => ({
         selectedEdgeId: null,
       }
     })
+  },
+
+  pushWorkflowApplySnapshot: () =>
+    set((state) => ({
+      _workflowApplySnapshots: [
+        ...state._workflowApplySnapshots.slice(-19),
+        {
+          nodes: structuredClone(state.nodes) as Node<BaseNodeData>[],
+          edges: structuredClone(state.edges),
+        },
+      ],
+    })),
+
+  restoreLastWorkflowApply: () => {
+    const state = useFlowStore.getState()
+    if (state._workflowApplySnapshots.length === 0) return false
+    const snap = state._workflowApplySnapshots[state._workflowApplySnapshots.length - 1]
+    useFlowStore.setState({
+      nodes: structuredClone(snap.nodes) as Node<BaseNodeData>[],
+      edges: structuredClone(snap.edges),
+      _workflowApplySnapshots: state._workflowApplySnapshots.slice(0, -1),
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      _isDragging: false,
+    })
+    return true
   },
 }))
 

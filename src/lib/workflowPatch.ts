@@ -227,6 +227,14 @@ const CONFIG_KEY_ALIASES: Record<string, string> = {
  */
 const CONFIG_KEY_ALIASES_BY_NODE_TYPE: Record<string, Record<string, string>> = {
   dataLoader: {
+    // Models often use "type" for file vs URL vs DB; our schema uses `source`.
+    type: 'source',
+    loaderType: 'source',
+    loader_type: 'source',
+    dataType: 'source',
+    data_type: 'source',
+    ingestType: 'source',
+    ingest_type: 'source',
     // Common LLM output; our dataLoader doesn't expose a formats field.
     formats: DROPPED_CONFIG_KEY,
     format: DROPPED_CONFIG_KEY,
@@ -244,6 +252,11 @@ const CONFIG_KEY_ALIASES_BY_NODE_TYPE: Record<string, Record<string, string>> = 
     method: 'strategy',
     chunkMethod: 'strategy',
     splitMethod: 'strategy',
+  },
+  retriever: {
+    retrievalStrategy: 'strategy',
+    retrievalMode: 'strategy',
+    searchStrategy: 'strategy',
   },
   // Text→vector Embedding node (not vector DB): models often copy a "provider" field from LLMs.
   embedding: {
@@ -285,6 +298,11 @@ const SELECT_VALUE_ALIASES: Record<string, Record<string, Record<string, string>
       'openai-embedding': 'text-embedding-3-small',
       'openai-ada': 'text-embedding-3-small',
       'text-embedding-ada-002': 'text-embedding-3-small',
+      // Prompt / tutorial placeholders from workflow-build models
+      'example-embedding-model': 'text-embedding-3-small',
+      'example_embedding_model': 'text-embedding-3-small',
+      'placeholder-embedding': 'text-embedding-3-small',
+      'embedding-model': 'text-embedding-3-small',
     },
   },
   llm: {
@@ -297,6 +315,52 @@ const SELECT_VALUE_ALIASES: Record<string, Record<string, Record<string, string>
       'gpt-3.5-turbo': 'gpt-4o',
       anthropic: 'claude-3-5-sonnet-20241022',
       google: 'gemini-1.5-pro',
+      'example-llm-model': 'gpt-4o',
+      example_llm_model: 'gpt-4o',
+      'placeholder-llm': 'gpt-4o',
+      'llm-model': 'gpt-4o',
+    },
+  },
+  retriever: {
+    strategy: {
+      semantic: 'similarity',
+      dense: 'similarity',
+      vector: 'similarity',
+      bm25: 'hybrid',
+      hybrid_search: 'hybrid',
+    },
+  },
+  dataLoader: {
+    source: {
+      // File-ish synonyms (PDF loaders, local dirs, etc.)
+      pdf: 'file',
+      directory: 'file',
+      dir: 'file',
+      local: 'file',
+      disk: 'file',
+      filesystem: 'file',
+      'file-system': 'file',
+      folder: 'file',
+      upload: 'file',
+      unstructured: 'file',
+      // Web-ish
+      http: 'url',
+      https: 'url',
+      web: 'url',
+      link: 'url',
+      website: 'url',
+      // DB-ish
+      postgres: 'database',
+      postgresql: 'database',
+      mysql: 'database',
+      sql: 'database',
+      db: 'database',
+      rds: 'database',
+      // Cloud object storage
+      aws: 's3',
+      bucket: 's3',
+      objectstorage: 's3',
+      'object-storage': 's3',
     },
   },
 }
@@ -324,7 +388,9 @@ function normalizeFullConfigForNodeType(
     const rawAliasesForNode = SELECT_VALUE_ALIASES[nodeType]?.[field.key]
     const valueForField =
       field.type === 'select' && typeof rawVal === 'string'
-        ? (rawAliasesForNode?.[rawVal] ?? rawVal)
+        ? (rawAliasesForNode?.[rawVal] ??
+            rawAliasesForNode?.[rawVal.toLowerCase()] ??
+            rawVal)
         : rawVal
     const coerced = coerceConfigValue(field, valueForField)
     if (!coerced.ok) return { ok: false, error: `config.${field.key}: ${coerced.error}` }
@@ -344,12 +410,40 @@ function portIds(
 
 /** Prefer these when the model omits handles (multi-port nodes). Order matters. */
 const OUTPUT_HANDLE_PREFS = [
-  'store', 'documents', 'response', 'text', 'output', 'chunks', 'passed', 'structured', 'value',
-  'embedding', 'score', 'feedback', 'hit',
+  'store',
+  'documents',
+  'response',
+  'text',
+  'passed',
+  'label',
+  'merged',
+  'structured',
+  'chunks',
+  'output',
+  'score',
+  'feedback',
+  'routeA',
+  'routeB',
+  'default',
+  'value',
+  'embedding',
+  'hit',
+  'confidence',
 ]
 const INPUT_HANDLE_PREFS = [
-  'store', 'prompt', 'query', 'input', 'text', 'key', 'user', 'message', 'documents', 'memory',
-  'embedding', 'tools',
+  'store',
+  'prompt',
+  'query',
+  'input',
+  'text',
+  'key',
+  'user',
+  'message',
+  'documents',
+  'memory',
+  'embedding',
+  'tools',
+  'response',
 ]
 
 const HANDLE_ALIASES_BY_NODE_TYPE: Record<string, { inputs?: Record<string, string>; outputs?: Record<string, string> }> = {
@@ -362,6 +456,59 @@ const HANDLE_ALIASES_BY_NODE_TYPE: Record<string, { inputs?: Record<string, stri
       index: 'embedding',
     },
   },
+  guardrails: {
+    outputs: {
+      output: 'passed',
+      out: 'passed',
+      result: 'passed',
+      response: 'passed',
+    },
+  },
+  outputParser: {
+    inputs: {
+      input: 'text',
+      raw: 'text',
+      content: 'text',
+    },
+    outputs: {
+      output: 'structured',
+      out: 'structured',
+      result: 'structured',
+      parsed: 'structured',
+      json: 'structured',
+    },
+  },
+  llm: {
+    inputs: {
+      input: 'prompt',
+      message: 'prompt',
+      user: 'prompt',
+      text: 'prompt',
+    },
+  },
+}
+
+/**
+ * For these types, an invalid explicit handle must not be swapped to another port
+ * (would pick the wrong branch).
+ */
+const NO_GUESS_OUTPUT_HANDLE_FOR_TYPE = new Set(['router', 'classifier'])
+
+/** Multi-input nodes where guessing would often attach to the wrong port. */
+const NO_GUESS_INPUT_HANDLE_FOR_TYPE = new Set(['retriever', 'llm', 'agent'])
+
+function guessLlmOutputHandle(nodeType: string, outIds: string[]): string | null {
+  if (NO_GUESS_OUTPUT_HANDLE_FOR_TYPE.has(nodeType)) return null
+  const hit = OUTPUT_HANDLE_PREFS.find((p) => outIds.includes(p))
+  if (hit) return hit
+  return outIds.length === 1 ? outIds[0] : null
+}
+
+function guessLlmInputHandle(nodeType: string, inIds: string[]): string | null {
+  if (NO_GUESS_INPUT_HANDLE_FOR_TYPE.has(nodeType)) return null
+  const hit = INPUT_HANDLE_PREFS.find((p) => inIds.includes(p))
+  if (hit) return hit
+  return inIds.length === 1 ? inIds[0] : null
 }
 
 function applyHandleAlias(
@@ -393,10 +540,15 @@ export function resolveEdgeHandles(
   let sh: string
   if (sourceHandle !== null) {
     const mapped = applyHandleAlias(srcType, 'outputs', sourceHandle)
-    if (!outIds.includes(mapped)) {
-      return { ok: false, error: `invalid sourceHandle "${sourceHandle}" for ${srcType}` }
+    if (outIds.includes(mapped)) {
+      sh = mapped
+    } else {
+      const guess = guessLlmOutputHandle(srcType, outIds)
+      if (guess === null) {
+        return { ok: false, error: `invalid sourceHandle "${sourceHandle}" for ${srcType}` }
+      }
+      sh = guess
     }
-    sh = mapped
   } else if (outIds.length === 1) {
     sh = outIds[0]
   } else {
@@ -406,10 +558,15 @@ export function resolveEdgeHandles(
   let th: string
   if (targetHandle !== null) {
     const mapped = applyHandleAlias(tgtType, 'inputs', targetHandle)
-    if (!inIds.includes(mapped)) {
-      return { ok: false, error: `invalid targetHandle "${targetHandle}" for ${tgtType}` }
+    if (inIds.includes(mapped)) {
+      th = mapped
+    } else {
+      const guess = guessLlmInputHandle(tgtType, inIds)
+      if (guess === null) {
+        return { ok: false, error: `invalid targetHandle "${targetHandle}" for ${tgtType}` }
+      }
+      th = guess
     }
-    th = mapped
   } else if (inIds.length === 1) {
     th = inIds[0]
   } else {
@@ -784,4 +941,50 @@ export function validateWorkflowPatches(
   }
 
   return { validPatches, errors }
+}
+
+/**
+ * Resulting serialized graph after applying only patches that pass validation
+ * (same semantics as {@link validateWorkflowPatches}).
+ */
+export function graphAfterValidPatches(
+  initialNodes: SerializedNode[],
+  initialEdges: SerializedEdge[],
+  rawPatches: unknown[],
+): {
+  nodes: SerializedNode[]
+  edges: SerializedEdge[]
+  validPatches: WorkflowPatch[]
+  errors: string[]
+} {
+  const { validPatches, errors } = validateWorkflowPatches(rawPatches, initialNodes, initialEdges)
+  const nodes = new Map<string, SimNode>(
+    initialNodes.map((n) => [n.id, { ...n, config: { ...n.config } }]),
+  )
+  const edges = new Map<string, SimEdge>(
+    initialEdges.map((e) => [e.id, { ...e }]),
+  )
+  for (const p of validPatches) {
+    applyPatchToSimulation(p, nodes, edges)
+  }
+  return {
+    nodes: Array.from(nodes.values()).map((n) => ({
+      id: n.id,
+      nodeType: n.nodeType,
+      label: n.label,
+      config: { ...n.config },
+    })),
+    edges: Array.from(edges.values()),
+    validPatches,
+    errors,
+  }
+}
+
+/** Validate an ordered list of already-normalized patches against an initial graph (chain check). */
+export function validatePatchChain(
+  patches: WorkflowPatch[],
+  initialNodes: SerializedNode[] = [],
+  initialEdges: SerializedEdge[] = [],
+): { validPatches: WorkflowPatch[]; errors: string[] } {
+  return validateWorkflowPatches(patches as unknown[], initialNodes, initialEdges)
 }

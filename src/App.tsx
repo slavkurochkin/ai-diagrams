@@ -1,41 +1,44 @@
-import { useEffect, useCallback, useRef, useState } from 'react'
-import { ReactFlowProvider, useReactFlow } from 'reactflow'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, Minimize2, Wand2 } from 'lucide-react'
-import FlowCanvas from './components/canvas/FlowCanvas'
-import Sidebar from './components/panels/Sidebar'
-import Toolbar from './components/toolbar/Toolbar'
-import ConfigPanel from './components/panels/ConfigPanel'
-import ExplainPanel from './components/panels/ExplainPanel'
-import PromptPanel from './components/panels/PromptPanel'
-import TemplatesPanel from './components/panels/TemplatesPanel'
-import FlowContextModal from './components/panels/FlowContextModal'
-import WorkflowChatBody, { type ReviewDecision } from './components/panels/WorkflowChatBody'
-import AnimationControls from './components/animation/AnimationControls'
-import DrawingOverlay from './components/presentation/DrawingOverlay'
-import { useFlowStore } from './hooks/useFlowStore'
-import { useFlowAnimation } from './hooks/useFlowAnimation'
-import { streamExplain } from './lib/api/explain'
-import { generateImplementationPrompt } from './lib/promptGenerator'
-import { streamEvalSuggestions } from './lib/api/evalSuggestions'
-import { streamDesignReview } from './lib/api/designReview'
-import { streamSuccessCriteria, streamRiskAnalysis } from './lib/api/successRisks'
-import { saveFlow, loadFlow } from './lib/flowSerializer'
-import { applyAutoLayout } from './lib/autoLayout'
-import { exportPlaybackAsGIF } from './lib/exportUtils'
-import type { Node } from 'reactflow'
-import type { BaseNodeData } from './types/nodes'
-import type { FlowContext } from './types/flow'
+import { useEffect, useCallback, useRef, useState } from "react";
+import { ReactFlowProvider, useReactFlow } from "reactflow";
+import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, Minimize2, Wand2 } from "lucide-react";
+import FlowCanvas from "./components/canvas/FlowCanvas";
+import { ReviewExitShimmerOverlay } from "./components/ReviewExitShimmerOverlay";
+import Sidebar from "./components/panels/Sidebar";
+import Toolbar from "./components/toolbar/Toolbar";
+import ConfigPanel from "./components/panels/ConfigPanel";
+import ExplainPanel from "./components/panels/ExplainPanel";
+import PromptPanel from "./components/panels/PromptPanel";
+import TemplatesPanel from "./components/panels/TemplatesPanel";
+import FlowContextModal from "./components/panels/FlowContextModal";
+import WorkflowChatBody, {
+  type ReviewDecision,
+} from "./components/panels/WorkflowChatBody";
+import AnimationControls from "./components/animation/AnimationControls";
+import DrawingOverlay from "./components/presentation/DrawingOverlay";
+import { useFlowStore } from "./hooks/useFlowStore";
+import { useFlowAnimation } from "./hooks/useFlowAnimation";
+import { streamExplain } from "./lib/api/explain";
+import { generateImplementationPrompt } from "./lib/promptGenerator";
+import { streamEvalSuggestions } from "./lib/api/evalSuggestions";
+import { streamDesignReview } from "./lib/api/designReview";
+import {
+  streamSuccessCriteria,
+  streamRiskAnalysis,
+} from "./lib/api/successRisks";
+import { saveFlow, loadFlow } from "./lib/flowSerializer";
+import { applyAutoLayout } from "./lib/autoLayout";
+import { exportPlaybackAsGIF } from "./lib/exportUtils";
+import {
+  reviewApplyRowMotion,
+  reviewDecisionCardMotion,
+  reviewDecisionPanelMotion,
+} from "./lib/reviewDecisionMotion";
+import type { Node } from "reactflow";
+import type { BaseNodeData } from "./types/nodes";
+import type { FlowContext } from "./types/flow";
 
-const CONTEXT_PROMPT_KEY = 'agentflow:contextPromptSeen'
-
-const decisionCardMotion = {
-  layout: true,
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, x: -14, transition: { duration: 0.2, ease: 'easeIn' as const } },
-  transition: { type: 'spring', stiffness: 420, damping: 32 },
-} as const
+const CONTEXT_PROMPT_KEY = "agentflow:contextPromptSeen";
 
 function BuildWorkspaceLeftPanel({
   flowName,
@@ -47,27 +50,33 @@ function BuildWorkspaceLeftPanel({
   onEditContext,
   onExit,
 }: {
-  flowName: string
-  flowContext: FlowContext | null
-  decisions: ReviewDecision[]
-  onDecisionsChange: (updater: (prev: ReviewDecision[]) => ReviewDecision[]) => void
-  onImprove: () => void
-  improveBusy: boolean
-  onEditContext: () => void
-  onExit: () => void
+  flowName: string;
+  flowContext: FlowContext | null;
+  decisions: ReviewDecision[];
+  onDecisionsChange: (
+    updater: (prev: ReviewDecision[]) => ReviewDecision[],
+  ) => void;
+  onImprove: () => void;
+  improveBusy: boolean;
+  onEditContext: () => void;
+  onExit: () => void;
 }) {
-  const [showContextDetails, setShowContextDetails] = useState(false)
-  const acceptedCount = decisions.filter((d) => d.status === 'accepted').length
-  const selectedCount = decisions.filter((d) => d.selected).length
-  const allSelected = decisions.length > 0 && selectedCount === decisions.length
+  const [showContextDetails, setShowContextDetails] = useState(false);
+  const acceptedCount = decisions.filter((d) => d.status === "accepted").length;
+  const selectedCount = decisions.filter((d) => d.selected).length;
+  const allSelected =
+    decisions.length > 0 && selectedCount === decisions.length;
 
   return (
     <aside className="w-72 shrink-0 border-r border-white/10 bg-gray-950/80 backdrop-blur-sm flex flex-col min-h-0">
       <div className="flex-1 min-h-0 overflow-y-auto sidebar-scroll p-3">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
-          <p className="text-[12px] font-semibold text-white">Design with AI workspace</p>
+          <p className="text-[12px] font-semibold text-white">
+            Design with AI workspace
+          </p>
           <p className="text-[11px] text-white/55 leading-relaxed">
-            Dedicated mode for iterative build, review decisions, and architecture updates.
+            Dedicated mode for iterative build, review decisions, and
+            architecture updates.
           </p>
           <div className="flex gap-2">
             <button
@@ -82,7 +91,7 @@ function BuildWorkspaceLeftPanel({
               onClick={() => setShowContextDetails((v) => !v)}
               className="text-[10px] px-2 py-1 rounded border border-white/15 text-white/70 hover:bg-white/10"
             >
-              {showContextDetails ? 'Hide context' : 'View context'}
+              {showContextDetails ? "Hide context" : "View context"}
             </button>
             <button
               type="button"
@@ -96,20 +105,28 @@ function BuildWorkspaceLeftPanel({
 
         {showContextDetails && (
           <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
-            <p className="text-[10px] uppercase tracking-wide text-white/35">Current flow</p>
-            <p className="text-[12px] text-white/90 font-medium truncate" title={flowName}>
+            <p className="text-[10px] uppercase tracking-wide text-white/35">
+              Current flow
+            </p>
+            <p
+              className="text-[12px] text-white/90 font-medium truncate"
+              title={flowName}
+            >
               {flowName}
             </p>
             <div className="pt-1 border-t border-white/10">
-              <p className="text-[10px] uppercase tracking-wide text-white/35">Use case context</p>
+              <p className="text-[10px] uppercase tracking-wide text-white/35">
+                Use case context
+              </p>
               {!flowContext ? (
                 <p className="mt-1 text-[11px] text-amber-300/85 leading-relaxed">
-                  No context yet. Add purpose and constraints to improve AI build quality.
+                  No context yet. Add purpose and constraints to improve AI
+                  build quality.
                 </p>
               ) : (
                 <>
                   <p className="mt-1 text-[11px] text-white/80 leading-relaxed whitespace-pre-wrap">
-                    {flowContext.description || '(no description)'}
+                    {flowContext.description || "(no description)"}
                   </p>
                   <p className="text-[10px] text-white/45">
                     Documents: {flowContext.documents.length}
@@ -125,243 +142,341 @@ function BuildWorkspaceLeftPanel({
             <p className="text-[10px] uppercase tracking-wide text-white/35">
               Architecture decisions from review
             </p>
-            <p className="text-[10px] text-white/40">{decisions.length} items</p>
+            <p className="text-[10px] text-white/40">
+              {decisions.length} items
+            </p>
           </div>
 
-          {decisions.length === 0 ? (
-            <p className="text-[11px] text-white/50 leading-relaxed">
-              Run Review in the chat panel to populate suggestions you can accept or decline here.
-            </p>
-          ) : (
-            <>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => onDecisionsChange((prev) => prev.map((d) => ({ ...d, status: 'accepted', selected: true })))}
-                  className="text-[10px] px-2 py-1 rounded border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/25"
-                >
-                  Accept all
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDecisionsChange((prev) => prev.map((d) => ({ ...d, status: 'declined', selected: false })))}
-                  className="text-[10px] px-2 py-1 rounded border border-rose-500/40 text-rose-300 hover:bg-rose-900/25"
-                >
-                  Decline all
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    onDecisionsChange((prev) =>
-                      prev.map((d) => ({
-                        ...d,
-                        selected: !allSelected,
-                      })),
-                    )
-                  }
-                  className="text-[10px] px-2 py-1 rounded border border-white/15 text-white/70 hover:bg-white/10"
-                >
-                  {allSelected ? 'Clear all' : 'Select all'}
-                </button>
-              </div>
+          <AnimatePresence mode="wait" initial={false}>
+            {decisions.length === 0 ? (
+              <motion.p
+                key="build-decisions-empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                className="text-[11px] text-white/50 leading-relaxed"
+              >
+                Run Review in the chat panel to populate suggestions you can
+                accept or decline here.
+              </motion.p>
+            ) : (
+              <motion.div
+                key="build-decisions-list"
+                {...reviewDecisionPanelMotion}
+                className="relative overflow-hidden space-y-2"
+              >
+                <ReviewExitShimmerOverlay variant="dark" />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onDecisionsChange((prev) =>
+                        prev.map((d) => ({
+                          ...d,
+                          status: "accepted",
+                          selected: true,
+                        })),
+                      )
+                    }
+                    className="text-[10px] px-2 py-1 rounded border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/25"
+                  >
+                    Accept all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onDecisionsChange((prev) =>
+                        prev.map((d) => ({
+                          ...d,
+                          status: "declined",
+                          selected: false,
+                        })),
+                      )
+                    }
+                    className="text-[10px] px-2 py-1 rounded border border-rose-500/40 text-rose-300 hover:bg-rose-900/25"
+                  >
+                    Decline all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onDecisionsChange((prev) =>
+                        prev.map((d) => ({
+                          ...d,
+                          selected: !allSelected,
+                        })),
+                      )
+                    }
+                    className="text-[10px] px-2 py-1 rounded border border-white/15 text-white/70 hover:bg-white/10"
+                  >
+                    {allSelected ? "Clear all" : "Select all"}
+                  </button>
+                </div>
 
-              <div className="space-y-2">
-                <AnimatePresence initial={false} mode="popLayout">
-                  {decisions.map((d) => (
-                    <motion.div
-                      key={d.id}
-                      {...decisionCardMotion}
-                      className={`rounded-lg border bg-black/20 p-2 space-y-1.5 overflow-hidden transition-[border-color,box-shadow] duration-300 ${
-                        d.status === 'accepted'
-                          ? 'border-emerald-500/45 shadow-[0_0_0_1px_rgba(52,211,153,0.12)]'
-                          : d.status === 'declined'
-                            ? 'border-rose-500/40'
-                            : 'border-white/10'
-                      }`}
-                    >
-                    <label className="flex items-start gap-2">
-                      <input
-                        type="checkbox"
-                        checked={d.selected}
-                        onChange={() => onDecisionsChange((prev) => prev.map((x) => (x.id === d.id ? { ...x, selected: !x.selected } : x)))}
-                        className="mt-0.5 h-3.5 w-3.5 rounded border-white/20 bg-transparent text-sky-500"
-                      />
-                      <span className="text-[11px] leading-relaxed text-white/85">{d.text}</span>
-                    </label>
-                    <div className="flex gap-1">
-                      {(['accepted', 'declined', 'pending'] as const).map((status) => (
-                        <button
-                          key={status}
-                          type="button"
-                          onClick={() => onDecisionsChange((prev) => prev.map((x) => (x.id === d.id ? { ...x, status, selected: status === 'accepted' ? true : x.selected } : x)))}
-                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                            d.status === status
-                              ? status === 'accepted'
-                                ? 'border-emerald-400/60 text-emerald-200 bg-emerald-900/30'
-                                : status === 'declined'
-                                  ? 'border-rose-400/60 text-rose-200 bg-rose-900/30'
-                                  : 'border-white/35 text-white bg-white/10'
-                              : 'border-white/15 text-white/60 hover:bg-white/10'
-                          }`}
-                        >
-                          {status[0].toUpperCase() + status.slice(1)}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      value={d.note}
-                      onChange={(e) => onDecisionsChange((prev) => prev.map((x) => (x.id === d.id ? { ...x, note: e.target.value } : x)))}
-                      placeholder="Rationale (optional)"
-                      rows={2}
-                      className="w-full rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-white placeholder:text-white/35 focus:outline-none focus:ring-1 focus:ring-sky-500/50 resize-y min-h-[44px]"
-                    />
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
+                <div className="space-y-2">
+                  <AnimatePresence initial={false} mode="popLayout">
+                    {decisions.map((d) => (
+                      <motion.div
+                        key={d.id}
+                        {...reviewDecisionCardMotion}
+                        className={`rounded-lg border bg-black/20 p-2 space-y-1.5 overflow-hidden transition-[border-color,box-shadow] duration-300 ${
+                          d.status === "accepted"
+                            ? "border-emerald-500/45 shadow-[0_0_0_1px_rgba(52,211,153,0.12)]"
+                            : d.status === "declined"
+                              ? "border-rose-500/40"
+                              : "border-white/10"
+                        }`}
+                      >
+                        <label className="flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={d.selected}
+                            onChange={() =>
+                              onDecisionsChange((prev) =>
+                                prev.map((x) =>
+                                  x.id === d.id
+                                    ? { ...x, selected: !x.selected }
+                                    : x,
+                                ),
+                              )
+                            }
+                            className="mt-0.5 h-3.5 w-3.5 rounded border-white/20 bg-transparent text-sky-500"
+                          />
+                          <span className="text-[11px] leading-relaxed text-white/85">
+                            {d.text}
+                          </span>
+                        </label>
+                        <div className="flex gap-1">
+                          {(["accepted", "declined", "pending"] as const).map(
+                            (status) => (
+                              <button
+                                key={status}
+                                type="button"
+                                onClick={() =>
+                                  onDecisionsChange((prev) =>
+                                    prev.map((x) =>
+                                      x.id === d.id
+                                        ? {
+                                            ...x,
+                                            status,
+                                            selected:
+                                              status === "accepted"
+                                                ? true
+                                                : x.selected,
+                                          }
+                                        : x,
+                                    ),
+                                  )
+                                }
+                                className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                  d.status === status
+                                    ? status === "accepted"
+                                      ? "border-emerald-400/60 text-emerald-200 bg-emerald-900/30"
+                                      : status === "declined"
+                                        ? "border-rose-400/60 text-rose-200 bg-rose-900/30"
+                                        : "border-white/35 text-white bg-white/10"
+                                    : "border-white/15 text-white/60 hover:bg-white/10"
+                                }`}
+                              >
+                                {status[0].toUpperCase() + status.slice(1)}
+                              </button>
+                            ),
+                          )}
+                        </div>
+                        <textarea
+                          value={d.note}
+                          onChange={(e) =>
+                            onDecisionsChange((prev) =>
+                              prev.map((x) =>
+                                x.id === d.id
+                                  ? { ...x, note: e.target.value }
+                                  : x,
+                              ),
+                            )
+                          }
+                          placeholder="Rationale (optional)"
+                          rows={2}
+                          className="w-full rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-white placeholder:text-white/35 focus:outline-none focus:ring-1 focus:ring-sky-500/50 resize-y min-h-[44px]"
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
 
-              <p className="text-[10px] text-white/45">
-                Accepted: {acceptedCount} / Selected: {selectedCount}
-              </p>
-            </>
-          )}
+                <p className="text-[10px] text-white/45">
+                  Accepted: {acceptedCount} / Selected: {selectedCount}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
-      <div className="shrink-0 p-3 pt-2 border-t border-white/10 bg-gray-950/90">
-        <button
-          type="button"
-          onClick={onImprove}
-          disabled={improveBusy}
-          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border bg-emerald-700/80 hover:bg-emerald-600/90 text-white border-emerald-500/40 disabled:opacity-40"
-        >
-          {improveBusy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-          {improveBusy ? 'Applying changes…' : 'Apply selected changes'}
-        </button>
-      </div>
+      <AnimatePresence initial={false}>
+        {(decisions.length > 0 || improveBusy) && (
+          <motion.div
+            key="build-apply-footer"
+            {...reviewApplyRowMotion}
+            className="relative overflow-hidden shrink-0 p-3 pt-2 border-t border-white/10 bg-gray-950/90"
+          >
+            <ReviewExitShimmerOverlay variant="dark" />
+            <button
+              type="button"
+              onClick={onImprove}
+              disabled={improveBusy}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border bg-emerald-700/80 hover:bg-emerald-600/90 text-white border-emerald-500/40 disabled:opacity-40"
+            >
+              {improveBusy ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Wand2 size={14} />
+              )}
+              {improveBusy ? "Applying changes…" : "Apply selected changes"}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </aside>
-  )
+  );
 }
 
 // Inner component — needs to be inside ReactFlowProvider to use useFlowAnimation
 function AppInner() {
-  const { getViewport, fitView } = useReactFlow()
-  const theme              = useFlowStore((s) => s.theme)
-  const presentationMode   = useFlowStore((s) => s.presentationMode)
-  const togglePresentation = useFlowStore((s) => s.togglePresentationMode)
-  const nodes              = useFlowStore((s) => s.nodes)
-  const edges              = useFlowStore((s) => s.edges)
-  const flowName           = useFlowStore((s) => s.flowName)
-  const gifCapturePaddingPercent = useFlowStore((s) => s.gifCapturePaddingPercent)
-  const selectedNodeId     = useFlowStore((s) => s.selectedNodeId)
-  const removeNode         = useFlowStore((s) => s.removeNode)
-  const undo               = useFlowStore((s) => s.undo)
-  const setNodes           = useFlowStore((s) => s.setNodes)
-  const setEdges           = useFlowStore((s) => s.setEdges)
-  const setFlowName        = useFlowStore((s) => s.setFlowName)
-  const layoutDirection    = useFlowStore((s) => s.layoutDirection)
-  const setLayoutDirection = useFlowStore((s) => s.setLayoutDirection)
-  const flowContext        = useFlowStore((s) => s.flowContext)
-  const setFlowContext     = useFlowStore((s) => s.setFlowContext)
+  const { getViewport, fitView } = useReactFlow();
+  const theme = useFlowStore((s) => s.theme);
+  const presentationMode = useFlowStore((s) => s.presentationMode);
+  const togglePresentation = useFlowStore((s) => s.togglePresentationMode);
+  const nodes = useFlowStore((s) => s.nodes);
+  const edges = useFlowStore((s) => s.edges);
+  const flowName = useFlowStore((s) => s.flowName);
+  const gifCapturePaddingPercent = useFlowStore(
+    (s) => s.gifCapturePaddingPercent,
+  );
+  const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
+  const removeNode = useFlowStore((s) => s.removeNode);
+  const undo = useFlowStore((s) => s.undo);
+  const setNodes = useFlowStore((s) => s.setNodes);
+  const setEdges = useFlowStore((s) => s.setEdges);
+  const setFlowName = useFlowStore((s) => s.setFlowName);
+  const layoutDirection = useFlowStore((s) => s.layoutDirection);
+  const setLayoutDirection = useFlowStore((s) => s.setLayoutDirection);
+  const flowContext = useFlowStore((s) => s.flowContext);
+  const setFlowContext = useFlowStore((s) => s.setFlowContext);
 
-  const animation = useFlowAnimation()
-  const animationStatusRef = useRef(animation.status)
+  const animation = useFlowAnimation();
+  const animationStatusRef = useRef(animation.status);
 
   // ── Panel state ─────────────────────────────────────────────────────────────
 
-  const [templatesOpen, setTemplatesOpen] = useState(false)
-  const [templatesInitialTab, setTemplatesInitialTab] = useState<'templates' | 'import'>('templates')
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templatesInitialTab, setTemplatesInitialTab] = useState<
+    "templates" | "import"
+  >("templates");
 
-  const openTemplatesPanel = useCallback((tab: 'templates' | 'import' = 'templates') => {
-    setTemplatesInitialTab(tab)
-    setTemplatesOpen(true)
-  }, [])
-  const [exportingGIF, setExportingGIF] = useState(false)
+  const openTemplatesPanel = useCallback(
+    (tab: "templates" | "import" = "templates") => {
+      setTemplatesInitialTab(tab);
+      setTemplatesOpen(true);
+    },
+    [],
+  );
+  const [exportingGIF, setExportingGIF] = useState(false);
 
   // Flow context modal
-  const [contextModalOpen, setContextModalOpen] = useState(false)
-  const [contextModalMode, setContextModalMode] = useState<'new' | 'edit'>('new')
-  const [contextDraft, setContextDraft] = useState<FlowContext | null>(null)
+  const [contextModalOpen, setContextModalOpen] = useState(false);
+  const [contextModalMode, setContextModalMode] = useState<"new" | "edit">(
+    "new",
+  );
+  const [contextDraft, setContextDraft] = useState<FlowContext | null>(null);
 
-  type PanelStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'error'
+  type PanelStatus = "idle" | "loading" | "streaming" | "done" | "error";
 
   // AI panel (explain + review + eval + success + risks tabs)
-  const [aiPanelOpen, setAiPanelOpen]         = useState(false)
-  const [aiPanelTab, setAiPanelTab]           = useState<
-    'explain' | 'review' | 'eval' | 'success' | 'risks' | 'build'
-  >('explain')
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiPanelTab, setAiPanelTab] = useState<
+    "explain" | "review" | "eval" | "success" | "risks" | "build"
+  >("explain");
 
-  const [promptPanelOpen, setPromptPanelOpen] = useState(false)
-  const [generatedPrompt, setGeneratedPrompt] = useState('')
-  const [buildWorkspaceMode, setBuildWorkspaceMode] = useState(false)
-  const [buildDecisions, setBuildDecisions] = useState<ReviewDecision[]>([])
-  const [buildChatBusy, setBuildChatBusy] = useState(false)
-  const improveFromLeftRef = useRef<(() => void) | null>(null)
+  const [promptPanelOpen, setPromptPanelOpen] = useState(false);
+  const [generatedPrompt, setGeneratedPrompt] = useState("");
+  const [buildWorkspaceMode, setBuildWorkspaceMode] = useState(false);
+  const [buildDecisions, setBuildDecisions] = useState<ReviewDecision[]>([]);
+  const [buildChatBusy, setBuildChatBusy] = useState(false);
+  const improveFromLeftRef = useRef<(() => void) | null>(null);
 
-  const [explainText, setExplainText]         = useState('')
-  const [explainStatus, setExplainStatus]     = useState<PanelStatus>('idle')
-  const [explainNodeId, setExplainNodeId]     = useState<string | undefined>(undefined)
+  const [explainText, setExplainText] = useState("");
+  const [explainStatus, setExplainStatus] = useState<PanelStatus>("idle");
+  const [explainNodeId, setExplainNodeId] = useState<string | undefined>(
+    undefined,
+  );
 
-  const [reviewText, setReviewText]           = useState('')
-  const [reviewStatus, setReviewStatus]       = useState<PanelStatus>('idle')
+  const [reviewText, setReviewText] = useState("");
+  const [reviewStatus, setReviewStatus] = useState<PanelStatus>("idle");
 
-  const [evalText, setEvalText]               = useState('')
-  const [evalStatus, setEvalStatus]           = useState<PanelStatus>('idle')
+  const [evalText, setEvalText] = useState("");
+  const [evalStatus, setEvalStatus] = useState<PanelStatus>("idle");
 
-  const [successText, setSuccessText]         = useState('')
-  const [successStatus, setSuccessStatus]     = useState<PanelStatus>('idle')
-  const [successNodeId, setSuccessNodeId]     = useState<string | undefined>(undefined)
+  const [successText, setSuccessText] = useState("");
+  const [successStatus, setSuccessStatus] = useState<PanelStatus>("idle");
+  const [successNodeId, setSuccessNodeId] = useState<string | undefined>(
+    undefined,
+  );
 
-  const [risksText, setRisksText]             = useState('')
-  const [risksStatus, setRisksStatus]         = useState<PanelStatus>('idle')
-  const [risksNodeId, setRisksNodeId]         = useState<string | undefined>(undefined)
+  const [risksText, setRisksText] = useState("");
+  const [risksStatus, setRisksStatus] = useState<PanelStatus>("idle");
+  const [risksNodeId, setRisksNodeId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    animationStatusRef.current = animation.status
-  }, [animation.status])
+    animationStatusRef.current = animation.status;
+  }, [animation.status]);
 
-  const handleExplain = useCallback(async (nodeId?: string) => {
-    setAiPanelOpen(true)
-    setAiPanelTab('explain')
-    setExplainText('')
-    setExplainStatus('loading')
-    setExplainNodeId(nodeId)
+  const handleExplain = useCallback(
+    async (nodeId?: string) => {
+      setAiPanelOpen(true);
+      setAiPanelTab("explain");
+      setExplainText("");
+      setExplainStatus("loading");
+      setExplainNodeId(nodeId);
 
-    // When called for a single node, pass only that node (no edges needed)
-    const targetNodes = nodeId
-      ? (nodes as Parameters<typeof streamExplain>[0]).filter((n) => n.id === nodeId)
-      : nodes as Parameters<typeof streamExplain>[0]
-    const targetEdges = nodeId ? [] : edges
-    const targetName = nodeId
-      ? (nodes.find((n) => n.id === nodeId)?.data.label ?? flowName)
-      : flowName
+      // When called for a single node, pass only that node (no edges needed)
+      const targetNodes = nodeId
+        ? (nodes as Parameters<typeof streamExplain>[0]).filter(
+            (n) => n.id === nodeId,
+          )
+        : (nodes as Parameters<typeof streamExplain>[0]);
+      const targetEdges = nodeId ? [] : edges;
+      const targetName = nodeId
+        ? (nodes.find((n) => n.id === nodeId)?.data.label ?? flowName)
+        : flowName;
 
-    try {
-      await streamExplain(
-        targetNodes,
-        targetEdges,
-        targetName,
-        (chunk) => {
-          setExplainText((t) => t + chunk)
-          setExplainStatus('streaming')
-        },
-        () => setExplainStatus('done'),
-        (msg) => {
-          setExplainText(msg)
-          setExplainStatus('error')
-        },
-      )
-    } catch (err) {
-      setExplainText(err instanceof Error ? err.message : 'Unexpected error')
-      setExplainStatus('error')
-    }
-  }, [nodes, edges, flowName])
+      try {
+        await streamExplain(
+          targetNodes,
+          targetEdges,
+          targetName,
+          (chunk) => {
+            setExplainText((t) => t + chunk);
+            setExplainStatus("streaming");
+          },
+          () => setExplainStatus("done"),
+          (msg) => {
+            setExplainText(msg);
+            setExplainStatus("error");
+          },
+        );
+      } catch (err) {
+        setExplainText(err instanceof Error ? err.message : "Unexpected error");
+        setExplainStatus("error");
+      }
+    },
+    [nodes, edges, flowName],
+  );
 
   const handleReview = useCallback(async () => {
-    setAiPanelOpen(true)
-    setAiPanelTab('review')
-    setReviewText('')
-    setReviewStatus('loading')
+    setAiPanelOpen(true);
+    setAiPanelTab("review");
+    setReviewText("");
+    setReviewStatus("loading");
     try {
       await streamDesignReview(
         nodes as Parameters<typeof streamDesignReview>[0],
@@ -369,26 +484,26 @@ function AppInner() {
         flowName,
         flowContext,
         (chunk) => {
-          setReviewText((t) => t + chunk)
-          setReviewStatus('streaming')
+          setReviewText((t) => t + chunk);
+          setReviewStatus("streaming");
         },
-        () => setReviewStatus('done'),
+        () => setReviewStatus("done"),
         (msg) => {
-          setReviewText(msg)
-          setReviewStatus('error')
+          setReviewText(msg);
+          setReviewStatus("error");
         },
-      )
+      );
     } catch (err) {
-      setReviewText(err instanceof Error ? err.message : 'Unexpected error')
-      setReviewStatus('error')
+      setReviewText(err instanceof Error ? err.message : "Unexpected error");
+      setReviewStatus("error");
     }
-  }, [nodes, edges, flowName, flowContext])
+  }, [nodes, edges, flowName, flowContext]);
 
   const handleEval = useCallback(async () => {
-    setAiPanelOpen(true)
-    setAiPanelTab('eval')
-    setEvalText('')
-    setEvalStatus('loading')
+    setAiPanelOpen(true);
+    setAiPanelTab("eval");
+    setEvalText("");
+    setEvalStatus("loading");
     try {
       await streamEvalSuggestions(
         nodes as Parameters<typeof streamEvalSuggestions>[0],
@@ -396,223 +511,283 @@ function AppInner() {
         flowName,
         flowContext,
         (chunk) => {
-          setEvalText((t) => t + chunk)
-          setEvalStatus('streaming')
+          setEvalText((t) => t + chunk);
+          setEvalStatus("streaming");
         },
-        () => setEvalStatus('done'),
+        () => setEvalStatus("done"),
         (msg) => {
-          setEvalText(msg)
-          setEvalStatus('error')
+          setEvalText(msg);
+          setEvalStatus("error");
         },
-      )
+      );
     } catch (err) {
-      setEvalText(err instanceof Error ? err.message : 'Unexpected error')
-      setEvalStatus('error')
+      setEvalText(err instanceof Error ? err.message : "Unexpected error");
+      setEvalStatus("error");
     }
-  }, [nodes, edges, flowName, flowContext])
+  }, [nodes, edges, flowName, flowContext]);
 
-  const handleEvalTargets = useCallback(async (targetNodeIds: string[]) => {
-    const ids = [...new Set(targetNodeIds)].filter(Boolean)
-    if (ids.length === 0) return
-    const scopedNodes = nodes.filter((n) => ids.includes(n.id))
-    if (scopedNodes.length === 0) return
-    const idSet = new Set(scopedNodes.map((n) => n.id))
-    const scopedEdges = edges.filter((e) => idSet.has(e.source) || idSet.has(e.target))
+  const handleEvalTargets = useCallback(
+    async (targetNodeIds: string[]) => {
+      const ids = [...new Set(targetNodeIds)].filter(Boolean);
+      if (ids.length === 0) return;
+      const scopedNodes = nodes.filter((n) => ids.includes(n.id));
+      if (scopedNodes.length === 0) return;
+      const idSet = new Set(scopedNodes.map((n) => n.id));
+      const scopedEdges = edges.filter(
+        (e) => idSet.has(e.source) || idSet.has(e.target),
+      );
 
-    setAiPanelOpen(true)
-    setAiPanelTab('eval')
-    setEvalText('')
-    setEvalStatus('loading')
-    try {
-      await streamEvalSuggestions(
-        scopedNodes as Parameters<typeof streamEvalSuggestions>[0],
-        scopedEdges,
-        ids.length === 1 ? (scopedNodes[0]?.data.label ?? flowName) : `${flowName} (selection)`,
-        flowContext,
-        (chunk) => {
-          setEvalText((t) => t + chunk)
-          setEvalStatus('streaming')
-        },
-        () => setEvalStatus('done'),
-        (msg) => {
-          setEvalText(msg)
-          setEvalStatus('error')
-        },
-      )
-    } catch (err) {
-      setEvalText(err instanceof Error ? err.message : 'Unexpected error')
-      setEvalStatus('error')
-    }
-  }, [nodes, edges, flowName, flowContext])
+      setAiPanelOpen(true);
+      setAiPanelTab("eval");
+      setEvalText("");
+      setEvalStatus("loading");
+      try {
+        await streamEvalSuggestions(
+          scopedNodes as Parameters<typeof streamEvalSuggestions>[0],
+          scopedEdges,
+          ids.length === 1
+            ? (scopedNodes[0]?.data.label ?? flowName)
+            : `${flowName} (selection)`,
+          flowContext,
+          (chunk) => {
+            setEvalText((t) => t + chunk);
+            setEvalStatus("streaming");
+          },
+          () => setEvalStatus("done"),
+          (msg) => {
+            setEvalText(msg);
+            setEvalStatus("error");
+          },
+        );
+      } catch (err) {
+        setEvalText(err instanceof Error ? err.message : "Unexpected error");
+        setEvalStatus("error");
+      }
+    },
+    [nodes, edges, flowName, flowContext],
+  );
 
-  const handleSuccess = useCallback(async (nodeId?: string) => {
-    setAiPanelOpen(true)
-    setAiPanelTab('success')
-    setSuccessText('')
-    setSuccessStatus('loading')
-    setSuccessNodeId(nodeId)
-    try {
-      await streamSuccessCriteria(
-        nodes as Parameters<typeof streamSuccessCriteria>[0],
-        edges,
-        flowName,
-        flowContext,
-        (chunk) => { setSuccessText((t) => t + chunk); setSuccessStatus('streaming') },
-        () => setSuccessStatus('done'),
-        (msg) => { setSuccessText(msg); setSuccessStatus('error') },
-        nodeId,
-      )
-    } catch (err) {
-      setSuccessText(err instanceof Error ? err.message : 'Unexpected error')
-      setSuccessStatus('error')
-    }
-  }, [nodes, edges, flowName, flowContext])
+  const handleSuccess = useCallback(
+    async (nodeId?: string) => {
+      setAiPanelOpen(true);
+      setAiPanelTab("success");
+      setSuccessText("");
+      setSuccessStatus("loading");
+      setSuccessNodeId(nodeId);
+      try {
+        await streamSuccessCriteria(
+          nodes as Parameters<typeof streamSuccessCriteria>[0],
+          edges,
+          flowName,
+          flowContext,
+          (chunk) => {
+            setSuccessText((t) => t + chunk);
+            setSuccessStatus("streaming");
+          },
+          () => setSuccessStatus("done"),
+          (msg) => {
+            setSuccessText(msg);
+            setSuccessStatus("error");
+          },
+          nodeId,
+        );
+      } catch (err) {
+        setSuccessText(err instanceof Error ? err.message : "Unexpected error");
+        setSuccessStatus("error");
+      }
+    },
+    [nodes, edges, flowName, flowContext],
+  );
 
-  const handleRisks = useCallback(async (nodeId?: string) => {
-    setAiPanelOpen(true)
-    setAiPanelTab('risks')
-    setRisksText('')
-    setRisksStatus('loading')
-    setRisksNodeId(nodeId)
-    try {
-      await streamRiskAnalysis(
-        nodes as Parameters<typeof streamRiskAnalysis>[0],
-        edges,
-        flowName,
-        flowContext,
-        (chunk) => { setRisksText((t) => t + chunk); setRisksStatus('streaming') },
-        () => setRisksStatus('done'),
-        (msg) => { setRisksText(msg); setRisksStatus('error') },
-        nodeId,
-      )
-    } catch (err) {
-      setRisksText(err instanceof Error ? err.message : 'Unexpected error')
-      setRisksStatus('error')
-    }
-  }, [nodes, edges, flowName, flowContext])
+  const handleRisks = useCallback(
+    async (nodeId?: string) => {
+      setAiPanelOpen(true);
+      setAiPanelTab("risks");
+      setRisksText("");
+      setRisksStatus("loading");
+      setRisksNodeId(nodeId);
+      try {
+        await streamRiskAnalysis(
+          nodes as Parameters<typeof streamRiskAnalysis>[0],
+          edges,
+          flowName,
+          flowContext,
+          (chunk) => {
+            setRisksText((t) => t + chunk);
+            setRisksStatus("streaming");
+          },
+          () => setRisksStatus("done"),
+          (msg) => {
+            setRisksText(msg);
+            setRisksStatus("error");
+          },
+          nodeId,
+        );
+      } catch (err) {
+        setRisksText(err instanceof Error ? err.message : "Unexpected error");
+        setRisksStatus("error");
+      }
+    },
+    [nodes, edges, flowName, flowContext],
+  );
 
   const handleGeneratePrompt = useCallback(() => {
-    const prompt = generateImplementationPrompt(flowName, nodes as Node<BaseNodeData>[], edges, flowContext)
-    setGeneratedPrompt(prompt)
-    setPromptPanelOpen(true)
-  }, [flowName, nodes, edges, flowContext])
+    const prompt = generateImplementationPrompt(
+      flowName,
+      nodes as Node<BaseNodeData>[],
+      edges,
+      flowContext,
+    );
+    setGeneratedPrompt(prompt);
+    setPromptPanelOpen(true);
+  }, [flowName, nodes, edges, flowContext]);
 
   // Apply dark/light class to <html>
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-  }, [theme])
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
   // Auto-open context modal once on first visit with empty canvas
   useEffect(() => {
-    const seen = localStorage.getItem(CONTEXT_PROMPT_KEY)
-    const hasSavedDoc = !!loadFlow()
+    const seen = localStorage.getItem(CONTEXT_PROMPT_KEY);
+    const hasSavedDoc = !!loadFlow();
     if (!seen && !hasSavedDoc && nodes.length === 0 && !flowContext) {
-      setContextModalMode('new')
-      setContextModalOpen(true)
+      setContextModalMode("new");
+      setContextModalOpen(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // intentionally runs once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount
 
   // Restore the most recent local save on startup (unless shared URL hash is present)
   useEffect(() => {
-    const hash = window.location.hash
-    if (hash.startsWith('#flow=')) return
+    const hash = window.location.hash;
+    if (hash.startsWith("#flow=")) return;
 
-    const doc = loadFlow()
-    if (!doc) return
+    const doc = loadFlow();
+    if (!doc) return;
 
-    setNodes(doc.nodes as Node<BaseNodeData>[])
-    setEdges(doc.edges)
-    if (doc.name) setFlowName(doc.name)
-    if (doc.layoutDirection) setLayoutDirection(doc.layoutDirection)
-    setFlowContext(doc.flowContext ?? null)
+    setNodes(doc.nodes as Node<BaseNodeData>[]);
+    setEdges(doc.edges);
+    if (doc.name) setFlowName(doc.name);
+    if (doc.layoutDirection) setLayoutDirection(doc.layoutDirection);
+    setFlowContext(doc.flowContext ?? null);
     // Fit the diagram to screen after nodes render (needs a tick to measure nodes)
-    window.requestAnimationFrame(() => fitView({ padding: 0.08, duration: 0 }))
-  }, [setNodes, setEdges, setFlowName, setLayoutDirection, setFlowContext, fitView])
+    window.requestAnimationFrame(() => fitView({ padding: 0.08, duration: 0 }));
+  }, [
+    setNodes,
+    setEdges,
+    setFlowName,
+    setLayoutDirection,
+    setFlowContext,
+    fitView,
+  ]);
 
   // Load flow from URL hash on mount (#flow=<base64>)
   useEffect(() => {
-    const hash = window.location.hash
-    if (!hash.startsWith('#flow=')) return
+    const hash = window.location.hash;
+    if (!hash.startsWith("#flow=")) return;
     try {
-      const json = atob(hash.slice('#flow='.length))
-      const doc = JSON.parse(json)
-      if (!Array.isArray(doc.nodes) || !Array.isArray(doc.edges)) return
-      const laid = applyAutoLayout(doc.nodes, doc.edges, layoutDirection)
-      setNodes(laid as Node<BaseNodeData>[])
-      setEdges(doc.edges)
-      if (doc.name) setFlowName(doc.name)
+      const json = atob(hash.slice("#flow=".length));
+      const doc = JSON.parse(json);
+      if (!Array.isArray(doc.nodes) || !Array.isArray(doc.edges)) return;
+      const laid = applyAutoLayout(doc.nodes, doc.edges, layoutDirection);
+      setNodes(laid as Node<BaseNodeData>[]);
+      setEdges(doc.edges);
+      if (doc.name) setFlowName(doc.name);
       // Clean up the hash without triggering a reload
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
     } catch {
       // ignore malformed hash
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // intentionally runs once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
       // P — toggle presentation mode
-      if (e.key === 'p' || e.key === 'P') {
-        e.preventDefault()
-        togglePresentation()
+      if (e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        togglePresentation();
       }
       // Space — play/pause; in presentation mode paused state, advance one step
-      if (e.key === ' ') {
-        e.preventDefault()
-        if (animation.status === 'playing') animation.pause()
-        else if (presentationMode && animation.status === 'paused') animation.step()
-        else animation.play()
+      if (e.key === " ") {
+        e.preventDefault();
+        if (animation.status === "playing") animation.pause();
+        else if (presentationMode && animation.status === "paused")
+          animation.step();
+        else animation.play();
       }
       // Delete / Backspace — remove selected node
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
-        e.preventDefault()
-        removeNode(selectedNodeId)
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedNodeId) {
+        e.preventDefault();
+        removeNode(selectedNodeId);
       }
       // Ctrl+Z / Cmd+Z — undo
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-        undo()
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
       }
       // Ctrl+S / Cmd+S — save to localStorage
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault()
-        saveFlow(nodes as Node<BaseNodeData>[], edges, getViewport(), flowName, flowContext, layoutDirection)
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        saveFlow(
+          nodes as Node<BaseNodeData>[],
+          edges,
+          getViewport(),
+          flowName,
+          flowContext,
+          layoutDirection,
+        );
       }
     },
-    [togglePresentation, animation, selectedNodeId, removeNode, undo, nodes, edges, getViewport, flowName, flowContext, layoutDirection],
-  )
+    [
+      togglePresentation,
+      animation,
+      selectedNodeId,
+      removeNode,
+      undo,
+      nodes,
+      edges,
+      getViewport,
+      flowName,
+      flowContext,
+      layoutDirection,
+    ],
+  );
 
-  const handleContextSave = useCallback((
-    newName: string,
-    newContext: FlowContext,
-    clearCanvas: boolean,
-  ) => {
-    setFlowName(newName)
-    setFlowContext(newContext)
-    setContextDraft(null)
-    if (clearCanvas) {
-      setNodes([])
-      setEdges([])
-    }
-    localStorage.setItem(CONTEXT_PROMPT_KEY, '1')
-    setContextModalOpen(false)
-  }, [setFlowName, setFlowContext, setNodes, setEdges])
+  const handleContextSave = useCallback(
+    (newName: string, newContext: FlowContext, clearCanvas: boolean) => {
+      setFlowName(newName);
+      setFlowContext(newContext);
+      setContextDraft(null);
+      if (clearCanvas) {
+        setNodes([]);
+        setEdges([]);
+      }
+      localStorage.setItem(CONTEXT_PROMPT_KEY, "1");
+      setContextModalOpen(false);
+    },
+    [setFlowName, setFlowContext, setNodes, setEdges],
+  );
 
   const handleContextClose = useCallback(() => {
-    localStorage.setItem(CONTEXT_PROMPT_KEY, '1')
-    setContextDraft(null)
-    setContextModalOpen(false)
-  }, [])
+    localStorage.setItem(CONTEXT_PROMPT_KEY, "1");
+    setContextDraft(null);
+    setContextModalOpen(false);
+  }, []);
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown])
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   // Continuous local backup so edits survive refresh/crash.
   useEffect(() => {
@@ -625,14 +800,14 @@ function AppInner() {
           flowName,
           flowContext,
           layoutDirection,
-        )
+        );
       } catch (err) {
-        console.error('[AgentFlow] Autosave failed:', err)
+        console.error("[AgentFlow] Autosave failed:", err);
       }
-    }, 700)
+    }, 700);
 
-    return () => window.clearTimeout(timeout)
-  }, [nodes, edges, getViewport, flowName, flowContext, layoutDirection])
+    return () => window.clearTimeout(timeout);
+  }, [nodes, edges, getViewport, flowName, flowContext, layoutDirection]);
 
   const animControls = (
     <AnimationControls
@@ -644,7 +819,7 @@ function AppInner() {
       onReset={animation.reset}
       onSpeedChange={animation.setSpeed}
     />
-  )
+  );
 
   const presentationAnimControls = (
     <AnimationControls
@@ -657,109 +832,158 @@ function AppInner() {
       onSpeedChange={animation.setSpeed}
       onStep={animation.step}
     />
-  )
+  );
 
   const handleExportGIF = useCallback(async () => {
-    if (nodes.length === 0 || exportingGIF) return
-    setExportingGIF(true)
+    if (nodes.length === 0 || exportingGIF) return;
+    setExportingGIF(true);
 
     try {
       await exportPlaybackAsGIF({
         nodes: nodes as Node<BaseNodeData>[],
         flowName,
-        isDark: theme === 'dark',
+        isDark: theme === "dark",
         paddingPercent: gifCapturePaddingPercent,
         beforeCapture: async () => {
-          animation.reset()
-          await new Promise((r) => setTimeout(r, 50))
-          animation.play()
+          animation.reset();
+          await new Promise((r) => setTimeout(r, 50));
+          animation.play();
         },
-        isPlaybackDone: () => animationStatusRef.current === 'done',
+        isPlaybackDone: () => animationStatusRef.current === "done",
         afterCapture: () => animation.reset(),
-      })
+      });
     } catch (err) {
-      console.error('[AgentFlow] GIF export failed:', err)
+      console.error("[AgentFlow] GIF export failed:", err);
     } finally {
-      setExportingGIF(false)
+      setExportingGIF(false);
     }
-  }, [nodes, exportingGIF, flowName, theme, animation, gifCapturePaddingPercent])
+  }, [
+    nodes,
+    exportingGIF,
+    flowName,
+    theme,
+    animation,
+    gifCapturePaddingPercent,
+  ]);
 
   const handleExportGIFSelection = useCallback(async () => {
-    if (nodes.length === 0 || exportingGIF) return
-    const allNodes = nodes as Node<BaseNodeData>[]
-    const canvasSelected = allNodes.filter((n) => n.selected)
+    if (nodes.length === 0 || exportingGIF) return;
+    const allNodes = nodes as Node<BaseNodeData>[];
+    const canvasSelected = allNodes.filter((n) => n.selected);
     const focusedNode = selectedNodeId
-      ? allNodes.find((n) => n.id === selectedNodeId) ?? null
-      : null
+      ? (allNodes.find((n) => n.id === selectedNodeId) ?? null)
+      : null;
 
-    let captureNodes = canvasSelected
-    if (focusedNode?.type === 'frame') {
-      captureNodes = [focusedNode]
-    } else if (focusedNode && !captureNodes.some((n) => n.id === focusedNode.id)) {
-      captureNodes = [focusedNode, ...captureNodes]
+    let captureNodes = canvasSelected;
+    if (focusedNode?.type === "frame") {
+      captureNodes = [focusedNode];
+    } else if (
+      focusedNode &&
+      !captureNodes.some((n) => n.id === focusedNode.id)
+    ) {
+      captureNodes = [focusedNode, ...captureNodes];
     }
 
-    if (captureNodes.length === 0) return
-    setExportingGIF(true)
+    if (captureNodes.length === 0) return;
+    setExportingGIF(true);
 
     try {
       await exportPlaybackAsGIF({
         nodes: captureNodes,
         flowName,
-        isDark: theme === 'dark',
+        isDark: theme === "dark",
         paddingPercent: gifCapturePaddingPercent,
         beforeCapture: async () => {
-          animation.reset()
-          await new Promise((r) => setTimeout(r, 50))
-          animation.play()
+          animation.reset();
+          await new Promise((r) => setTimeout(r, 50));
+          animation.play();
         },
-        isPlaybackDone: () => animationStatusRef.current === 'done',
+        isPlaybackDone: () => animationStatusRef.current === "done",
         afterCapture: () => animation.reset(),
-      })
+      });
     } catch (err) {
-      console.error('[AgentFlow] GIF selection export failed:', err)
+      console.error("[AgentFlow] GIF selection export failed:", err);
     } finally {
-      setExportingGIF(false)
+      setExportingGIF(false);
     }
-  }, [nodes, selectedNodeId, exportingGIF, flowName, theme, animation, gifCapturePaddingPercent])
+  }, [
+    nodes,
+    selectedNodeId,
+    exportingGIF,
+    flowName,
+    theme,
+    animation,
+    gifCapturePaddingPercent,
+  ]);
 
   return (
     <div
       className={`
         flex flex-col h-screen w-screen overflow-hidden
-        ${theme === 'dark' ? 'bg-[#0F1117] text-white' : 'bg-[#f4f7ff] text-slate-900'}
+        ${theme === "dark" ? "bg-[#0F1117] text-white" : "bg-[#f4f7ff] text-slate-900"}
       `}
     >
-
       {/* Normal layout */}
       {!presentationMode && (
         <>
           <Toolbar
             animControls={animControls}
             onExplain={handleExplain}
-            explainDisabled={nodes.length === 0 || explainStatus === 'loading' || explainStatus === 'streaming'}
+            explainDisabled={
+              nodes.length === 0 ||
+              explainStatus === "loading" ||
+              explainStatus === "streaming"
+            }
             onOpenTemplates={openTemplatesPanel}
-            onNewFlow={() => { setContextDraft(null); setContextModalMode('new'); setContextModalOpen(true) }}
-            onEditContext={() => { setContextDraft(null); setContextModalMode('edit'); setContextModalOpen(true) }}
+            onNewFlow={() => {
+              setContextDraft(null);
+              setContextModalMode("new");
+              setContextModalOpen(true);
+            }}
+            onEditContext={() => {
+              setContextDraft(null);
+              setContextModalMode("edit");
+              setContextModalOpen(true);
+            }}
             onReview={handleReview}
             onEval={handleEval}
             onSuccess={() => handleSuccess()}
             onRisks={() => handleRisks()}
             hasContext={!!flowContext}
-            reviewDisabled={nodes.length === 0 || reviewStatus === 'loading' || reviewStatus === 'streaming'}
-            evalDisabled={nodes.length === 0 || evalStatus === 'loading' || evalStatus === 'streaming'}
-            successDisabled={nodes.length === 0 || successStatus === 'loading' || successStatus === 'streaming'}
-            risksDisabled={nodes.length === 0 || risksStatus === 'loading' || risksStatus === 'streaming'}
+            reviewDisabled={
+              nodes.length === 0 ||
+              reviewStatus === "loading" ||
+              reviewStatus === "streaming"
+            }
+            evalDisabled={
+              nodes.length === 0 ||
+              evalStatus === "loading" ||
+              evalStatus === "streaming"
+            }
+            successDisabled={
+              nodes.length === 0 ||
+              successStatus === "loading" ||
+              successStatus === "streaming"
+            }
+            risksDisabled={
+              nodes.length === 0 ||
+              risksStatus === "loading" ||
+              risksStatus === "streaming"
+            }
             onExportGIF={handleExportGIF}
             exportGIFDisabled={nodes.length === 0 || exportingGIF}
             exportGIFBusy={exportingGIF}
             onExportGIFSelection={handleExportGIFSelection}
-            exportGIFSelectionDisabled={nodes.length === 0 || exportingGIF || !nodes.some((n) => n.selected)}
+            exportGIFSelectionDisabled={
+              nodes.length === 0 ||
+              exportingGIF ||
+              !nodes.some((n) => n.selected)
+            }
             onGeneratePrompt={handleGeneratePrompt}
             generatePromptDisabled={nodes.length === 0}
             onWorkflowChat={() => {
-              setBuildWorkspaceMode((v) => !v)
-              setAiPanelOpen(false)
+              setBuildWorkspaceMode((v) => !v);
+              setAiPanelOpen(false);
             }}
           />
           <div className="flex flex-1 overflow-hidden">
@@ -769,22 +993,27 @@ function AppInner() {
                   flowName={flowName}
                   flowContext={flowContext}
                   decisions={buildDecisions}
-                  onDecisionsChange={(updater) => setBuildDecisions((prev) => updater(prev))}
+                  onDecisionsChange={(updater) =>
+                    setBuildDecisions((prev) => updater(prev))
+                  }
                   onImprove={() => improveFromLeftRef.current?.()}
                   improveBusy={buildChatBusy}
                   onEditContext={() => {
-                    setContextDraft(null)
-                    setContextModalMode('edit')
-                    setContextModalOpen(true)
+                    setContextDraft(null);
+                    setContextModalMode("edit");
+                    setContextModalOpen(true);
                   }}
                   onExit={() => setBuildWorkspaceMode(false)}
                 />
                 <FlowCanvas
                   activeEdges={animation.activeEdges}
-                  onOpenTemplates={() => openTemplatesPanel('templates')}
+                  onOpenTemplates={() => openTemplatesPanel("templates")}
                   onExplainNode={(id) => handleExplain(id)}
                   onEvalTargets={handleEvalTargets}
-                  onPlayFromNode={(id) => { animation.reset(); animation.playFrom(id) }}
+                  onPlayFromNode={(id) => {
+                    animation.reset();
+                    animation.playFrom(id);
+                  }}
                   onSuccessNode={(id) => handleSuccess(id)}
                   onRisksNode={(id) => handleRisks(id)}
                 />
@@ -796,16 +1025,16 @@ function AppInner() {
                     showDecisions={false}
                     onBusyChange={setBuildChatBusy}
                     onRegisterImproveAction={(action) => {
-                      improveFromLeftRef.current = action
+                      improveFromLeftRef.current = action;
                     }}
                     onUseReviewInContext={(draft) => {
-                      setContextModalMode('edit')
+                      setContextModalMode("edit");
                       setContextDraft({
                         description: draft.description,
                         howItWorks: draft.howItWorks,
                         documents: flowContext?.documents ?? [],
-                      })
-                      setContextModalOpen(true)
+                      });
+                      setContextModalOpen(true);
                     }}
                   />
                 </aside>
@@ -815,10 +1044,13 @@ function AppInner() {
                 <Sidebar />
                 <FlowCanvas
                   activeEdges={animation.activeEdges}
-                  onOpenTemplates={() => openTemplatesPanel('templates')}
+                  onOpenTemplates={() => openTemplatesPanel("templates")}
                   onExplainNode={(id) => handleExplain(id)}
                   onEvalTargets={handleEvalTargets}
-                  onPlayFromNode={(id) => { animation.reset(); animation.playFrom(id) }}
+                  onPlayFromNode={(id) => {
+                    animation.reset();
+                    animation.playFrom(id);
+                  }}
                   onSuccessNode={(id) => handleSuccess(id)}
                   onRisksNode={(id) => handleRisks(id)}
                 />
@@ -830,32 +1062,52 @@ function AppInner() {
                   onTabChange={setAiPanelTab}
                   explainText={explainText}
                   explainStatus={explainStatus}
-                  explainDisabled={nodes.length === 0 || explainStatus === 'loading' || explainStatus === 'streaming'}
+                  explainDisabled={
+                    nodes.length === 0 ||
+                    explainStatus === "loading" ||
+                    explainStatus === "streaming"
+                  }
                   onGenerateExplain={() => handleExplain(explainNodeId)}
                   reviewText={reviewText}
                   reviewStatus={reviewStatus}
-                  reviewDisabled={nodes.length === 0 || reviewStatus === 'loading' || reviewStatus === 'streaming'}
+                  reviewDisabled={
+                    nodes.length === 0 ||
+                    reviewStatus === "loading" ||
+                    reviewStatus === "streaming"
+                  }
                   onGenerateReview={handleReview}
                   evalText={evalText}
                   evalStatus={evalStatus}
-                  evalDisabled={nodes.length === 0 || evalStatus === 'loading' || evalStatus === 'streaming'}
+                  evalDisabled={
+                    nodes.length === 0 ||
+                    evalStatus === "loading" ||
+                    evalStatus === "streaming"
+                  }
                   onGenerateEval={handleEval}
                   successText={successText}
                   successStatus={successStatus}
-                  successDisabled={nodes.length === 0 || successStatus === 'loading' || successStatus === 'streaming'}
+                  successDisabled={
+                    nodes.length === 0 ||
+                    successStatus === "loading" ||
+                    successStatus === "streaming"
+                  }
                   onGenerateSuccess={() => handleSuccess(successNodeId)}
                   risksText={risksText}
                   risksStatus={risksStatus}
-                  risksDisabled={nodes.length === 0 || risksStatus === 'loading' || risksStatus === 'streaming'}
+                  risksDisabled={
+                    nodes.length === 0 ||
+                    risksStatus === "loading" ||
+                    risksStatus === "streaming"
+                  }
                   onGenerateRisks={() => handleRisks(risksNodeId)}
                   onUseReviewInContext={(draft) => {
-                    setContextModalMode('edit')
+                    setContextModalMode("edit");
                     setContextDraft({
                       description: draft.description,
                       howItWorks: draft.howItWorks,
                       documents: flowContext?.documents ?? [],
-                    })
-                    setContextModalOpen(true)
+                    });
+                    setContextModalOpen(true);
                   }}
                 />
               </>
@@ -893,9 +1145,16 @@ function AppInner() {
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
             <div
               className="flex items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-sm border"
-              style={theme === 'dark'
-                ? { background: 'rgba(0,0,0,0.5)', borderColor: 'rgba(255,255,255,0.1)' }
-                : { background: 'rgba(255,255,255,0.92)', borderColor: 'rgba(99,102,241,0.24)' }
+              style={
+                theme === "dark"
+                  ? {
+                      background: "rgba(0,0,0,0.5)",
+                      borderColor: "rgba(255,255,255,0.1)",
+                    }
+                  : {
+                      background: "rgba(255,255,255,0.92)",
+                      borderColor: "rgba(99,102,241,0.24)",
+                    }
               }
             >
               {presentationAnimControls}
@@ -914,13 +1173,16 @@ function AppInner() {
                 flex items-center gap-1.5 px-3 py-1.5 rounded-lg
                 backdrop-blur-sm text-[11px] font-medium
                 border transition-all duration-200
-                ${theme === 'dark'
-                  ? 'text-white/50 border-white/10 hover:text-white/80'
-                  : 'text-slate-600 border-indigo-300/60 hover:text-slate-900'}
+                ${
+                  theme === "dark"
+                    ? "text-white/50 border-white/10 hover:text-white/80"
+                    : "text-slate-600 border-indigo-300/60 hover:text-slate-900"
+                }
               `}
-              style={theme === 'dark'
-                ? { background: 'rgba(0,0,0,0.4)' }
-                : { background: 'rgba(255,255,255,0.92)' }
+              style={
+                theme === "dark"
+                  ? { background: "rgba(0,0,0,0.4)" }
+                  : { background: "rgba(255,255,255,0.92)" }
               }
             >
               <Minimize2 size={12} />
@@ -930,7 +1192,7 @@ function AppInner() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
 export default function App() {
@@ -938,5 +1200,5 @@ export default function App() {
     <ReactFlowProvider>
       <AppInner />
     </ReactFlowProvider>
-  )
+  );
 }

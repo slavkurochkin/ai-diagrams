@@ -50,6 +50,8 @@ function resolveAddNodePosition(
 
 /** Applies server-validated patches to the Zustand flow store. */
 export function applyWorkflowPatchesToFlow(patches: WorkflowPatch[]): void {
+  if (patches.length === 0) return
+  useFlowStore.getState().pushWorkflowApplySnapshot()
   for (const p of patches) {
     const store = useFlowStore.getState()
 

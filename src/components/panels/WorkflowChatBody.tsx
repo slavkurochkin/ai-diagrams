@@ -19,6 +19,7 @@ import {
   Square,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { ReviewExitShimmerOverlay } from "../ReviewExitShimmerOverlay";
 import { useFlowStore } from "../../hooks/useFlowStore";
 import { applyWorkflowPatchesToFlow } from "../../lib/applyWorkflowPatches";
 import {
@@ -27,6 +28,11 @@ import {
   type WorkflowBuildMessage,
 } from "../../lib/api/workflowBuild";
 import { generateDesignReview } from "../../lib/api/designReview";
+import {
+  reviewApplyRowMotion,
+  reviewDecisionCardMotion,
+  reviewDecisionPanelMotion,
+} from "../../lib/reviewDecisionMotion";
 
 interface ChatTurn {
   role: "user" | "assistant";
@@ -53,19 +59,7 @@ const AUTO_REVIEW_IMPROVE_CYCLES_KEY = "agentflow:autoReviewImproveCycles";
 /** Brief pause so the UI can show new suggestions as pending, then all-accepted, before improve runs. */
 const AUTO_ACCEPT_UI_MS = 140;
 /** Pause after auto-improve so exit animations can play before the list clears or the next review loads. */
-const DECISION_CLEAR_AFTER_APPLY_MS = 380;
-
-const decisionItemMotion = {
-  layout: true,
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0 },
-  exit: {
-    opacity: 0,
-    x: -14,
-    transition: { duration: 0.2, ease: "easeIn" as const },
-  },
-  transition: { type: "spring", stiffness: 420, damping: 32 },
-} as const;
+const DECISION_CLEAR_AFTER_APPLY_MS = 520;
 
 function buildImproveInstructionContent(
   selected: ReviewDecision[],
@@ -89,6 +83,15 @@ function buildImproveInstructionContent(
           .join("\n")
       : "")
   );
+}
+
+const REVIEWER_TURN_PREFIX = "Reviewer\n\n";
+
+function rawMarkdownFromReviewerTurn(turn: ChatTurn): string | null {
+  if (turn.role !== "assistant" || turn.kind !== "reviewer") return null;
+  if (!turn.content.startsWith(REVIEWER_TURN_PREFIX))
+    return turn.content.trim() || null;
+  return turn.content.slice(REVIEWER_TURN_PREFIX.length).trim();
 }
 
 const ARCHITECT_REFINE_TEMPLATE = `You are refactoring the CURRENT graph, not rebuilding from scratch.
@@ -399,7 +402,11 @@ export default function WorkflowChatBody({
   }, []);
 
   const runAutoReviewImproveSequences = useCallback(
-    async (startTurns: ChatTurn[], cycles: number) => {
+    async (
+      startTurns: ChatTurn[],
+      cycles: number,
+      useExistingTailReview?: boolean,
+    ) => {
       if (cycles <= 0) return;
       try {
         appendToDesignDoc(
@@ -415,28 +422,56 @@ export default function WorkflowChatBody({
             );
             break;
           }
-          setReviewing(true);
-          let reviewRaw = "";
-          try {
-            reviewRaw = (await fetchReviewMarkdown()).trim();
-          } finally {
-            setReviewing(false);
-          }
-          if (autoRunCancelledRef.current) break;
+          let reviewRaw: string;
+          let reusedChatReviewer = false;
 
-          const reviewTurn: ChatTurn = {
-            role: "assistant",
-            kind: "reviewer",
-            content: `Reviewer\n\n${reviewRaw || "No review output."}`,
-          };
-          chatTurns = [...chatTurns, reviewTurn];
-          setTurns(chatTurns);
+          if (useExistingTailReview && i === 0) {
+            const tail = chatTurns[chatTurns.length - 1];
+            const fromTurn = tail ? rawMarkdownFromReviewerTurn(tail) : null;
+            if (fromTurn != null) {
+              reviewRaw = fromTurn;
+              reusedChatReviewer = true;
+            } else {
+              setReviewing(true);
+              try {
+                reviewRaw = (await fetchReviewMarkdown()).trim();
+              } finally {
+                setReviewing(false);
+              }
+              if (autoRunCancelledRef.current) break;
+              const reviewTurn: ChatTurn = {
+                role: "assistant",
+                kind: "reviewer",
+                content: `${REVIEWER_TURN_PREFIX}${reviewRaw || "No review output."}`,
+              };
+              chatTurns = [...chatTurns, reviewTurn];
+              setTurns(chatTurns);
+            }
+          } else {
+            setReviewing(true);
+            try {
+              reviewRaw = (await fetchReviewMarkdown()).trim();
+            } finally {
+              setReviewing(false);
+            }
+            if (autoRunCancelledRef.current) break;
+
+            const reviewTurn: ChatTurn = {
+              role: "assistant",
+              kind: "reviewer",
+              content: `${REVIEWER_TURN_PREFIX}${reviewRaw || "No review output."}`,
+            };
+            chatTurns = [...chatTurns, reviewTurn];
+            setTurns(chatTurns);
+          }
 
           const suggestions = extractSuggestions(reviewRaw);
           setDecisions(() => suggestions);
           appendToDesignDoc(
             `Auto review (cycle ${i + 1}/${cycles})`,
-            reviewRaw || "(empty)",
+            reusedChatReviewer
+              ? `(using review from chat)\n${reviewRaw || "(empty)"}`
+              : reviewRaw || "(empty)",
           );
 
           if (suggestions.length === 0) {
@@ -570,6 +605,7 @@ export default function WorkflowChatBody({
         await runAutoReviewImproveSequences(
           turnsAfterSend,
           autoReviewImproveCycles,
+          false,
         );
       } catch (autoErr) {
         const msg =
@@ -592,31 +628,63 @@ export default function WorkflowChatBody({
     runAutoReviewImproveSequences,
   ]);
 
-  const runDesignReview = useCallback(async () => {
+  const runDesignReview = useCallback(async (): Promise<ChatTurn[]> => {
     const review = (await fetchReviewMarkdown()).trim();
     const reviewTurn: ChatTurn = {
       role: "assistant",
       kind: "reviewer",
-      content: `Reviewer\n\n${review || "No review output."}`,
+      content: `${REVIEWER_TURN_PREFIX}${review || "No review output."}`,
     };
-    setTurns((prev) => [...prev, reviewTurn]);
+    let nextTurns: ChatTurn[] = [];
+    setTurns((prev) => {
+      nextTurns = [...prev, reviewTurn];
+      return nextTurns;
+    });
     setDecisions(() => extractSuggestions(review));
     appendToDesignDoc("Reviewer output", review);
+    return nextTurns;
   }, [fetchReviewMarkdown, extractSuggestions, appendToDesignDoc]);
 
   const handleReviewOnly = useCallback(async () => {
     if (loading || reviewing || improving || autoRunning) return;
     setRequestError(null);
     setReviewing(true);
+    let nextTurns: ChatTurn[] | null = null;
     try {
-      await runDesignReview();
+      nextTurns = await runDesignReview();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Review failed";
       setRequestError(msg);
     } finally {
       setReviewing(false);
     }
-  }, [loading, reviewing, improving, autoRunning, runDesignReview]);
+
+    if (!nextTurns || autoReviewImproveCycles <= 0) return;
+
+    autoRunCancelledRef.current = false;
+    setAutoRunning(true);
+    try {
+      await runAutoReviewImproveSequences(
+        nextTurns,
+        autoReviewImproveCycles,
+        true,
+      );
+    } catch (autoErr) {
+      const msg =
+        autoErr instanceof Error ? autoErr.message : "Auto design failed";
+      setRequestError(msg);
+    } finally {
+      setAutoRunning(false);
+    }
+  }, [
+    loading,
+    reviewing,
+    improving,
+    autoRunning,
+    runDesignReview,
+    autoReviewImproveCycles,
+    runAutoReviewImproveSequences,
+  ]);
 
   const handleRetryLastReview = useCallback(async () => {
     if (loading || reviewing || improving || autoRunning || turns.length === 0)
@@ -656,7 +724,21 @@ export default function WorkflowChatBody({
     const last = turns[turns.length - 1];
     if (last.role !== "assistant" || last.kind === "reviewer") return;
 
+    const hadAppliedPatches =
+      typeof last.appliedPatches === "number" && last.appliedPatches > 0;
+
     setRequestError(null);
+    if (hadAppliedPatches) {
+      useFlowStore.getState().restoreLastWorkflowApply();
+      window.requestAnimationFrame(() => {
+        fitView({ padding: 0.2, duration: 280 });
+      });
+      appendToDesignDoc(
+        "Retry (builder)",
+        "Reverted the previous builder's graph changes on the canvas.",
+      );
+    }
+
     const baseTurns = turns.slice(0, -1);
     const nudge: ChatTurn = { role: "user", content: RETRY_BUILDER_NUDGE };
     const nextTurns = [...baseTurns, nudge];
@@ -794,6 +876,10 @@ export default function WorkflowChatBody({
         "Improve pass",
         `Accepted suggestions:\n${selected.map((s, i) => `${i + 1}. ${s.text}${s.note ? ` — ${s.note}` : ""}`).join("\n")}`,
       );
+      await new Promise((r) =>
+        window.setTimeout(r, DECISION_CLEAR_AFTER_APPLY_MS),
+      );
+      setDecisions(() => []);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Improve selected failed";
       setRequestError(msg);
@@ -810,6 +896,7 @@ export default function WorkflowChatBody({
     turns,
     callBuilderOnce,
     appendToDesignDoc,
+    setDecisions,
   ]);
 
   useEffect(() => {
@@ -931,12 +1018,12 @@ export default function WorkflowChatBody({
         <div
           className={`flex flex-wrap items-center gap-2 text-[10px] ${subText}`}
         >
-          <span className="shrink-0">After Send, run</span>
+          <span className="shrink-0">Then run</span>
           <select
             value={autoReviewImproveCycles}
             onChange={(e) => setAutoReviewImproveCycles(Number(e.target.value))}
             disabled={panelBusy}
-            title="Each cycle: design review → auto-accept parsed bullets → apply improvements to the graph"
+            title="After a successful Send or after Review: runs N cycles of design review → auto-accept parsed bullets → improve the graph. First cycle after Review reuses the review you just ran."
             className={`rounded border px-1.5 py-0.5 text-[10px] min-w-[9rem] ${
               isDark
                 ? "bg-white/5 border-white/15 text-white/85"
@@ -1010,205 +1097,214 @@ export default function WorkflowChatBody({
         </div>
       </div>
 
-      {showDecisions && decisions.length > 0 && (
-        <div className={`px-3 py-2 border-b shrink-0 ${border}`}>
-          {(() => {
-            const acceptedCount = decisions.filter(
-              (s) => s.status === "accepted",
-            ).length;
-            const declinedCount = decisions.filter(
-              (s) => s.status === "declined",
-            ).length;
-            const pendingCount = decisions.filter(
-              (s) => s.status === "pending",
-            ).length;
-            return (
-              <>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className={`text-[11px] ${subText}`}>
-                    Architecture decisions from review
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={acceptAllDecisions}
-                      className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                        isDark
-                          ? "border-emerald-500/45 text-emerald-300 hover:bg-emerald-900/25"
-                          : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                      }`}
-                    >
-                      Accept all
-                    </button>
-                    <button
-                      type="button"
-                      onClick={declineAllDecisions}
-                      className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                        isDark
-                          ? "border-amber-500/45 text-amber-300 hover:bg-amber-900/25"
-                          : "border-amber-300 text-amber-700 hover:bg-amber-50"
-                      }`}
-                    >
-                      Decline all
-                    </button>
-                  </div>
-                </div>
-                <div className={`text-[10px] mb-2 ${subText}`}>
-                  Accepted: {acceptedCount} · Declined: {declinedCount} ·
-                  Pending: {pendingCount}
-                </div>
+      {showDecisions && (
+        <AnimatePresence initial={false}>
+          {decisions.length > 0 && (
+            <motion.div
+              key="workflow-review-decisions-panel"
+              {...reviewDecisionPanelMotion}
+              className={`relative overflow-hidden px-3 py-2 border-b shrink-0 ${border}`}
+            >
+              <ReviewExitShimmerOverlay variant={isDark ? "dark" : "light"} />
+              {(() => {
+                const acceptedCount = decisions.filter(
+                  (s) => s.status === "accepted",
+                ).length;
+                const declinedCount = decisions.filter(
+                  (s) => s.status === "declined",
+                ).length;
+                const pendingCount = decisions.filter(
+                  (s) => s.status === "pending",
+                ).length;
+                return (
+                  <>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className={`text-[11px] ${subText}`}>
+                        Architecture decisions from review
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={acceptAllDecisions}
+                          className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                            isDark
+                              ? "border-emerald-500/45 text-emerald-300 hover:bg-emerald-900/25"
+                              : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                          }`}
+                        >
+                          Accept all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={declineAllDecisions}
+                          className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                            isDark
+                              ? "border-amber-500/45 text-amber-300 hover:bg-amber-900/25"
+                              : "border-amber-300 text-amber-700 hover:bg-amber-50"
+                          }`}
+                        >
+                          Decline all
+                        </button>
+                      </div>
+                    </div>
+                    <div className={`text-[10px] mb-2 ${subText}`}>
+                      Accepted: {acceptedCount} · Declined: {declinedCount} ·
+                      Pending: {pendingCount}
+                    </div>
 
-                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 sidebar-scroll">
-                  {(["accepted", "declined", "pending"] as const).map(
-                    (section) => {
-                      const items = decisions.filter(
-                        (d) => d.status === section,
-                      );
-                      if (items.length === 0) return null;
-                      const title =
-                        section === "accepted"
-                          ? "Accepted during review"
-                          : section === "declined"
-                            ? "Declined during review"
-                            : "Pending review decisions";
-                      const titleColor =
-                        section === "accepted"
-                          ? isDark
-                            ? "text-emerald-300/90"
-                            : "text-emerald-700"
-                          : section === "declined"
-                            ? isDark
-                              ? "text-amber-300/90"
-                              : "text-amber-700"
-                            : subText;
-                      return (
-                        <div key={section} className="space-y-1.5">
-                          <div
-                            className={`text-[10px] uppercase tracking-wide ${titleColor}`}
-                          >
-                            {title} ({items.length})
-                          </div>
-                          <AnimatePresence initial={false} mode="popLayout">
-                            {items.map((s) => (
-                              <motion.div
-                                key={s.id}
-                                {...decisionItemMotion}
-                                className={`rounded-md border p-2 space-y-1 overflow-hidden transition-[border-color,box-shadow] duration-300 ${
-                                  isDark
-                                    ? s.status === "accepted"
-                                      ? "border-emerald-500/45 bg-white/[0.04] shadow-[0_0_0_1px_rgba(52,211,153,0.12)]"
-                                      : s.status === "declined"
-                                        ? "border-amber-500/40 bg-white/[0.03]"
-                                        : "border-white/10 bg-white/[0.03]"
-                                    : s.status === "accepted"
-                                      ? "border-emerald-400 bg-emerald-50/80 shadow-sm"
-                                      : s.status === "declined"
-                                        ? "border-amber-300 bg-amber-50/50"
-                                        : "border-slate-200 bg-white"
-                                }`}
+                    <div className="max-h-48 overflow-y-auto space-y-2 pr-1 sidebar-scroll">
+                      {(["accepted", "declined", "pending"] as const).map(
+                        (section) => {
+                          const items = decisions.filter(
+                            (d) => d.status === section,
+                          );
+                          if (items.length === 0) return null;
+                          const title =
+                            section === "accepted"
+                              ? "Accepted during review"
+                              : section === "declined"
+                                ? "Declined during review"
+                                : "Pending review decisions";
+                          const titleColor =
+                            section === "accepted"
+                              ? isDark
+                                ? "text-emerald-300/90"
+                                : "text-emerald-700"
+                              : section === "declined"
+                                ? isDark
+                                  ? "text-amber-300/90"
+                                  : "text-amber-700"
+                                : subText;
+                          return (
+                            <div key={section} className="space-y-1.5">
+                              <div
+                                className={`text-[10px] uppercase tracking-wide ${titleColor}`}
                               >
-                                <div
-                                  className={`text-[11px] leading-snug ${isDark ? "text-white/75" : "text-slate-700"}`}
-                                >
-                                  {s.text}
-                                </div>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setDecisionStatus(s.id, "accepted")
-                                    }
-                                    className={`text-[10px] px-2 py-1 rounded border ${
-                                      s.status === "accepted"
-                                        ? isDark
-                                          ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-300"
-                                          : "bg-emerald-100 border-emerald-300 text-emerald-800"
-                                        : isDark
-                                          ? "border-white/15 text-white/65 hover:bg-white/10"
-                                          : "border-slate-300 text-slate-700 hover:bg-slate-100"
+                                {title} ({items.length})
+                              </div>
+                              <AnimatePresence initial={false} mode="popLayout">
+                                {items.map((s) => (
+                                  <motion.div
+                                    key={s.id}
+                                    {...reviewDecisionCardMotion}
+                                    className={`rounded-md border p-2 space-y-1 overflow-hidden transition-[border-color,box-shadow] duration-300 ${
+                                      isDark
+                                        ? s.status === "accepted"
+                                          ? "border-emerald-500/45 bg-white/[0.04] shadow-[0_0_0_1px_rgba(52,211,153,0.12)]"
+                                          : s.status === "declined"
+                                            ? "border-amber-500/40 bg-white/[0.03]"
+                                            : "border-white/10 bg-white/[0.03]"
+                                        : s.status === "accepted"
+                                          ? "border-emerald-400 bg-emerald-50/80 shadow-sm"
+                                          : s.status === "declined"
+                                            ? "border-amber-300 bg-amber-50/50"
+                                            : "border-slate-200 bg-white"
                                     }`}
                                   >
-                                    Accept
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setDecisionStatus(s.id, "declined")
-                                    }
-                                    className={`text-[10px] px-2 py-1 rounded border ${
-                                      s.status === "declined"
-                                        ? isDark
-                                          ? "bg-amber-900/35 border-amber-500/50 text-amber-300"
-                                          : "bg-amber-100 border-amber-300 text-amber-800"
-                                        : isDark
-                                          ? "border-white/15 text-white/65 hover:bg-white/10"
-                                          : "border-slate-300 text-slate-700 hover:bg-slate-100"
-                                    }`}
-                                  >
-                                    Decline
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setDecisionStatus(s.id, "pending")
-                                    }
-                                    className={`text-[10px] px-2 py-1 rounded border ${
-                                      s.status === "pending"
-                                        ? isDark
-                                          ? "bg-slate-800 border-slate-500/50 text-white/85"
-                                          : "bg-slate-100 border-slate-300 text-slate-800"
-                                        : isDark
-                                          ? "border-white/15 text-white/65 hover:bg-white/10"
-                                          : "border-slate-300 text-slate-700 hover:bg-slate-100"
-                                    }`}
-                                  >
-                                    Pending
-                                  </button>
-                                  {s.status === "accepted" && (
-                                    <label
-                                      className={`ml-auto flex items-center gap-1 text-[10px] ${subText}`}
+                                    <div
+                                      className={`text-[11px] leading-snug ${isDark ? "text-white/75" : "text-slate-700"}`}
                                     >
-                                      <input
-                                        type="checkbox"
-                                        checked={s.selected}
-                                        onChange={() =>
-                                          toggleDecisionSelected(s.id)
+                                      {s.text}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setDecisionStatus(s.id, "accepted")
                                         }
-                                        className="accent-violet-500"
-                                      />
-                                      Include in improve
-                                    </label>
-                                  )}
-                                </div>
-                                <textarea
-                                  value={s.note}
-                                  onChange={(e) =>
-                                    updateDecisionNote(s.id, e.target.value)
-                                  }
-                                  rows={2}
-                                  placeholder={
-                                    s.status === "declined"
-                                      ? "Why declined? (optional but recommended)"
-                                      : "Decision rationale / constraints (optional)"
-                                  }
-                                  className={`w-full rounded-md px-2 py-1 text-[10px] resize-y min-h-[40px] max-h-24 border ${
-                                    isDark
-                                      ? "bg-white/5 border-white/10 text-white/80 placeholder:text-white/35"
-                                      : "bg-white border-slate-300 text-slate-700 placeholder:text-slate-400"
-                                  }`}
-                                />
-                              </motion.div>
-                            ))}
-                          </AnimatePresence>
-                        </div>
-                      );
-                    },
-                  )}
-                </div>
-              </>
-            );
-          })()}
-        </div>
+                                        className={`text-[10px] px-2 py-1 rounded border ${
+                                          s.status === "accepted"
+                                            ? isDark
+                                              ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-300"
+                                              : "bg-emerald-100 border-emerald-300 text-emerald-800"
+                                            : isDark
+                                              ? "border-white/15 text-white/65 hover:bg-white/10"
+                                              : "border-slate-300 text-slate-700 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        Accept
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setDecisionStatus(s.id, "declined")
+                                        }
+                                        className={`text-[10px] px-2 py-1 rounded border ${
+                                          s.status === "declined"
+                                            ? isDark
+                                              ? "bg-amber-900/35 border-amber-500/50 text-amber-300"
+                                              : "bg-amber-100 border-amber-300 text-amber-800"
+                                            : isDark
+                                              ? "border-white/15 text-white/65 hover:bg-white/10"
+                                              : "border-slate-300 text-slate-700 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        Decline
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setDecisionStatus(s.id, "pending")
+                                        }
+                                        className={`text-[10px] px-2 py-1 rounded border ${
+                                          s.status === "pending"
+                                            ? isDark
+                                              ? "bg-slate-800 border-slate-500/50 text-white/85"
+                                              : "bg-slate-100 border-slate-300 text-slate-800"
+                                            : isDark
+                                              ? "border-white/15 text-white/65 hover:bg-white/10"
+                                              : "border-slate-300 text-slate-700 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        Pending
+                                      </button>
+                                      {s.status === "accepted" && (
+                                        <label
+                                          className={`ml-auto flex items-center gap-1 text-[10px] ${subText}`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={s.selected}
+                                            onChange={() =>
+                                              toggleDecisionSelected(s.id)
+                                            }
+                                            className="accent-violet-500"
+                                          />
+                                          Include in improve
+                                        </label>
+                                      )}
+                                    </div>
+                                    <textarea
+                                      value={s.note}
+                                      onChange={(e) =>
+                                        updateDecisionNote(s.id, e.target.value)
+                                      }
+                                      rows={2}
+                                      placeholder={
+                                        s.status === "declined"
+                                          ? "Why declined? (optional but recommended)"
+                                          : "Decision rationale / constraints (optional)"
+                                      }
+                                      className={`w-full rounded-md px-2 py-1 text-[10px] resize-y min-h-[40px] max-h-24 border ${
+                                        isDark
+                                          ? "bg-white/5 border-white/10 text-white/80 placeholder:text-white/35"
+                                          : "bg-white border-slate-300 text-slate-700 placeholder:text-slate-400"
+                                      }`}
+                                    />
+                                  </motion.div>
+                                ))}
+                              </AnimatePresence>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </motion.div>
+          )}
+        </AnimatePresence>
       )}
 
       <div
@@ -1395,7 +1491,11 @@ export default function WorkflowChatBody({
           Send
         </button>
         <div
-          className={`grid gap-2 ${showDecisions ? "grid-cols-2" : "grid-cols-1"}`}
+          className={`grid gap-2 ${
+            showDecisions && (decisions.length > 0 || improving)
+              ? "grid-cols-2"
+              : "grid-cols-1"
+          }`}
         >
           <button
             type="button"
@@ -1415,23 +1515,36 @@ export default function WorkflowChatBody({
             {reviewing ? "Reviewing…" : "Review"}
           </button>
           {showDecisions && (
-            <button
-              type="button"
-              onClick={() => void handleImproveSelected()}
-              disabled={panelBusy}
-              className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border ${
-                isDark
-                  ? "bg-emerald-700/80 hover:bg-emerald-600/90 text-white border-emerald-500/40 disabled:opacity-40"
-                  : "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-700/30 disabled:opacity-40"
-              }`}
-            >
-              {improving ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Wand2 size={14} />
+            <AnimatePresence initial={false}>
+              {(decisions.length > 0 || improving) && (
+                <motion.div
+                  key="workflow-improve-button"
+                  {...reviewApplyRowMotion}
+                  className="relative overflow-hidden min-w-0"
+                >
+                  <ReviewExitShimmerOverlay
+                    variant={isDark ? "dark" : "light"}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleImproveSelected()}
+                    disabled={panelBusy}
+                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border ${
+                      isDark
+                        ? "bg-emerald-700/80 hover:bg-emerald-600/90 text-white border-emerald-500/40 disabled:opacity-40"
+                        : "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-700/30 disabled:opacity-40"
+                    }`}
+                  >
+                    {improving ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={14} />
+                    )}
+                    {improving ? "Applying…" : "Improve"}
+                  </button>
+                </motion.div>
               )}
-              {improving ? "Applying…" : "Improve"}
-            </button>
+            </AnimatePresence>
           )}
         </div>
       </div>

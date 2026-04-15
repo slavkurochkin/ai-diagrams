@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import OpenAI from 'openai'
+import { createLLMClient, getApiKeyError, type Provider } from '../lib/llmProvider.js'
 
 export const successRisksRouter = Router()
 
@@ -133,7 +133,7 @@ function neighborhoodToText(nh: NodeNeighborhood): string {
 
 async function streamResponse(
   res: import('express').Response,
-  apiKey: string,
+  provider: Provider | undefined,
   systemPrompt: string,
   userMessage: string,
   maxTokens = 1800,
@@ -144,9 +144,9 @@ async function streamResponse(
   res.flushHeaders()
 
   try {
-    const client = new OpenAI({ apiKey })
+    const { client, model } = createLLMClient(provider)
     const stream = await client.chat.completions.create({
-      model: 'gpt-4o',
+      model,
       max_tokens: maxTokens,
       stream: true,
       messages: [
@@ -170,12 +170,12 @@ async function streamResponse(
 // ── POST /api/success-criteria ────────────────────────────────────────────────
 
 successRisksRouter.post('/success-criteria', async (req, res) => {
-  const { flowName, flowContext, nodes, edges, neighborhood } = req.body as AnalysisRequest
+  const { flowName, flowContext, nodes, edges, neighborhood, provider } = req.body as AnalysisRequest & { provider?: Provider }
 
   if (!nodes) return res.status(400).json({ error: 'nodes required' })
 
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return res.status(500).json({ error: 'OPENAI_API_KEY not set' })
+  const keyError = getApiKeyError(provider)
+  if (keyError) return res.status(500).json({ error: keyError })
 
   const isNodeScoped = !!neighborhood
   const ctxText = flowContext ? contextToText(flowContext) : null
@@ -238,18 +238,18 @@ Be direct. No filler. Ground everything in the actual pipeline nodes and their c
     ].filter(Boolean).join('\n')
   }
 
-  await streamResponse(res, apiKey, systemPrompt, userMessage)
+  await streamResponse(res, provider, systemPrompt, userMessage)
 })
 
 // ── POST /api/risk-analysis ───────────────────────────────────────────────────
 
 successRisksRouter.post('/risk-analysis', async (req, res) => {
-  const { flowName, flowContext, nodes, edges, neighborhood } = req.body as AnalysisRequest
+  const { flowName, flowContext, nodes, edges, neighborhood, provider } = req.body as AnalysisRequest & { provider?: Provider }
 
   if (!nodes) return res.status(400).json({ error: 'nodes required' })
 
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return res.status(500).json({ error: 'OPENAI_API_KEY not set' })
+  const keyError = getApiKeyError(provider)
+  if (keyError) return res.status(500).json({ error: keyError })
 
   const isNodeScoped = !!neighborhood
   const ctxText = flowContext ? contextToText(flowContext) : null
@@ -318,5 +318,5 @@ Be direct. Ground everything in the actual nodes and connections present in the 
     ].filter(Boolean).join('\n')
   }
 
-  await streamResponse(res, apiKey, systemPrompt, userMessage)
+  await streamResponse(res, provider, systemPrompt, userMessage)
 })

@@ -159,8 +159,83 @@ Rules:
 - Use only node \`type\` values that appear in the catalog.
 - **addEdge** \`source\` / \`target\`: prefer the exact \`id:\` strings from **Current flow**. You may also use a node's \`label\` or \`nodeType\` when it uniquely identifies one node on the canvas — never invent names that are not in **Current flow** unless you \`addNode\` them in the same patch batch. Patches are applied with all \`addNode\` steps before \`addEdge\`, so new nodes exist before edges run.
 - **Ports:** use catalog port \`id\` strings (e.g. **guardrails** outputs are \`passed\` and \`blocked\`, not \`output\`; **outputParser** output is \`structured\`). If unsure, **omit** \`sourceHandle\` and \`targetHandle\` on \`addEdge\` so the server picks sensible defaults.
+- **Connectivity — no dangling outputs:** Every intermediate node must have its primary output(s) wired to a downstream node. Specifically: (a) a **guardrails** node used as an input guard must connect its \`passed\` output to the next step (e.g. LLM input); as an output guard, to Response Composer or Output Formatter. The \`blocked\` port is a terminal sink and may be left unconnected. (b) A **router** node (Tool Router, intent router, etc.) must connect at least its primary route outputs (\`routeA\`, \`routeB\`, or \`default\`) to downstream nodes — never leave all router outputs floating. (c) For any other flow node, ensure its output connects to a downstream node. After laying out all \`addNode\` patches, review the planned edges and confirm every non-terminal node has at least one outgoing connection.
+- **Always include an entry point node.** Every diagram must have exactly one entry node with no incoming edges. Choose based on what initiates the workflow:
+  - *User-driven* (chat, assistant, Q&A): use \`prompt\` with \`role: user\`, labeled "User Input" or similar.
+  - *Automation / event-driven* (CI monitor, scheduled job, webhook, alert): use \`prompt\` with \`role: system\`, labeled after the trigger (e.g. "CI Failure Event", "Webhook Trigger", "Scheduled Run"). No user is involved.
+  - *Data-driven* (batch processing, ingestion pipeline): use \`dataLoader\` as the entry point.
+  Never omit the entry node — a diagram with no clear starting point is incomplete.
+- **Never use \`router\` as a tool dispatcher.** Nodes labeled "Tool Decision", "Tool Router", "Tool Selector", or similar that decide whether to call a tool are a common mistake — do not create them. Tool dispatch is built into the \`agent\` node: the agent decides internally which tools to call and emits \`toolRequests\`. If you feel the urge to add a router between the agent and a tool, remove it — wire the tool directly to the agent instead. Use \`router\` only when the destination is a different downstream *agent* or *branch*, not a tool.
+- **Orchestrators must use the \`agent\` node type**, not \`router\`.
+- **Two distinct patterns for nodes that feed the LLM — do not mix them:**
+  - *Context providers* (node types: \`memory\`, \`retriever\`, \`reranker\`): connect their output into a \`promptTemplate\` input or directly into the \`llm\` input. They are NOT tool loop nodes.
+  - *Tool nodes* (node types: \`webSearch\`, \`toolCall\`): must loop back to the \`agent\` node. The pattern is: \`agent\` \`toolRequests\` output → tool node input → tool node output → \`agent\` \`tools\` input. Never leave a tool node output unconnected.
+- **Prompt Builder has one outgoing path to the LLM:** If a guardrails node sits between Prompt Builder and LLM, connect Prompt Builder → guardrails \`input\`, guardrails \`passed\` → LLM. Do not also add a direct Prompt Builder → LLM edge — that creates two parallel paths to the model.
+- **Memory node config:** the \`memoryType\` field accepts only \`conversation\`, \`summary\`, or \`entity\`. Never use "short-term" or "long-term" — those are not valid values. To model short-term vs long-term memory, use two separate \`memory\` nodes with \`memoryType: conversation\` and \`memoryType: summary\` respectively, with distinct labels.
+- **Terminal output node:** there is no "Output to User" node type. For the final user-facing output use a \`prompt\` node (role: assistant) or an \`outputParser\` node. Do not invent node types that are not in the catalog.
 - Prefer small, incremental patches. Explain your reasoning in normal assistant text, then call the tool when the user wants concrete graph changes.
 - If Agent use-case context is present, treat it as authoritative constraints; keep proposals aligned with it.
+
+## Wiring principles (apply to any architecture)
+
+These are not templates — they are wiring rules that hold regardless of domain. Use your own knowledge to pick the right nodes for the user's use case; use these principles to wire them correctly.
+
+**Principle 1 — Tool nodes: loop vs. linear (choose one)**
+
+Two valid patterns — pick based on whether the agent decides dynamically which tools to call:
+
+*Pattern A — Dynamic tool loop* (conversational agent, reasoning loop): the agent decides at runtime which tools to invoke. Tools must loop back.
+\`\`\`
+agent.toolRequests → webSearch.query
+webSearch.results  → agent.tools      ← closes the loop
+\`\`\`
+
+*Pattern B — Deterministic pipeline* (automation, fixed workflow): tools always run in the same order. Tools flow linearly — no loop needed.
+\`\`\`
+trigger → toolCall("Fetch Data") → promptTemplate → llm → toolCall("Post Result")
+\`\`\`
+
+❌ Never add a router between agent and tool in either pattern:
+\`\`\`
+agent → router("Tool Decision") → webSearch   ← always wrong
+\`\`\`
+
+In Pattern A, both dispatch and return edges are required. In Pattern B, tool outputs connect to the next pipeline step, not back to the agent.
+
+**Principle 2 — Context injection (memory / retrieval → prompt)**
+Context providers enrich the prompt; they do not loop back to the agent.
+\`\`\`
+memory.history     → promptTemplate.variables
+retriever.documents → promptTemplate.variables
+reranker.ranked    → promptTemplate.variables
+\`\`\`
+All context flows into the prompt builder, which then feeds the LLM.
+
+**Principle 3 — Single path through guardrails**
+Guardrails sit on exactly one path. Never add a parallel direct edge that bypasses them.
+\`\`\`
+promptTemplate.prompt → guardrails.input
+guardrails.passed     → llm.prompt
+guardrails.blocked    → (terminal, leave unconnected)
+\`\`\`
+
+**Principle 4 — Multi-agent handoff**
+Agents hand off via a router; results from parallel agents merge via an aggregator.
+\`\`\`
+agent("Planner").actions → router.input
+router.routeA → agent("Worker A").prompt
+router.routeB → agent("Worker B").prompt
+agent("Worker A").response → aggregator.inputA
+agent("Worker B").response → aggregator.inputB
+aggregator.merged → nextStep
+\`\`\`
+
+**Principle 5 — Linear chain (no agent)**
+For pipelines with no agentic loop, flow is strictly left-to-right with no cycles.
+\`\`\`
+input → promptTemplate → llm → outputParser → finalOutput
+\`\`\`
+Retrieval and memory still inject into promptTemplate, not directly into llm.
 
 If the user is only clarifying requirements or asking questions, reply without the tool.`
 }
@@ -239,6 +314,7 @@ workflowBuildRouter.post('/workflow-build', async (req, res) => {
         messages: conversation,
         tools: [WORKFLOW_PATCH_TOOL],
         tool_choice: 'auto',
+        temperature: 0.2,
       })
 
       const choice = completion.choices[0]

@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import OpenAI from 'openai'
+import { createLLMClient, getApiKeyError, type Provider } from '../lib/llmProvider.js'
 import { formatEvalNodeCatalogMarkdown } from '../../lib/nodeCatalogForAI.js'
 
 export const evalSuggestionsRouter = Router()
@@ -122,16 +122,14 @@ function contextToText(ctx: FlowContext): string {
 // ── POST /api/eval-suggestions ────────────────────────────────────────────────
 
 evalSuggestionsRouter.post('/eval-suggestions', async (req, res) => {
-  const { nodes, edges, flowName, flowContext } = req.body as EvalRequest
+  const { nodes, edges, flowName, flowContext, provider } = req.body as EvalRequest & { provider?: Provider }
 
   if (!nodes || !edges) {
     return res.status(400).json({ error: 'nodes and edges are required' })
   }
 
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return res.status(500).json({ error: 'OPENAI_API_KEY not set on server' })
-  }
+  const keyError = getApiKeyError(provider)
+  if (keyError) return res.status(500).json({ error: keyError })
 
   const graphText = graphToText(nodes, edges, flowName ?? 'Untitled')
   const ctxText = flowContext ? contextToText(flowContext) : null
@@ -186,10 +184,10 @@ Be direct. No filler. Ground everything in the actual pipeline and context.`
   res.flushHeaders()
 
   try {
-    const client = new OpenAI({ apiKey })
+    const { client, model } = createLLMClient(provider)
 
     const stream = await client.chat.completions.create({
-      model: 'gpt-4o',
+      model,
       max_tokens: 2800,
       stream: true,
       messages: [

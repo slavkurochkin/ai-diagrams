@@ -22,6 +22,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ReviewExitShimmerOverlay } from "../ReviewExitShimmerOverlay";
 import { useFlowStore } from "../../hooks/useFlowStore";
 import { applyWorkflowPatchesToFlow } from "../../lib/applyWorkflowPatches";
+import { applyAutoLayout } from "../../lib/autoLayout";
+import type { Node as FlowNode } from "reactflow";
+import type { BaseNodeData } from "../../types/nodes";
 import {
   serializeFlowForWorkflowApi,
   workflowBuildChat,
@@ -183,6 +186,7 @@ export default function WorkflowChatBody({
   const theme = useFlowStore((s) => s.theme);
   const flowName = useFlowStore((s) => s.flowName);
   const flowContext = useFlowStore((s) => s.flowContext);
+  const setFlowContext = useFlowStore((s) => s.setFlowContext);
   const { fitView } = useReactFlow();
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
@@ -196,6 +200,7 @@ export default function WorkflowChatBody({
   const [requestError, setRequestError] = useState<string | null>(null);
   const [localDecisions, setLocalDecisions] = useState<ReviewDecision[]>([]);
   const [designDoc, setDesignDoc] = useState("");
+  const [showContextProposal, setShowContextProposal] = useState(false);
   const [docModalOpen, setDocModalOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -371,7 +376,15 @@ export default function WorkflowChatBody({
 
       const applied = res.validatedPatches?.length ?? 0;
       if (applied > 0) {
+        const wasEmpty = useFlowStore.getState().nodes.length === 0;
         applyWorkflowPatchesToFlow(res.validatedPatches);
+        if (wasEmpty) {
+          const { nodes: laidNodes, edges: laidEdges, setNodes } = useFlowStore.getState();
+          if (laidEdges.length > 0) {
+            const laid = applyAutoLayout(laidNodes, laidEdges, 'LR');
+            setNodes(laid as FlowNode<BaseNodeData>[]);
+          }
+        }
         window.requestAnimationFrame(() => {
           fitView({ padding: 0.2, duration: 280 });
         });
@@ -542,6 +555,10 @@ export default function WorkflowChatBody({
     const text = draft.trim();
     if (!text || loading || reviewing || improving || autoRunning) return;
 
+    if (turns.length === 0) {
+      setShowContextProposal(true);
+    }
+
     setDraft("");
     setRequestError(null);
     appendToDesignDoc("User request", text);
@@ -572,7 +589,15 @@ export default function WorkflowChatBody({
       const assistantText = res.content?.trim() || "(No text reply.)";
       const applied = res.validatedPatches?.length ?? 0;
       if (applied > 0) {
+        const wasEmpty = useFlowStore.getState().nodes.length === 0;
         applyWorkflowPatchesToFlow(res.validatedPatches);
+        if (wasEmpty) {
+          const { nodes: laidNodes, edges: laidEdges, setNodes } = useFlowStore.getState();
+          if (laidEdges.length > 0) {
+            const laid = applyAutoLayout(laidNodes, laidEdges, 'LR');
+            setNodes(laid as FlowNode<BaseNodeData>[]);
+          }
+        }
         window.requestAnimationFrame(() => {
           fitView({ padding: 0.2, duration: 280 });
         });
@@ -767,7 +792,15 @@ export default function WorkflowChatBody({
       const assistantText = res.content?.trim() || "(No text reply.)";
       const applied = res.validatedPatches?.length ?? 0;
       if (applied > 0) {
+        const wasEmpty = useFlowStore.getState().nodes.length === 0;
         applyWorkflowPatchesToFlow(res.validatedPatches);
+        if (wasEmpty) {
+          const { nodes: laidNodes, edges: laidEdges, setNodes } = useFlowStore.getState();
+          if (laidEdges.length > 0) {
+            const laid = applyAutoLayout(laidNodes, laidEdges, 'LR');
+            setNodes(laid as FlowNode<BaseNodeData>[]);
+          }
+        }
         window.requestAnimationFrame(() => {
           fitView({ padding: 0.2, duration: 280 });
         });
@@ -1330,8 +1363,8 @@ export default function WorkflowChatBody({
           </div>
         )}
         {turns.map((t, i) => (
+          <div key={i}>
           <div
-            key={i}
             className={`flex ${t.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
@@ -1434,6 +1467,45 @@ export default function WorkflowChatBody({
                   </div>
                 )}
             </div>
+          </div>
+          {i === 0 && t.role === "user" && showContextProposal && (
+            <div className="flex justify-end mt-1">
+              <div className={`max-w-[92%] rounded-xl px-3 py-2 text-[11px] border ${
+                isDark
+                  ? "bg-white/5 border-white/15 text-white/80"
+                  : "bg-slate-50 border-slate-200 text-slate-700"
+              }`}>
+                <p className="mb-2">Save this as flow context for better reviews?</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFlowContext({ description: t.content, howItWorks: "", documents: [] });
+                      setShowContextProposal(false);
+                    }}
+                    className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                      isDark
+                        ? "border-violet-500/45 text-violet-300 hover:bg-violet-900/25"
+                        : "border-violet-300 text-violet-700 hover:bg-violet-50"
+                    }`}
+                  >
+                    Save as context
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowContextProposal(false)}
+                    className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                      isDark
+                        ? "border-white/15 text-white/50 hover:bg-white/8"
+                        : "border-slate-300 text-slate-500 hover:bg-slate-100"
+                    }`}
+                  >
+                    Not now
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           </div>
         ))}
         {improving &&

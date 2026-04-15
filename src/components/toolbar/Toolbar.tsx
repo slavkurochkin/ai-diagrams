@@ -8,6 +8,7 @@ import {
   CheckCircle2, ShieldAlert, Lock, Unlock,
 } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
+import { ProviderBadge } from './ProviderBadge'
 import { saveFlow, loadFlow, exportFlowAsFile } from '../../lib/flowSerializer'
 import { applyAutoLayout } from '../../lib/autoLayout'
 import { downloadAsPNG, copyAsPNG } from '../../lib/exportUtils'
@@ -845,6 +846,7 @@ export default function Toolbar({
         >
           {animControls}
         </div>
+        <ProviderBadge isDark={isDark} />
         <IconButton
           onClick={handleThemeToggle}
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}

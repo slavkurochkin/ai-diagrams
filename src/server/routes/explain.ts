@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import OpenAI from 'openai'
+import { createLLMClient, getApiKeyError, type Provider } from '../lib/llmProvider.js'
 
 export const explainRouter = Router()
 
@@ -67,16 +67,14 @@ function graphToText(nodes: SerializedNode[], edges: SerializedEdge[], flowName:
 // ── POST /api/explain ──────────────────────────────────────────────────────────
 
 explainRouter.post('/explain', async (req, res) => {
-  const { nodes, edges, flowName } = req.body as ExplainRequest
+  const { nodes, edges, flowName, provider } = req.body as ExplainRequest & { provider?: Provider }
 
   if (!nodes || !edges) {
     return res.status(400).json({ error: 'nodes and edges are required' })
   }
 
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return res.status(500).json({ error: 'OPENAI_API_KEY not set on server' })
-  }
+  const keyError = getApiKeyError(provider)
+  if (keyError) return res.status(500).json({ error: keyError })
 
   const graphText = graphToText(nodes, edges, flowName ?? 'Untitled')
 
@@ -107,10 +105,10 @@ Be direct. Use plain language. Avoid filler phrases. Do not repeat the node list
   res.flushHeaders()
 
   try {
-    const client = new OpenAI({ apiKey })
+    const { client, model } = createLLMClient(provider)
 
     const stream = await client.chat.completions.create({
-      model: 'gpt-4o',
+      model,
       max_tokens: 1500,
       stream: true,
       messages: [

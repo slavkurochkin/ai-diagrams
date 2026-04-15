@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import OpenAI from 'openai'
+import { createLLMClient, getApiKeyError, type Provider } from '../lib/llmProvider.js'
 import { formatFullNodeCatalogMarkdown } from '../../lib/nodeCatalogForAI.js'
 
 export const designReviewRouter = Router()
@@ -98,16 +98,14 @@ function contextToText(ctx: FlowContext): string {
 // ── POST /api/design-review ───────────────────────────────────────────────────
 
 designReviewRouter.post('/design-review', async (req, res) => {
-  const { nodes, edges, flowName, flowContext } = req.body as ReviewRequest
+  const { nodes, edges, flowName, flowContext, provider } = req.body as ReviewRequest & { provider?: Provider }
 
   if (!nodes || !edges) {
     return res.status(400).json({ error: 'nodes and edges are required' })
   }
 
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return res.status(500).json({ error: 'OPENAI_API_KEY not set on server' })
-  }
+  const keyError = getApiKeyError(provider)
+  if (keyError) return res.status(500).json({ error: keyError })
 
   const graphText = graphToText(nodes, edges, flowName ?? 'Untitled')
   const ctxText = flowContext ? contextToText(flowContext) : null
@@ -122,6 +120,26 @@ You will receive a flow diagram of an AI/LLM pipeline, and optionally an agent c
 Here is the full catalog of available node types the user can add to their diagram:
 
 ${formatFullNodeCatalogMarkdown()}
+
+## Correct wiring conventions (do not flag these as issues)
+
+The following patterns are intentional and correct — do not suggest changing them:
+
+- **Tool loop:** An \`agent\` node dispatching to a tool (webSearch, toolCall) and receiving results back via the agent's \`tools\` input is correct. This is the intended agentic loop: \`agent.toolRequests → tool → agent.tools\`.
+- **Linear tool pipeline:** In deterministic pipelines (no agentic loop), tool nodes (toolCall, webSearch) may flow linearly to the next step rather than looping back to an agent. Both patterns are valid depending on whether the agent decides dynamically or the steps are fixed.
+- **Guardrails placement:** A guardrails node between promptTemplate and llm (promptTemplate → guardrails → llm) is correct. The \`blocked\` port being unconnected is intentional — it is a terminal sink.
+- **Entry points:** \`prompt(role:user)\` for user-driven flows, \`prompt(role:system)\` for automation/event-driven flows, \`dataLoader\` for batch/data-driven flows — all are correct entry node choices.
+- **Memory types:** \`memoryType: conversation\` for short-term and \`memoryType: summary\` for long-term memory are correct. Two separate memory nodes with different types is the right pattern.
+- **Agent node for orchestrators:** Using an \`agent\` node (not \`router\`) for orchestrators is correct. \`router\` is only for conditional branching between fixed downstream paths.
+
+## Rules for suggesting missing components
+
+Before suggesting a node type as missing, apply these filters:
+
+- **Do not suggest \`retriever\`, \`vectorDB\`, \`embedding\`, \`chunker\`, or \`reranker\`** unless the flow context or diagram explicitly describes a need to search through a separate knowledge corpus (e.g. "search our docs", "find similar cases", "RAG over internal KB"). If the agent receives its inputs directly from a \`dataLoader\`, user message, or tool call — retrieval is not needed and must not be suggested.
+- **Do not suggest \`memory\`** unless the flow involves ongoing conversation, session state across turns, or explicit mention of remembering past interactions. Batch pipelines and single-pass automations do not need memory.
+- **Do not suggest \`toolCall\` or \`webSearch\`** unless the agent explicitly needs to call an external API or search the live web as part of its task. Agents that score, evaluate, classify, or generate text from inputs already in the graph do not need tool nodes.
+- **Only suggest nodes that are genuinely absent and materially improve the design** for the stated purpose. If the design is complete for its goal, say so — do not pad with speculative additions.
 
 Your job is to identify design gaps, risks, and improvements. Structure your response in exactly these four sections:
 
@@ -162,11 +180,12 @@ Be direct. No filler. Do not repeat the node list verbatim. Do not suggest thing
   res.flushHeaders()
 
   try {
-    const client = new OpenAI({ apiKey })
+    const { client, model } = createLLMClient(provider)
 
     const stream = await client.chat.completions.create({
-      model: 'gpt-4o',
-      max_tokens: 2000,
+      model,
+      max_tokens: 3000,
+      temperature: 0.2,
       stream: true,
       messages: [
         { role: 'system', content: systemPrompt },

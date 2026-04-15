@@ -412,6 +412,7 @@ function portIds(
 const OUTPUT_HANDLE_PREFS = [
   'store',
   'documents',
+  'toolRequests',
   'response',
   'text',
   'passed',
@@ -484,6 +485,28 @@ const HANDLE_ALIASES_BY_NODE_TYPE: Record<string, { inputs?: Record<string, stri
       message: 'prompt',
       user: 'prompt',
       text: 'prompt',
+      passed: 'prompt',  // AI sometimes copies the guardrails source handle name to the target
+      content: 'prompt',
+    },
+  },
+  agent: {
+    // Tool results coming back into the agent should target the `tools` (Observations) input
+    inputs: {
+      result: 'tools',
+      results: 'tools',
+      output: 'tools',
+      observation: 'tools',
+      observations: 'tools',
+      toolResult: 'tools',
+      toolResults: 'tools',
+      toolOutput: 'tools',
+    },
+    // Dispatching to tools should use `toolRequests`, not `response`
+    outputs: {
+      tool: 'toolRequests',
+      toolRequest: 'toolRequests',
+      dispatch: 'toolRequests',
+      request: 'toolRequests',
     },
   },
 }
@@ -495,7 +518,7 @@ const HANDLE_ALIASES_BY_NODE_TYPE: Record<string, { inputs?: Record<string, stri
 const NO_GUESS_OUTPUT_HANDLE_FOR_TYPE = new Set(['router', 'classifier'])
 
 /** Multi-input nodes where guessing would often attach to the wrong port. */
-const NO_GUESS_INPUT_HANDLE_FOR_TYPE = new Set(['retriever', 'llm', 'agent'])
+const NO_GUESS_INPUT_HANDLE_FOR_TYPE = new Set(['retriever', 'llm'])
 
 function guessLlmOutputHandle(nodeType: string, outIds: string[]): string | null {
   if (NO_GUESS_OUTPUT_HANDLE_FOR_TYPE.has(nodeType)) return null

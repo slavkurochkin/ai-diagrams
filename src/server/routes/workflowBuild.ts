@@ -1,6 +1,10 @@
 import { Router } from 'express'
-import OpenAI from 'openai'
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions'
+import {
+  createLLMClient,
+  getApiKeyError,
+  type Provider,
+} from '../lib/llmProvider.js'
 import {
   formatFullNodeCatalogMarkdown,
   getNodeCatalogForAI,
@@ -26,6 +30,7 @@ interface WorkflowBuildRequest {
   edges?: SerializedEdge[]
   flowName?: string
   flowContext?: FlowContext | null
+  provider?: Provider
 }
 
 function contextToText(ctx: FlowContext): string {
@@ -268,13 +273,53 @@ function maxPatchRepairRounds(): number {
   return Math.max(0, Math.min(3, Math.floor(n)))
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isRateLimitError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const maybe = err as { status?: unknown; message?: unknown; code?: unknown }
+  if (maybe.status === 429) return true
+  if (typeof maybe.code === 'string' && maybe.code.toLowerCase().includes('rate')) {
+    return true
+  }
+  if (
+    typeof maybe.message === 'string' &&
+    /\b429\b|rate limit|too many requests/i.test(maybe.message)
+  ) {
+    return true
+  }
+  return false
+}
+
+function maxCompletionRetries(provider?: Provider): number {
+  const fromEnv = Number(process.env.WORKFLOW_COMPLETION_RETRIES ?? '')
+  if (Number.isFinite(fromEnv) && fromEnv >= 0) {
+    return Math.min(3, Math.floor(fromEnv))
+  }
+  return provider === 'gemini' ? 2 : 1
+}
+
+function rateLimitErrorMessage(provider?: Provider): string {
+  const p = provider ?? 'openai'
+  return `${p} is temporarily rate-limited (HTTP 429). Please retry in a few seconds, reduce parallel lanes, or switch provider/model.`
+}
+
 workflowBuildRouter.get('/node-catalog', (_req, res) => {
   res.json(getNodeCatalogForAI())
 })
 
 workflowBuildRouter.post('/workflow-build', async (req, res) => {
   const body = req.body as WorkflowBuildRequest
-  const { messages, nodes = [], edges = [], flowName, flowContext = null } = body
+  const {
+    messages,
+    nodes = [],
+    edges = [],
+    flowName,
+    flowContext = null,
+    provider,
+  } = body
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages array is required' })
@@ -289,9 +334,9 @@ workflowBuildRouter.post('/workflow-build', async (req, res) => {
     }
   }
 
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return res.status(500).json({ error: 'OPENAI_API_KEY not set on server' })
+  const keyError = getApiKeyError(provider)
+  if (keyError) {
+    return res.status(500).json({ error: keyError })
   }
 
   const systemPrompt = buildSystemPrompt(flowName ?? 'Untitled', nodes, edges, flowContext)
@@ -301,7 +346,7 @@ workflowBuildRouter.post('/workflow-build', async (req, res) => {
   ]
 
   try {
-    const client = new OpenAI({ apiKey })
+    const { client, model } = createLLMClient(provider)
     const maxRepair = maxPatchRepairRounds()
 
     let conversation: ChatCompletionMessageParam[] = openaiMessages
@@ -311,15 +356,37 @@ workflowBuildRouter.post('/workflow-build', async (req, res) => {
     let lastFinishReason: string | null = null
     const patchAccumulator: WorkflowPatch[] = []
     const validationErrors: string[] = []
+    const completionRetries = maxCompletionRetries(provider)
 
     for (let attempt = 0; attempt <= maxRepair; attempt++) {
-      const completion = await client.chat.completions.create({
-        model: 'gpt-4o',
-        messages: conversation,
-        tools: [WORKFLOW_PATCH_TOOL],
-        tool_choice: 'auto',
-        temperature: 0.2,
-      })
+      let completion
+      let completionErr: unknown = null
+      for (let completionTry = 0; completionTry <= completionRetries; completionTry++) {
+        try {
+          completion = await client.chat.completions.create({
+            model,
+            messages: conversation,
+            tools: [WORKFLOW_PATCH_TOOL],
+            tool_choice: 'auto',
+            temperature: 0.2,
+          })
+          completionErr = null
+          break
+        } catch (err) {
+          completionErr = err
+          if (!isRateLimitError(err) || completionTry >= completionRetries) {
+            break
+          }
+          const backoffMs = 1200 * (completionTry + 1)
+          await sleep(backoffMs)
+        }
+      }
+      if (!completion) {
+        if (isRateLimitError(completionErr)) {
+          return res.status(429).json({ error: rateLimitErrorMessage(provider) })
+        }
+        throw completionErr
+      }
 
       const choice = completion.choices[0]
       const msg = choice?.message

@@ -29,6 +29,8 @@ export interface WorkflowBuildMessage {
   content: string
 }
 
+export type WorkflowProvider = 'openai' | 'claude' | 'gemini'
+
 export interface WorkflowBuildResponse {
   role: 'assistant'
   content: string | null
@@ -50,6 +52,7 @@ export async function workflowBuildChat(
     edges: SerializedEdge[]
     flowName?: string
     flowContext?: FlowContext | null
+    provider?: WorkflowProvider
   },
 ): Promise<WorkflowBuildResponse> {
   const response = await fetch('/api/workflow-build', {
@@ -61,6 +64,7 @@ export async function workflowBuildChat(
       edges: graph?.edges ?? [],
       flowName: graph?.flowName,
       flowContext: graph?.flowContext ?? null,
+      provider: graph?.provider,
     }),
   })
   if (!response.ok) {

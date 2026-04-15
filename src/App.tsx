@@ -37,6 +37,7 @@ import {
 import type { Node } from "reactflow";
 import type { BaseNodeData } from "./types/nodes";
 import type { FlowContext } from "./types/flow";
+import ParallelBuildPage from "./pages/ParallelBuildPage";
 
 const CONTEXT_PROMPT_KEY = "agentflow:contextPromptSeen";
 
@@ -1196,6 +1197,10 @@ function AppInner() {
 }
 
 export default function App() {
+  if (window.location.pathname === "/parallel-build-lab") {
+    return <ParallelBuildPage />;
+  }
+
   return (
     <ReactFlowProvider>
       <AppInner />

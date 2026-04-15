@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useReactFlow } from 'reactflow'
-import { Loader2, Send, Wand2, AlertTriangle, X, CheckSquare, FileText, Info } from 'lucide-react'
+import { Loader2, Send, Wand2, AlertTriangle, X, CheckSquare, FileText, Info, RotateCw } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { applyWorkflowPatchesToFlow } from '../../lib/applyWorkflowPatches'
@@ -346,33 +346,118 @@ export default function WorkflowChatBody({
     return builderTurn
   }, [fitView])
 
+  const runDesignReview = useCallback(async () => {
+    const latest = useFlowStore.getState()
+    const review = await generateDesignReview(
+      latest.nodes,
+      latest.edges,
+      latest.flowName,
+      latest.flowContext,
+    )
+    const reviewTurn: ChatTurn = {
+      role: 'assistant',
+      kind: 'reviewer',
+      content: `Reviewer\n\n${review || 'No review output.'}`,
+    }
+    setTurns((prev) => [...prev, reviewTurn])
+    setDecisions(() => extractSuggestions(review))
+    appendToDesignDoc('Reviewer output', review)
+  }, [extractSuggestions, appendToDesignDoc])
+
   const handleReviewOnly = useCallback(async () => {
     if (loading || reviewing || improving) return
     setRequestError(null)
     setReviewing(true)
     try {
-      const latest = useFlowStore.getState()
-      const review = await generateDesignReview(
-        latest.nodes,
-        latest.edges,
-        latest.flowName,
-        latest.flowContext,
-      )
-      const reviewTurn: ChatTurn = {
-        role: 'assistant',
-        kind: 'reviewer',
-        content: `Reviewer\n\n${review || 'No review output.'}`,
-      }
-      setTurns((prev) => [...prev, reviewTurn])
-      setDecisions(() => extractSuggestions(review))
-      appendToDesignDoc('Reviewer output', review)
+      await runDesignReview()
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Review failed'
       setRequestError(msg)
     } finally {
       setReviewing(false)
     }
-  }, [loading, reviewing, improving, extractSuggestions, appendToDesignDoc])
+  }, [loading, reviewing, improving, runDesignReview])
+
+  const handleRetryLastReview = useCallback(async () => {
+    if (loading || reviewing || improving || turns.length === 0) return
+    const last = turns[turns.length - 1]
+    if (last.role !== 'assistant' || last.kind !== 'reviewer') return
+    setRequestError(null)
+    setReviewing(true)
+    try {
+      const trimmed = turns.slice(0, -1)
+      setTurns(trimmed)
+      setDecisions([])
+      appendToDesignDoc('Review retry', 'User requested a new review pass.')
+      await runDesignReview()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Review failed'
+      setRequestError(msg)
+    } finally {
+      setReviewing(false)
+    }
+  }, [loading, reviewing, improving, turns, runDesignReview, appendToDesignDoc])
+
+  const RETRY_BUILDER_NUDGE =
+    'Please try again with a different approach. The previous reply did not match what I wanted.'
+
+  const handleRetryLastBuilder = useCallback(async () => {
+    if (loading || reviewing || improving || turns.length === 0) return
+    const last = turns[turns.length - 1]
+    if (last.role !== 'assistant' || last.kind === 'reviewer') return
+
+    setRequestError(null)
+    const baseTurns = turns.slice(0, -1)
+    const nudge: ChatTurn = { role: 'user', content: RETRY_BUILDER_NUDGE }
+    const nextTurns = [...baseTurns, nudge]
+    setTurns(nextTurns)
+    setLoading(true)
+    appendToDesignDoc('Retry (builder)', RETRY_BUILDER_NUDGE)
+
+    const apiMessages: WorkflowBuildMessage[] = nextTurns.map((t) => ({
+      role: t.role,
+      content: t.content,
+    }))
+
+    try {
+      const latest = useFlowStore.getState()
+      const { nodes: sn, edges: se } = serializeFlowForWorkflowApi(latest.nodes, latest.edges)
+      const res = await workflowBuildChat(apiMessages, {
+        nodes: sn,
+        edges: se,
+        flowName: latest.flowName,
+        flowContext: latest.flowContext ?? null,
+      })
+
+      const assistantText = res.content?.trim() || '(No text reply.)'
+      const applied = res.validatedPatches?.length ?? 0
+      if (applied > 0) {
+        applyWorkflowPatchesToFlow(res.validatedPatches)
+        window.requestAnimationFrame(() => {
+          fitView({ padding: 0.2, duration: 280 })
+        })
+      }
+
+      setTurns((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: assistantText,
+          validationErrors:
+            res.validationErrors?.length ? res.validationErrors : undefined,
+          appliedPatches: applied > 0 ? applied : undefined,
+          kind: 'builder',
+        },
+      ])
+      appendToDesignDoc('Builder response (retry)', assistantText)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Request failed'
+      setRequestError(msg)
+      setTurns((prev) => prev.slice(0, -1))
+    } finally {
+      setLoading(false)
+    }
+  }, [loading, reviewing, improving, turns, fitView, appendToDesignDoc])
 
   const setDecisionStatus = useCallback((id: string, status: DecisionStatus) => {
     setDecisions((prev) =>
@@ -816,6 +901,44 @@ export default function WorkflowChatBody({
                   </ul>
                 </div>
               )}
+              {i === turns.length - 1
+                && !loading
+                && !reviewing
+                && !improving
+                && t.role === 'assistant' && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {t.kind !== 'reviewer' && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRetryLastBuilder()}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded border transition-colors ${
+                          isDark
+                            ? 'border-white/20 text-white/75 hover:bg-white/10'
+                            : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                        }`}
+                        title="Ask the builder for a different approach (previous reply is removed from context)"
+                      >
+                        <RotateCw size={11} />
+                        Try again
+                      </button>
+                    )}
+                    {t.kind === 'reviewer' && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRetryLastReview()}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded border transition-colors ${
+                          isDark
+                            ? 'border-sky-500/40 text-sky-300 hover:bg-sky-900/25'
+                            : 'border-sky-300 text-sky-700 hover:bg-sky-50'
+                        }`}
+                        title="Run review again and refresh suggestions"
+                      >
+                        <RotateCw size={11} />
+                        New review
+                      </button>
+                    )}
+                  </div>
+                )}
             </div>
           </div>
         ))}

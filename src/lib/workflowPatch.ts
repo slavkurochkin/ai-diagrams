@@ -231,6 +231,12 @@ const CONFIG_KEY_ALIASES_BY_NODE_TYPE: Record<string, Record<string, string>> = 
     chunkMethod: 'strategy',
     splitMethod: 'strategy',
   },
+  // Text→vector Embedding node (not vector DB): models often copy a "provider" field from LLMs.
+  embedding: {
+    provider: DROPPED_CONFIG_KEY,
+    vendor: DROPPED_CONFIG_KEY,
+    embeddingProvider: DROPPED_CONFIG_KEY,
+  },
   llm: {
     provider: 'model',
   },

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useReactFlow } from 'reactflow'
-import { Loader2, Send, Wand2, AlertTriangle, X, CheckSquare, FileText, Info, RotateCw } from 'lucide-react'
+import { Loader2, Send, Wand2, AlertTriangle, X, CheckSquare, FileText, Info, RotateCw, Square } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { applyWorkflowPatchesToFlow } from '../../lib/applyWorkflowPatches'
@@ -31,6 +31,32 @@ export interface ReviewDecision {
 
 const DECISION_SECTION_START = '<!-- review-decisions:start -->'
 const DECISION_SECTION_END = '<!-- review-decisions:end -->'
+
+const AUTO_REVIEW_IMPROVE_CYCLES_KEY = 'agentflow:autoReviewImproveCycles'
+/** Brief pause so the UI can show new suggestions as pending, then all-accepted, before improve runs. */
+const AUTO_ACCEPT_UI_MS = 140
+
+function buildImproveInstructionContent(
+  selected: ReviewDecision[],
+  declined: ReviewDecision[],
+): string {
+  return (
+    'Apply ONLY these approved review suggestions as targeted graph edits.\n' +
+    selected
+      .map((s, i) =>
+        `${i + 1}. ${s.text}${s.note.trim() ? `\n   rationale: ${s.note.trim()}` : ''}`,
+      )
+      .join('\n') +
+    (declined.length
+      ? '\n\nDo NOT apply these declined suggestions unless user explicitly changes decision:\n' +
+        declined
+          .map((s, i) =>
+            `${i + 1}. ${s.text}${s.note.trim() ? `\n   reason declined: ${s.note.trim()}` : ''}`,
+          )
+          .join('\n')
+      : '')
+  )
+}
 
 const ARCHITECT_REFINE_TEMPLATE = `You are refactoring the CURRENT graph, not rebuilding from scratch.
 
@@ -116,8 +142,6 @@ export default function WorkflowChatBody({
   onRegisterImproveAction,
 }: WorkflowChatBodyProps) {
   const theme = useFlowStore((s) => s.theme)
-  const nodes = useFlowStore((s) => s.nodes)
-  const edges = useFlowStore((s) => s.edges)
   const flowName = useFlowStore((s) => s.flowName)
   const flowContext = useFlowStore((s) => s.flowContext)
   const { fitView } = useReactFlow()
@@ -127,6 +151,9 @@ export default function WorkflowChatBody({
   const [loading, setLoading] = useState(false)
   const [reviewing, setReviewing] = useState(false)
   const [improving, setImproving] = useState(false)
+  const [autoRunning, setAutoRunning] = useState(false)
+  const [autoReviewImproveCycles, setAutoReviewImproveCycles] = useState(0)
+  const autoRunCancelledRef = useRef(false)
   const [requestError, setRequestError] = useState<string | null>(null)
   const [localDecisions, setLocalDecisions] = useState<ReviewDecision[]>([])
   const [designDoc, setDesignDoc] = useState('')
@@ -141,12 +168,27 @@ export default function WorkflowChatBody({
   }, [onDecisionsChange, externalDecisions])
 
   useEffect(() => {
-    onBusyChange?.(loading || reviewing || improving)
-  }, [loading, reviewing, improving, onBusyChange])
+    onBusyChange?.(loading || reviewing || improving || autoRunning)
+  }, [loading, reviewing, improving, autoRunning, onBusyChange])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(AUTO_REVIEW_IMPROVE_CYCLES_KEY)
+      if (raw == null) return
+      const n = Number(raw)
+      if (Number.isFinite(n) && n >= 0 && n <= 10) setAutoReviewImproveCycles(Math.floor(n))
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(AUTO_REVIEW_IMPROVE_CYCLES_KEY, String(autoReviewImproveCycles))
+    } catch { /* ignore */ }
+  }, [autoReviewImproveCycles])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [turns, loading])
+  }, [turns, loading, autoRunning])
 
   const docStorageKey = `agentflow:build-doc:${flowName || 'untitled'}`
   useEffect(() => {
@@ -233,61 +275,6 @@ export default function WorkflowChatBody({
     })
   }, [decisions, buildDecisionSection, upsertDecisionSection])
 
-  const handleSend = useCallback(async () => {
-    const text = draft.trim()
-    if (!text || loading || reviewing || improving) return
-
-    setDraft('')
-    setRequestError(null)
-    appendToDesignDoc('User request', text)
-    const nextTurns: ChatTurn[] = [...turns, { role: 'user', content: text }]
-    setTurns(nextTurns)
-    setLoading(true)
-
-    const apiMessages: WorkflowBuildMessage[] = nextTurns.map((t) => ({
-      role: t.role,
-      content: t.content,
-    }))
-
-    try {
-      const { nodes: sn, edges: se } = serializeFlowForWorkflowApi(nodes, edges)
-      const res = await workflowBuildChat(apiMessages, {
-        nodes: sn,
-        edges: se,
-        flowName,
-        flowContext,
-      })
-
-      const assistantText = res.content?.trim() || '(No text reply.)'
-      const applied = res.validatedPatches?.length ?? 0
-      if (applied > 0) {
-        applyWorkflowPatchesToFlow(res.validatedPatches)
-        window.requestAnimationFrame(() => {
-          fitView({ padding: 0.2, duration: 280 })
-        })
-      }
-
-      setTurns((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: assistantText,
-          validationErrors:
-            res.validationErrors?.length ? res.validationErrors : undefined,
-          appliedPatches: applied > 0 ? applied : undefined,
-          kind: 'builder',
-        },
-      ])
-      appendToDesignDoc('Builder response', assistantText)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Request failed'
-      setRequestError(msg)
-      setTurns((prev) => prev.slice(0, -1))
-    } finally {
-      setLoading(false)
-    }
-  }, [draft, loading, reviewing, improving, turns, nodes, edges, flowName, flowContext, fitView, appendToDesignDoc])
-
   const extractSuggestions = useCallback((review: string): ReviewDecision[] => {
     const lines = review
       .split('\n')
@@ -346,14 +333,177 @@ export default function WorkflowChatBody({
     return builderTurn
   }, [fitView])
 
-  const runDesignReview = useCallback(async () => {
+  const fetchReviewMarkdown = useCallback(async (): Promise<string> => {
     const latest = useFlowStore.getState()
-    const review = await generateDesignReview(
-      latest.nodes,
+    return generateDesignReview(
+      latest.nodes as Parameters<typeof generateDesignReview>[0],
       latest.edges,
       latest.flowName,
-      latest.flowContext,
+      latest.flowContext ?? null,
     )
+  }, [])
+
+  const runAutoReviewImproveSequences = useCallback(
+    async (startTurns: ChatTurn[], cycles: number) => {
+      if (cycles <= 0) return
+      appendToDesignDoc(
+        'Auto design',
+        `Running ${cycles} automatic review → improve cycle(s). Parsed bullets are auto-accepted each round.`,
+      )
+      let chatTurns = startTurns
+      for (let i = 0; i < cycles; i++) {
+        if (autoRunCancelledRef.current) {
+          appendToDesignDoc('Auto design', `Stopped early after ${i} cycle(s).`)
+          break
+        }
+        setReviewing(true)
+        let reviewRaw = ''
+        try {
+          reviewRaw = (await fetchReviewMarkdown()).trim()
+        } finally {
+          setReviewing(false)
+        }
+        if (autoRunCancelledRef.current) break
+
+        const reviewTurn: ChatTurn = {
+          role: 'assistant',
+          kind: 'reviewer',
+          content: `Reviewer\n\n${reviewRaw || 'No review output.'}`,
+        }
+        chatTurns = [...chatTurns, reviewTurn]
+        setTurns(chatTurns)
+
+        const suggestions = extractSuggestions(reviewRaw)
+        setDecisions(() => suggestions)
+        appendToDesignDoc(`Auto review (cycle ${i + 1}/${cycles})`, reviewRaw || '(empty)')
+
+        if (suggestions.length === 0) {
+          appendToDesignDoc('Auto design', 'No review bullets parsed; stopping auto loop.')
+          break
+        }
+
+        const accepted = suggestions.map((s) => ({
+          ...s,
+          status: 'accepted' as const,
+          selected: true,
+        }))
+        const declined: ReviewDecision[] = []
+
+        if (autoRunCancelledRef.current) break
+
+        // Let the panel paint “pending” bullets, then show all-accepted while improve runs.
+        await new Promise((r) => window.setTimeout(r, AUTO_ACCEPT_UI_MS))
+        if (autoRunCancelledRef.current) break
+        setDecisions(() => accepted)
+
+        const instruction: ChatTurn = {
+          role: 'user',
+          kind: 'system',
+          content: buildImproveInstructionContent(accepted, declined),
+        }
+        chatTurns = [...chatTurns, instruction]
+        setTurns(chatTurns)
+
+        if (autoRunCancelledRef.current) break
+
+        setImproving(true)
+        let builderTurn: ChatTurn
+        try {
+          builderTurn = await callBuilderOnce(chatTurns)
+        } finally {
+          setImproving(false)
+        }
+        chatTurns = [...chatTurns, builderTurn]
+        setTurns(chatTurns)
+        appendToDesignDoc(`Auto improve (cycle ${i + 1}/${cycles})`, builderTurn.content)
+      }
+    },
+    [fetchReviewMarkdown, extractSuggestions, callBuilderOnce, appendToDesignDoc],
+  )
+
+  const handleSend = useCallback(async () => {
+    const text = draft.trim()
+    if (!text || loading || reviewing || improving || autoRunning) return
+
+    setDraft('')
+    setRequestError(null)
+    appendToDesignDoc('User request', text)
+    const nextTurns: ChatTurn[] = [...turns, { role: 'user', content: text }]
+    setTurns(nextTurns)
+    setLoading(true)
+    autoRunCancelledRef.current = false
+
+    const apiMessages: WorkflowBuildMessage[] = nextTurns.map((t) => ({
+      role: t.role,
+      content: t.content,
+    }))
+
+    let turnsAfterSend: ChatTurn[] | null = null
+    try {
+      const latest = useFlowStore.getState()
+      const { nodes: sn, edges: se } = serializeFlowForWorkflowApi(latest.nodes, latest.edges)
+      const res = await workflowBuildChat(apiMessages, {
+        nodes: sn,
+        edges: se,
+        flowName: latest.flowName,
+        flowContext: latest.flowContext ?? null,
+      })
+
+      const assistantText = res.content?.trim() || '(No text reply.)'
+      const applied = res.validatedPatches?.length ?? 0
+      if (applied > 0) {
+        applyWorkflowPatchesToFlow(res.validatedPatches)
+        window.requestAnimationFrame(() => {
+          fitView({ padding: 0.2, duration: 280 })
+        })
+      }
+
+      const assistantTurn: ChatTurn = {
+        role: 'assistant',
+        content: assistantText,
+        validationErrors:
+          res.validationErrors?.length ? res.validationErrors : undefined,
+        appliedPatches: applied > 0 ? applied : undefined,
+        kind: 'builder',
+      }
+      turnsAfterSend = [...nextTurns, assistantTurn]
+      setTurns(turnsAfterSend)
+      appendToDesignDoc('Builder response', assistantText)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Request failed'
+      setRequestError(msg)
+      setTurns((prev) => prev.slice(0, -1))
+    } finally {
+      setLoading(false)
+    }
+
+    if (turnsAfterSend && autoReviewImproveCycles > 0) {
+      autoRunCancelledRef.current = false
+      setAutoRunning(true)
+      try {
+        await runAutoReviewImproveSequences(turnsAfterSend, autoReviewImproveCycles)
+      } catch (autoErr) {
+        const msg = autoErr instanceof Error ? autoErr.message : 'Auto design failed'
+        setRequestError(msg)
+      } finally {
+        setAutoRunning(false)
+      }
+    }
+  }, [
+    draft,
+    loading,
+    reviewing,
+    improving,
+    autoRunning,
+    turns,
+    fitView,
+    appendToDesignDoc,
+    autoReviewImproveCycles,
+    runAutoReviewImproveSequences,
+  ])
+
+  const runDesignReview = useCallback(async () => {
+    const review = (await fetchReviewMarkdown()).trim()
     const reviewTurn: ChatTurn = {
       role: 'assistant',
       kind: 'reviewer',
@@ -362,10 +512,10 @@ export default function WorkflowChatBody({
     setTurns((prev) => [...prev, reviewTurn])
     setDecisions(() => extractSuggestions(review))
     appendToDesignDoc('Reviewer output', review)
-  }, [extractSuggestions, appendToDesignDoc])
+  }, [fetchReviewMarkdown, extractSuggestions, appendToDesignDoc])
 
   const handleReviewOnly = useCallback(async () => {
-    if (loading || reviewing || improving) return
+    if (loading || reviewing || improving || autoRunning) return
     setRequestError(null)
     setReviewing(true)
     try {
@@ -376,10 +526,10 @@ export default function WorkflowChatBody({
     } finally {
       setReviewing(false)
     }
-  }, [loading, reviewing, improving, runDesignReview])
+  }, [loading, reviewing, improving, autoRunning, runDesignReview])
 
   const handleRetryLastReview = useCallback(async () => {
-    if (loading || reviewing || improving || turns.length === 0) return
+    if (loading || reviewing || improving || autoRunning || turns.length === 0) return
     const last = turns[turns.length - 1]
     if (last.role !== 'assistant' || last.kind !== 'reviewer') return
     setRequestError(null)
@@ -387,7 +537,7 @@ export default function WorkflowChatBody({
     try {
       const trimmed = turns.slice(0, -1)
       setTurns(trimmed)
-      setDecisions([])
+      setDecisions(() => [])
       appendToDesignDoc('Review retry', 'User requested a new review pass.')
       await runDesignReview()
     } catch (e) {
@@ -396,13 +546,13 @@ export default function WorkflowChatBody({
     } finally {
       setReviewing(false)
     }
-  }, [loading, reviewing, improving, turns, runDesignReview, appendToDesignDoc])
+  }, [loading, reviewing, improving, autoRunning, turns, runDesignReview, appendToDesignDoc])
 
   const RETRY_BUILDER_NUDGE =
     'Please try again with a different approach. The previous reply did not match what I wanted.'
 
   const handleRetryLastBuilder = useCallback(async () => {
-    if (loading || reviewing || improving || turns.length === 0) return
+    if (loading || reviewing || improving || autoRunning || turns.length === 0) return
     const last = turns[turns.length - 1]
     if (last.role !== 'assistant' || last.kind === 'reviewer') return
 
@@ -457,7 +607,7 @@ export default function WorkflowChatBody({
     } finally {
       setLoading(false)
     }
-  }, [loading, reviewing, improving, turns, fitView, appendToDesignDoc])
+  }, [loading, reviewing, improving, autoRunning, turns, fitView, appendToDesignDoc])
 
   const setDecisionStatus = useCallback((id: string, status: DecisionStatus) => {
     setDecisions((prev) =>
@@ -497,7 +647,7 @@ export default function WorkflowChatBody({
   }, [setDecisions])
 
   const handleImproveSelected = useCallback(async () => {
-    if (loading || reviewing || improving) return
+    if (loading || reviewing || improving || autoRunning) return
     const accepted = decisions.filter((s) => s.status === 'accepted')
     const selected = accepted.filter((s) => s.selected)
     if (selected.length === 0) {
@@ -511,21 +661,7 @@ export default function WorkflowChatBody({
       const instruction: ChatTurn = {
         role: 'user',
         kind: 'system',
-        content:
-          'Apply ONLY these approved review suggestions as targeted graph edits.\n' +
-          selected
-            .map((s, i) =>
-              `${i + 1}. ${s.text}${s.note.trim() ? `\n   rationale: ${s.note.trim()}` : ''}`,
-            )
-            .join('\n') +
-          (declined.length
-            ? '\n\nDo NOT apply these declined suggestions unless user explicitly changes decision:\n' +
-              declined
-                .map((s, i) =>
-                  `${i + 1}. ${s.text}${s.note.trim() ? `\n   reason declined: ${s.note.trim()}` : ''}`,
-                )
-                .join('\n')
-            : ''),
+        content: buildImproveInstructionContent(selected, declined),
       }
       const localTurns = [...turns, instruction]
       setTurns(localTurns)
@@ -542,7 +678,7 @@ export default function WorkflowChatBody({
     } finally {
       setImproving(false)
     }
-  }, [loading, reviewing, improving, decisions, turns, callBuilderOnce, appendToDesignDoc])
+  }, [loading, reviewing, improving, autoRunning, decisions, turns, callBuilderOnce, appendToDesignDoc])
 
   useEffect(() => {
     if (!onRegisterImproveAction) return
@@ -590,15 +726,16 @@ export default function WorkflowChatBody({
     return { description, howItWorks }
   }, [])
 
+  const border = isDark ? 'border-white/10' : 'border-indigo-200/80'
+  const subText = isDark ? 'text-white/50' : 'text-slate-500'
+  const panelBusy = loading || reviewing || improving || autoRunning
+
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      void handleSend()
+      if (!panelBusy) void handleSend()
     }
   }
-
-  const border = isDark ? 'border-white/10' : 'border-indigo-200/80'
-  const subText = isDark ? 'text-white/50' : 'text-slate-500'
 
   const rootClass = embedded
     ? 'flex flex-col flex-1 min-h-0 min-w-0'
@@ -616,7 +753,9 @@ export default function WorkflowChatBody({
           >
             Design with AI
           </span>
-          {loading && <Loader2 size={14} className="text-violet-500 animate-spin shrink-0" />}
+          {(loading || autoRunning) && (
+            <Loader2 size={14} className="text-violet-500 animate-spin shrink-0" />
+          )}
           {onClose && (
             <button
               type="button"
@@ -640,6 +779,45 @@ export default function WorkflowChatBody({
         </div>
       </div>
 
+      <div className={`px-4 py-2 border-b shrink-0 ${border}`}>
+        <div className={`flex flex-wrap items-center gap-2 text-[10px] ${subText}`}>
+          <span className="shrink-0">After Send, run</span>
+          <select
+            value={autoReviewImproveCycles}
+            onChange={(e) => setAutoReviewImproveCycles(Number(e.target.value))}
+            disabled={panelBusy}
+            title="Each cycle: design review → auto-accept parsed bullets → apply improvements to the graph"
+            className={`rounded border px-1.5 py-0.5 text-[10px] min-w-[9rem] ${
+              isDark
+                ? 'bg-white/5 border-white/15 text-white/85'
+                : 'bg-white border-slate-300 text-slate-800'
+            } disabled:opacity-40`}
+          >
+            {[0, 1, 2, 3, 5, 8, 10].map((n) => (
+              <option key={n} value={n}>
+                {n === 0 ? 'Off (manual only)' : `${n}× review → improve`}
+              </option>
+            ))}
+          </select>
+          {autoRunning && (
+            <button
+              type="button"
+              onClick={() => {
+                autoRunCancelledRef.current = true
+              }}
+              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-medium ${
+                isDark
+                  ? 'border-rose-500/50 text-rose-200 hover:bg-rose-950/50'
+                  : 'border-rose-400 text-rose-800 hover:bg-rose-50'
+              }`}
+            >
+              <Square size={10} />
+              Stop auto
+            </button>
+          )}
+        </div>
+      </div>
+
       {!flowContext && (
         <div className={`px-4 py-2 border-b shrink-0 ${border}`}>
           <p className={`text-[11px] leading-snug ${isDark ? 'text-amber-300/85' : 'text-amber-700'}`}>
@@ -653,7 +831,7 @@ export default function WorkflowChatBody({
           <button
             type="button"
             onClick={insertArchitectTemplate}
-            disabled={loading || reviewing || improving}
+            disabled={panelBusy}
             className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] border transition-colors ${
               isDark
                 ? 'border-violet-500/35 text-violet-200 bg-violet-900/20 hover:bg-violet-900/30'
@@ -826,7 +1004,7 @@ export default function WorkflowChatBody({
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0 sidebar-scroll"
       >
-        {turns.length === 0 && !loading && (
+        {turns.length === 0 && !panelBusy && (
           <div className={`text-[12px] leading-relaxed space-y-2 ${subText}`}>
             <p>
               <span className={isDark ? 'text-white/70' : 'text-slate-700'}>First message:</span>{' '}
@@ -902,9 +1080,7 @@ export default function WorkflowChatBody({
                 </div>
               )}
               {i === turns.length - 1
-                && !loading
-                && !reviewing
-                && !improving
+                && !panelBusy
                 && t.role === 'assistant' && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {t.kind !== 'reviewer' && (
@@ -942,6 +1118,20 @@ export default function WorkflowChatBody({
             </div>
           </div>
         ))}
+        {improving && autoRunning && decisions.length > 0 && (() => {
+          const n = decisions.filter((d) => d.status === 'accepted' && d.selected).length
+          return (
+            <p
+              className={`text-[11px] leading-snug rounded-lg px-2.5 py-2 border ${
+                isDark
+                  ? 'border-emerald-500/35 bg-emerald-950/40 text-emerald-200/95'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              }`}
+            >
+              Auto-run: applying {n} auto-accepted suggestion{n === 1 ? '' : 's'} to the graph…
+            </p>
+          )
+        })()}
         {requestError && (
           <p className="text-[11px] text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg px-2 py-1.5">
             {requestError}
@@ -954,7 +1144,7 @@ export default function WorkflowChatBody({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
-          disabled={loading}
+          disabled={panelBusy}
           rows={6}
           placeholder="Describe what to build or improve... (Enter to send, Shift+Enter newline). Uses current graph + flow context."
           className={`w-full rounded-lg px-3 py-2 text-[12px] resize-y min-h-[120px] max-h-[45vh] outline-none border ${
@@ -966,7 +1156,7 @@ export default function WorkflowChatBody({
         <button
           type="button"
           onClick={() => void handleSend()}
-          disabled={loading || reviewing || improving || !draft.trim()}
+          disabled={panelBusy || !draft.trim()}
           className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border ${
             isDark
               ? 'bg-violet-600 hover:bg-violet-500 text-white border-violet-500/40 disabled:opacity-40'
@@ -980,7 +1170,7 @@ export default function WorkflowChatBody({
           <button
             type="button"
             onClick={() => void handleReviewOnly()}
-            disabled={loading || reviewing || improving}
+            disabled={panelBusy}
             className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border ${
               isDark
                 ? 'bg-sky-700/80 hover:bg-sky-600/90 text-white border-sky-500/40 disabled:opacity-40'
@@ -994,7 +1184,7 @@ export default function WorkflowChatBody({
             <button
               type="button"
               onClick={() => void handleImproveSelected()}
-              disabled={loading || reviewing || improving}
+              disabled={panelBusy}
               className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border ${
                 isDark
                   ? 'bg-emerald-700/80 hover:bg-emerald-600/90 text-white border-emerald-500/40 disabled:opacity-40'

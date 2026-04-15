@@ -47,6 +47,20 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+/** When addNode uses an id that already exists, assign a new id (models often reuse e.g. "frame"). */
+function allocateUniqueAddNodeId(preferred: string, nodes: Map<string, SimNode>): string {
+  const slug = preferred.trim().replace(/[^a-zA-Z0-9-_]/g, '') || 'node'
+  for (let i = 0; i < 32; i++) {
+    const candidate = `${slug}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    if (!nodes.has(candidate)) return candidate
+  }
+  return `${slug}-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
+}
+
+function applyBatchNodeIdRewrite(ref: string, rewrites: Map<string, string>): string {
+  return rewrites.get(ref) ?? ref
+}
+
 /** Omitted / null → null (resolved to real port ids later). Reject non-string values. */
 function parseNullableHandle(
   raw: unknown,
@@ -672,6 +686,8 @@ export function validateWorkflowPatches(
   )
 
   const orderedPatches = reorderAddEdgesLast(rawPatches)
+  /** Model id → id actually used when addNode collided with an existing node id in this batch. */
+  const batchNodeIdRewrites = new Map<string, string>()
 
   for (let i = 0; i < orderedPatches.length; i++) {
     const prefix = `patch[${i}]: `
@@ -681,8 +697,16 @@ export function validateWorkflowPatches(
       continue
     }
     let patch: WorkflowPatch = parsed.patch
+
+    if (patch.op === 'addNode' && nodes.has(patch.id)) {
+      const requested = patch.id
+      const allocated = allocateUniqueAddNodeId(requested, nodes)
+      patch = { ...patch, id: allocated }
+      batchNodeIdRewrites.set(requested, allocated)
+    }
+
     if (patch.op === 'removeNode') {
-      const nodeId = resolveNodeRef(patch.id, nodes)
+      const nodeId = resolveNodeRef(applyBatchNodeIdRewrite(patch.id, batchNodeIdRewrites), nodes)
       if (!nodeId) {
         errors.push(prefix + `node "${patch.id}" not found`)
         continue
@@ -690,7 +714,7 @@ export function validateWorkflowPatches(
       patch = nodeId !== patch.id ? { ...patch, id: nodeId } : patch
     }
     if (patch.op === 'setNodeConfig') {
-      const nodeId = resolveNodeRef(patch.nodeId, nodes)
+      const nodeId = resolveNodeRef(applyBatchNodeIdRewrite(patch.nodeId, batchNodeIdRewrites), nodes)
       if (!nodeId) {
         errors.push(
           prefix +
@@ -701,7 +725,7 @@ export function validateWorkflowPatches(
       patch = nodeId !== patch.nodeId ? { ...patch, nodeId } : patch
     }
     if (patch.op === 'setNodeLabel') {
-      const nodeId = resolveNodeRef(patch.nodeId, nodes)
+      const nodeId = resolveNodeRef(applyBatchNodeIdRewrite(patch.nodeId, batchNodeIdRewrites), nodes)
       if (!nodeId) {
         errors.push(
           prefix +
@@ -712,8 +736,8 @@ export function validateWorkflowPatches(
       patch = nodeId !== patch.nodeId ? { ...patch, nodeId } : patch
     }
     if (patch.op === 'addEdge') {
-      const srcId = resolveNodeRef(patch.source, nodes)
-      const tgtId = resolveNodeRef(patch.target, nodes)
+      const srcId = resolveNodeRef(applyBatchNodeIdRewrite(patch.source, batchNodeIdRewrites), nodes)
+      const tgtId = resolveNodeRef(applyBatchNodeIdRewrite(patch.target, batchNodeIdRewrites), nodes)
       if (!srcId) {
         errors.push(
           prefix +

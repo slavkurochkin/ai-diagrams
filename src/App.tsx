@@ -29,6 +29,14 @@ import type { FlowContext } from './types/flow'
 
 const CONTEXT_PROMPT_KEY = 'agentflow:contextPromptSeen'
 
+const decisionCardMotion = {
+  layout: true,
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, x: -14, transition: { duration: 0.2, ease: 'easeIn' as const } },
+  transition: { type: 'spring', stiffness: 420, damping: 32 },
+} as const
+
 function BuildWorkspaceLeftPanel({
   flowName,
   flowContext,
@@ -158,8 +166,19 @@ function BuildWorkspaceLeftPanel({
               </div>
 
               <div className="space-y-2">
-                {decisions.map((d) => (
-                  <div key={d.id} className="rounded-lg border border-white/10 bg-black/20 p-2 space-y-1.5">
+                <AnimatePresence initial={false} mode="popLayout">
+                  {decisions.map((d) => (
+                    <motion.div
+                      key={d.id}
+                      {...decisionCardMotion}
+                      className={`rounded-lg border bg-black/20 p-2 space-y-1.5 overflow-hidden transition-[border-color,box-shadow] duration-300 ${
+                        d.status === 'accepted'
+                          ? 'border-emerald-500/45 shadow-[0_0_0_1px_rgba(52,211,153,0.12)]'
+                          : d.status === 'declined'
+                            ? 'border-rose-500/40'
+                            : 'border-white/10'
+                      }`}
+                    >
                     <label className="flex items-start gap-2">
                       <input
                         type="checkbox"
@@ -196,8 +215,9 @@ function BuildWorkspaceLeftPanel({
                       rows={2}
                       className="w-full rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-white placeholder:text-white/35 focus:outline-none focus:ring-1 focus:ring-sky-500/50 resize-y min-h-[44px]"
                     />
-                  </div>
-                ))}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
 
               <p className="text-[10px] text-white/45">

@@ -26,6 +26,7 @@ export type WorkflowPatch =
       label?: string
       config?: Record<string, unknown>
       position?: { x: number; y: number }
+      note?: string
     }
   | { op: 'removeNode'; id: string }
   | {
@@ -84,8 +85,10 @@ function parsePatch(raw: unknown): { ok: true; patch: WorkflowPatch } | { ok: fa
     const label = raw.label
     const config = raw.config
     const position = raw.position
+    const note = raw.note
     if (label !== undefined && typeof label !== 'string') return { ok: false, error: 'label must be a string' }
     if (config !== undefined && !isRecord(config)) return { ok: false, error: 'config must be an object' }
+    if (note !== undefined && typeof note !== 'string') return { ok: false, error: 'note must be a string' }
     let pos: { x: number; y: number } | undefined
     if (position !== undefined) {
       if (!isRecord(position)) return { ok: false, error: 'position must be an object' }
@@ -103,6 +106,7 @@ function parsePatch(raw: unknown): { ok: true; patch: WorkflowPatch } | { ok: fa
         ...(typeof label === 'string' ? { label } : {}),
         ...(config ? { config } : {}),
         ...(pos ? { position: pos } : {}),
+        ...(typeof note === 'string' && note ? { note } : {}),
       },
     }
   }

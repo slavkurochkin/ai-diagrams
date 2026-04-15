@@ -49,7 +49,7 @@ interface FlowStore {
     type: string,
     position: { x: number; y: number },
     initialConfig?: Record<string, string | number | boolean>,
-    options?: { id?: string; label?: string },
+    options?: { id?: string; label?: string; note?: string },
   ) => void
   /** Renames the display label of a node. */
   updateNodeLabel: (nodeId: string, label: string) => void
@@ -396,6 +396,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
           label: options?.label?.trim() ? options.label.trim() : def.label,
           config: mergedConfig,
           animationState: 'idle',
+          ...(options?.note ? { note: options.note } : {}),
         },
       }
       return {

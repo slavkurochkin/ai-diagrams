@@ -59,7 +59,7 @@ export function applyWorkflowPatchesToFlow(patches: WorkflowPatch[]): void {
       case 'addNode': {
         const pos = resolveAddNodePosition(p.position, store.nodes)
         const cfg = p.config as Record<string, string | number | boolean> | undefined
-        store.addNode(p.nodeType, pos, cfg, { id: p.id, label: p.label })
+        store.addNode(p.nodeType, pos, cfg, { id: p.id, label: p.label, note: p.note })
         break
       }
       case 'removeNode':

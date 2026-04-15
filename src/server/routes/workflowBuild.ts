@@ -107,6 +107,10 @@ const WORKFLOW_PATCH_TOOL: ChatCompletionTool = {
                   'setNodeLabel',
                 ],
               },
+              note: {
+                type: 'string',
+                description: 'For addNode only: 1–2 sentence explanation of why this node is needed in this specific diagram.',
+              },
             },
             required: ['op'],
             additionalProperties: true,
@@ -148,7 +152,7 @@ When they ask to improve, fix, adjust, add, remove, or reconnect — use the too
 
 You may call the tool \`apply_workflow_changes\` with an ordered \`patches\` array:
 
-- **addNode** — { op, id, nodeType, label?, config?, position? } (omit \`position\` for spaced auto-layout on the canvas)
+- **addNode** — { op, id, nodeType, label?, config?, position?, note? } (omit \`position\` for spaced auto-layout on the canvas; always set \`note\` to a 1–2 sentence explanation of why this node is needed in this specific diagram)
 - **removeNode** — { op, id }
 - **addEdge** — { op, id, source, target, sourceHandle?, targetHandle? } (use node ids; omit handles to auto-connect, or set catalog port ids)
 - **removeEdge** — { op, id } (must match \`edge id\` shown on each connection line in Current flow)

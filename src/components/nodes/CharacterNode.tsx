@@ -52,8 +52,84 @@ function mixWithWhite(hex: string, amount: number): string {
 }
 
 // ── Expression face renderer ──────────────────────────────────────────────────
-// renderFace: full face (eyes + mouth) — used by person, girl, dog, kid
-// renderMouth: mouth only — used by cat (has slit eyes) and robot (has lens eyes)
+// renderFace: full face (eyes + mouth + brows) — person, woman, kid
+// renderMouth: mouth only — cat, robot, tiger, bear (brows via renderBrows)
+// renderBrows: eyebrow shapes per expression (shared)
+
+interface BrowLayout {
+  lx: number
+  rx: number
+  eyY: number
+  er: number
+}
+
+function browLayoutFromFace(cx: number, cy: number, r: number): BrowLayout {
+  return {
+    lx: cx - r * 0.28,
+    rx: cx + r * 0.28,
+    eyY: cy - r * 0.14,
+    er: r * 0.13,
+  }
+}
+
+/** Eyebrows sit above each eye center (lx, rx, eyY); `er` scales stroke length (~eye radius). */
+function renderBrows(expression: string, { lx, rx, eyY, er }: BrowLayout): JSX.Element | null {
+  if (!expression || expression === 'none') return null
+
+  const bw = er * 1.35
+
+  switch (expression) {
+    case 'happy':
+      return (
+        <g>
+          <path d={`M${lx - bw} ${eyY - er * 1.05} Q${lx} ${eyY - er * 1.45} ${lx + bw} ${eyY - er * 1.05}`}
+            stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" fill="none" />
+          <path d={`M${rx - bw} ${eyY - er * 1.05} Q${rx} ${eyY - er * 1.45} ${rx + bw} ${eyY - er * 1.05}`}
+            stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" fill="none" />
+        </g>
+      )
+    case 'sad':
+      return (
+        <g>
+          <path d={`M${lx - bw} ${eyY - er * 1.0} L${lx + bw * 0.85} ${eyY - er * 0.55}`}
+            stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" />
+          <path d={`M${rx + bw} ${eyY - er * 1.0} L${rx - bw * 0.85} ${eyY - er * 0.55}`}
+            stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" />
+        </g>
+      )
+    case 'angry':
+      return (
+        <g>
+          <path d={`M${lx - er * 1.15} ${eyY - er * 1.55} L${lx + er * 1.15} ${eyY - er * 0.5}`}
+            stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+          <path d={`M${rx + er * 1.15} ${eyY - er * 1.55} L${rx - er * 1.15} ${eyY - er * 0.5}`}
+            stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        </g>
+      )
+    case 'surprised':
+      return (
+        <g>
+          <path d={`M${lx - bw} ${eyY - er * 1.25} Q${lx} ${eyY - er * 1.9} ${lx + bw} ${eyY - er * 1.25}`}
+            stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" fill="none" />
+          <path d={`M${rx - bw} ${eyY - er * 1.25} Q${rx} ${eyY - er * 1.9} ${rx + bw} ${eyY - er * 1.25}`}
+            stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" fill="none" />
+        </g>
+      )
+    case 'neutral':
+      return null
+    case 'thinking':
+      return (
+        <g>
+          <path d={`M${lx - bw} ${eyY - er * 1.15} Q${lx} ${eyY - er * 1.65} ${lx + bw} ${eyY - er * 1.15}`}
+            stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" fill="none" />
+          <path d={`M${rx - bw * 0.9} ${eyY - er * 0.92} L${rx + bw * 0.9} ${eyY - er * 0.78}`}
+            stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" />
+        </g>
+      )
+    default:
+      return null
+  }
+}
 
 function renderFace(cx: number, cy: number, r: number, expression: string): JSX.Element | null {
   if (!expression || expression === 'none') return null
@@ -64,11 +140,13 @@ function renderFace(cx: number, cy: number, r: number, expression: string): JSX.
   const er  = r * 0.13
   const mY  = cy + r * 0.22
   const mW  = r * 0.36
+  const brows = renderBrows(expression, browLayoutFromFace(cx, cy, r))
 
   switch (expression) {
     case 'happy':
       return (
         <g>
+          {brows}
           <circle cx={lx} cy={eyY} r={er} fill="currentColor" />
           <circle cx={rx} cy={eyY} r={er} fill="currentColor" />
           <path d={`M${lx - er} ${mY} Q${cx} ${mY + r * 0.22} ${rx + er} ${mY}`}
@@ -78,6 +156,7 @@ function renderFace(cx: number, cy: number, r: number, expression: string): JSX.
     case 'sad':
       return (
         <g>
+          {brows}
           <circle cx={lx} cy={eyY} r={er} fill="currentColor" />
           <circle cx={rx} cy={eyY} r={er} fill="currentColor" />
           <path d={`M${lx - er} ${mY + r * 0.18} Q${cx} ${mY} ${rx + er} ${mY + r * 0.18}`}
@@ -87,11 +166,7 @@ function renderFace(cx: number, cy: number, r: number, expression: string): JSX.
     case 'angry':
       return (
         <g>
-          {/* Furrowed brows */}
-          <path d={`M${lx - er} ${eyY - r * 0.22} L${lx + er * 1.2} ${eyY - r * 0.06}`}
-            stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <path d={`M${rx + er} ${eyY - r * 0.22} L${rx - er * 1.2} ${eyY - r * 0.06}`}
-            stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          {brows}
           <circle cx={lx} cy={eyY} r={er} fill="currentColor" />
           <circle cx={rx} cy={eyY} r={er} fill="currentColor" />
           <path d={`M${lx - er} ${mY + r * 0.14} Q${cx} ${mY} ${rx + er} ${mY + r * 0.14}`}
@@ -101,6 +176,7 @@ function renderFace(cx: number, cy: number, r: number, expression: string): JSX.
     case 'surprised':
       return (
         <g>
+          {brows}
           <circle cx={lx} cy={eyY} r={er * 1.7} stroke="currentColor" strokeWidth="1.4"
             fill="currentColor" fillOpacity="0.25" />
           <circle cx={rx} cy={eyY} r={er * 1.7} stroke="currentColor" strokeWidth="1.4"
@@ -121,6 +197,7 @@ function renderFace(cx: number, cy: number, r: number, expression: string): JSX.
     case 'thinking':
       return (
         <g>
+          {brows}
           <circle cx={lx} cy={eyY} r={er} fill="currentColor" />
           {/* One eye squinted */}
           <path d={`M${rx - er * 1.2} ${eyY} Q${rx} ${eyY - er * 1.2} ${rx + er * 1.2} ${eyY}`}
@@ -230,6 +307,7 @@ function CatSvg({ color, expression = 'none' }: SvgProps) {
       <circle cx="40" cy="34" r="16" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.10" />
       <path d="M28 22 L23 10 L36 20" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="currentColor" fillOpacity="0.15" />
       <path d="M52 22 L57 10 L44 20" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="currentColor" fillOpacity="0.15" />
+      {renderBrows(expression, { lx: 34, rx: 46, eyY: 32, er: 2.5 })}
       {/* Slit eyes — cat design element */}
       <ellipse cx="34" cy="32" rx="2.5" ry="3" fill="currentColor" />
       <ellipse cx="46" cy="32" rx="2.5" ry="3" fill="currentColor" />
@@ -252,6 +330,7 @@ function RobotSvg({ color, expression = 'none' }: SvgProps) {
       <line x1="40" y1="6" x2="40" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <circle cx="40" cy="5" r="3" fill="currentColor" />
       <rect x="26" y="15" width="28" height="22" rx="4" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.10" />
+      {renderBrows(expression, { lx: 33.5, rx: 46.5, eyY: 23, er: 2 })}
       {/* Lens eyes — robot design element */}
       <rect x="30" y="20" width="7" height="6" rx="1.5" fill="currentColor" fillOpacity="0.55" />
       <rect x="43" y="20" width="7" height="6" rx="1.5" fill="currentColor" fillOpacity="0.55" />
@@ -281,6 +360,86 @@ function KidSvg({ color, expression = 'none' }: SvgProps) {
   )
 }
 
+function TigerSvg({ color, expression = 'none' }: SvgProps) {
+  return (
+    <svg viewBox="0 0 80 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color, width: '100%', height: '100%' }}>
+      {/* Body tangent to head: head bottom y=41, ellipse top y=41 — fills don’t overlap */}
+      <ellipse cx="40" cy="65" rx="17" ry="24" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.1" />
+      {/* Body stripes */}
+      <path d="M24 55 L30 57 M56 55 L50 57 M24 65 L30 65 M56 65 L50 65 M25 75 L30 73 M55 75 L50 73" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      {/* Arms & Legs */}
+      <path d="M29 44 Q17 54 23 64" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+      <path d="M51 44 Q63 54 57 64" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+      <path d="M32 87 L30 93 M48 87 L50 93" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      {/* Tail */}
+      <path d="M50 80 Q65 90 60 70" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+      {/* Ears */}
+      <path d="M22 9 Q16 -1 28 5 Z" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.12" />
+      <path d="M58 9 Q64 -1 52 5 Z" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.12" />
+      {/* Head — shifted up so it sits on the torso */}
+      <circle cx="40" cy="23" r="18" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.1" />
+      {/* Stripes */}
+      <path d="M40 5 L40 12 M33 6 L36 10 M47 6 L44 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M22 19 L28 21 M22 25 L28 25 M58 19 L52 21 M58 25 L52 25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      {renderBrows(expression, { lx: 32, rx: 48, eyY: 19, er: 2.5 })}
+      {/* Eyes */}
+      <circle cx="32" cy="19" r="2.5" fill="currentColor" />
+      <circle cx="48" cy="19" r="2.5" fill="currentColor" />
+      {/* Snout */}
+      <ellipse cx="40" cy="27" rx="7" ry="4.8" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.12" />
+      <path d="M37.8 25.8 L40 28.3 L42.2 25.8 Z" fill="currentColor" />
+      {/* Whiskers — anchored on muzzle sides, fan outward */}
+      <path
+        d="M35 28.5 L20 26.5 M34.5 30 L17 30 M35 31.5 L20 33.5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M45 28.5 L60 26.5 M45.5 30 L63 30 M45 31.5 L60 33.5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      {/* Keep expression mouth below snout */}
+      {renderMouth(40, 34, 7.6, expression)}
+    </svg>
+  )
+}
+
+function BearSvg({ color, expression = 'none' }: SvgProps) {
+  return (
+    <svg viewBox="0 0 80 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color, width: '100%', height: '100%' }}>
+      {/* Ears */}
+      <circle cx="24" cy="18" r="6.6" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.12" />
+      <circle cx="56" cy="18" r="6.6" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.12" />
+      <circle cx="24" cy="18" r="2.4" fill="currentColor" fillOpacity="0.2" />
+      <circle cx="56" cy="18" r="2.4" fill="currentColor" fillOpacity="0.2" />
+      {/* Head */}
+      <circle cx="40" cy="34" r="18" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.1" />
+      {renderBrows(expression, { lx: 32, rx: 48, eyY: 30, er: 2.1 })}
+      {/* Eyes */}
+      <circle cx="32" cy="30" r="2.1" fill="currentColor" />
+      <circle cx="48" cy="30" r="2.1" fill="currentColor" />
+      {/* Snout */}
+      <ellipse cx="40" cy="38" rx="8" ry="5.6" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.12" />
+      <ellipse cx="40" cy="37" rx="3.1" ry="2.1" fill="currentColor" />
+      {/* Keep expression mouth below snout */}
+      {renderMouth(40, 45, 7.4, expression)}
+      {/* Body */}
+      <ellipse cx="40" cy="72" rx="22" ry="20" stroke="currentColor" strokeWidth="2.2" fill="currentColor" fillOpacity="0.1" />
+      {/* Belly */}
+      <ellipse cx="40" cy="74" rx="12" ry="14" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.05" />
+      {/* Arms */}
+      <path d="M22 60 Q12 70 16 80" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      <path d="M58 60 Q68 70 64 80" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      {/* Legs */}
+      <path d="M30 90 L28 96" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+      <path d="M50 90 L52 96" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 // ── Character map ─────────────────────────────────────────────────────────────
 
 const CHARACTER_SVGS: Record<string, (props: SvgProps) => JSX.Element> = {
@@ -289,6 +448,8 @@ const CHARACTER_SVGS: Record<string, (props: SvgProps) => JSX.Element> = {
   cat:    CatSvg,
   robot:  RobotSvg,
   kid:    KidSvg,
+  tiger:  TigerSvg,
+  bear:   BearSvg,
 }
 
 export const CHARACTER_VARIANTS = [
@@ -297,6 +458,8 @@ export const CHARACTER_VARIANTS = [
   { key: 'cat',    label: 'Cat'     },
   { key: 'robot',  label: 'Robot'   },
   { key: 'kid',    label: 'Kid'     },
+  { key: 'tiger',  label: 'Tiger'   },
+  { key: 'bear',   label: 'Bear'    },
 ]
 
 // ── CharacterNode component ───────────────────────────────────────────────────

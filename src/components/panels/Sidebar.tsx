@@ -168,6 +168,38 @@ const CHAR_THUMB: Record<string, string> = {
     <path d="M40 43 L56 54" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M40 58 L30 76" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M40 58 L50 76" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
+  tiger: `<ellipse cx="40" cy="65" rx="17" ry="24" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.1"/>
+    <path d="M24 55 L30 57 M56 55 L50 57 M24 65 L30 65 M56 65 L50 65 M25 75 L30 73 M55 75 L50 73" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M29 44 Q17 54 23 64" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M51 44 Q63 54 57 64" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M32 87 L30 93 M48 87 L50 93" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M50 80 Q65 90 60 70" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M22 9 Q16 -1 28 5 Z" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.12"/>
+    <path d="M58 9 Q64 -1 52 5 Z" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.12"/>
+    <circle cx="40" cy="23" r="18" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.1"/>
+    <path d="M40 5 L40 12 M33 6 L36 10 M47 6 L44 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M22 19 L28 21 M22 25 L28 25 M58 19 L52 21 M58 25 L52 25" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="32" cy="19" r="2.5" fill="currentColor"/>
+    <circle cx="48" cy="19" r="2.5" fill="currentColor"/>
+    <ellipse cx="40" cy="27" rx="7" ry="4.8" stroke="currentColor" stroke-width="1.6" fill="currentColor" fill-opacity="0.12"/>
+    <path d="M37.8 25.8 L40 28.3 L42.2 25.8 Z" fill="currentColor"/>
+    <path d="M35 28.5 L20 26.5 M34.5 30 L17 30 M35 31.5 L20 33.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M45 28.5 L60 26.5 M45.5 30 L63 30 M45 31.5 L60 33.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>`,
+  bear: `<circle cx="24" cy="18" r="6.6" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.12"/>
+    <circle cx="56" cy="18" r="6.6" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.12"/>
+    <circle cx="24" cy="18" r="2.4" fill="currentColor" fill-opacity="0.2"/>
+    <circle cx="56" cy="18" r="2.4" fill="currentColor" fill-opacity="0.2"/>
+    <circle cx="40" cy="34" r="18" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.1"/>
+    <circle cx="32" cy="30" r="2.1" fill="currentColor"/>
+    <circle cx="48" cy="30" r="2.1" fill="currentColor"/>
+    <ellipse cx="40" cy="38" rx="8" ry="5.6" stroke="currentColor" stroke-width="1.6" fill="currentColor" fill-opacity="0.12"/>
+    <ellipse cx="40" cy="37" rx="3.1" ry="2.1" fill="currentColor"/>
+    <ellipse cx="40" cy="72" rx="22" ry="20" stroke="currentColor" stroke-width="2.2" fill="currentColor" fill-opacity="0.1"/>
+    <ellipse cx="40" cy="74" rx="12" ry="14" stroke="currentColor" stroke-width="1.5" fill="currentColor" fill-opacity="0.05"/>
+    <path d="M22 60 Q12 70 16 80" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+    <path d="M58 60 Q68 70 64 80" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+    <path d="M30 90 L28 96" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+    <path d="M50 90 L52 96" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>`,
 }
 
 function CharacterCard({ variant, label, isDark }: { variant: string; label: string; isDark: boolean }) {

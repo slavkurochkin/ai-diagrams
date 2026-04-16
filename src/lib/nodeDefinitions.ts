@@ -1911,6 +1911,8 @@ const CharacterNodeDefinition: NodeDefinition = {
         { label: 'Cat',     value: 'cat'    },
         { label: 'Robot',   value: 'robot'  },
         { label: 'Kid',     value: 'kid'    },
+        { label: 'Tiger',   value: 'tiger'  },
+        { label: 'Bear',    value: 'bear'   },
       ],
     },
     {

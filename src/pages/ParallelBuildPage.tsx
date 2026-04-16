@@ -13,8 +13,10 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Moon,
   RotateCcw,
   Send,
+  Sun,
   Trophy,
 } from "lucide-react";
 import {
@@ -30,6 +32,7 @@ import { applyAutoLayout } from "../lib/autoLayout";
 import { nodeTypes } from "../components/nodes";
 import CustomEdge from "../components/canvas/CustomEdge";
 import type { BaseNodeData } from "../types/nodes";
+import { useFlowStore } from "../hooks/useFlowStore";
 
 type LocalNode = {
   id: string;
@@ -122,6 +125,7 @@ interface HeaderMenuActionProps {
   icon: React.ReactNode;
   label: string;
   description: string;
+  isDark: boolean;
 }
 
 function HeaderMenuAction({
@@ -129,17 +133,28 @@ function HeaderMenuAction({
   icon,
   label,
   description,
+  isDark,
 }: HeaderMenuActionProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 bg-[#0F1720] text-white/75 hover:bg-[#16212C] hover:text-white"
+      className={`w-full flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 ${
+        isDark
+          ? "bg-[#0F1720] text-white/75 hover:bg-[#16212C] hover:text-white"
+          : "bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+      }`}
     >
-      <div className="mt-0.5 shrink-0 text-white/45">{icon}</div>
+      <div className={`mt-0.5 shrink-0 ${isDark ? "text-white/45" : "text-slate-400"}`}>
+        {icon}
+      </div>
       <div className="min-w-0">
         <div className="text-[12px] font-medium leading-tight">{label}</div>
-        <div className="mt-0.5 text-[10px] leading-snug text-white/35">
+        <div
+          className={`mt-0.5 text-[10px] leading-snug ${
+            isDark ? "text-white/35" : "text-slate-500"
+          }`}
+        >
           {description}
         </div>
       </div>
@@ -147,17 +162,43 @@ function HeaderMenuAction({
   );
 }
 
-function providerHighlightClasses(provider: WorkflowProvider): string {
+function providerHighlightClasses(provider: WorkflowProvider, isDark: boolean): string {
+  if (isDark) {
+    switch (provider) {
+      case "openai":
+        return "border-emerald-400/45 bg-emerald-600/20 text-emerald-200";
+      case "claude":
+        return "border-amber-400/45 bg-amber-600/20 text-amber-200";
+      case "gemini":
+        return "border-sky-400/45 bg-sky-600/20 text-sky-200";
+      default:
+        return "border-white/20 bg-white/10 text-white/80";
+    }
+  }
   switch (provider) {
     case "openai":
-      return "border-emerald-400/45 bg-emerald-600/20 text-emerald-200";
+      return "border-emerald-300 bg-emerald-100 text-emerald-800";
     case "claude":
-      return "border-amber-400/45 bg-amber-600/20 text-amber-200";
+      return "border-amber-300 bg-amber-100 text-amber-800";
     case "gemini":
-      return "border-sky-400/45 bg-sky-600/20 text-sky-200";
+      return "border-sky-300 bg-sky-100 text-sky-800";
     default:
-      return "border-white/20 bg-white/10 text-white/80";
+      return "border-slate-300 bg-slate-100 text-slate-700";
   }
+}
+
+function winnerBadgeClasses(
+  kind: "baseline" | "judge",
+  isDark: boolean,
+): string {
+  if (kind === "baseline") {
+    return isDark
+      ? "border-amber-300/55 bg-amber-500/20 text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.2)]"
+      : "border-amber-300 bg-amber-100 text-amber-800 shadow-[0_0_0_1px_rgba(245,158,11,0.22)]";
+  }
+  return isDark
+    ? "border-yellow-300/60 bg-yellow-500/20 text-yellow-100 shadow-[0_0_0_1px_rgba(250,204,21,0.24)]"
+    : "border-yellow-300 bg-yellow-100 text-yellow-800 shadow-[0_0_0_1px_rgba(234,179,8,0.24)]";
 }
 
 function nextGridPosition(index: number): { x: number; y: number } {
@@ -236,6 +277,9 @@ function applyPatches(
 }
 
 export default function ParallelBuildPage() {
+  const theme = useFlowStore((s) => s.theme);
+  const setTheme = useFlowStore((s) => s.setTheme);
+  const isDark = theme === "dark";
   const [lanes, setLanes] = useState<LaneState[]>(LANE_DEFAULTS);
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
@@ -789,16 +833,22 @@ If this workflow is already solid and no meaningful change is needed, return no 
   }, [judgeStates, designNameById]);
 
   return (
-    <div className="h-screen w-screen bg-[#0F1117] text-white flex flex-col overflow-hidden">
+    <div
+      className={`h-screen w-screen flex flex-col overflow-hidden ${
+        isDark ? "bg-[#0F1117] text-white" : "bg-[#eef2ff] text-slate-900"
+      }`}
+    >
       <header
         ref={headerRef}
-        className="h-12 shrink-0 border-b border-white/10 px-4 flex items-center justify-between"
+        className={`h-12 shrink-0 px-4 flex items-center justify-between ${
+          isDark ? "border-b border-white/10" : "border-b border-indigo-200/70"
+        }`}
       >
-        <div className="text-[12px] tracking-wide text-white/80">
+        <div className={`text-[12px] tracking-wide ${isDark ? "text-white/80" : "text-slate-700"}`}>
           Parallel Build Lab
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-[11px] text-white/45">
+          <div className={`text-[11px] ${isDark ? "text-white/45" : "text-slate-600"}`}>
             3 canvases in parallel · select best · iterate
           </div>
           <div className="relative">
@@ -807,8 +857,12 @@ If this workflow is already solid and no meaningful change is needed, return no 
               onClick={() => setViewMenuOpen((v) => !v)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition-all duration-150 select-none ${
                 viewMenuOpen
-                  ? "bg-white/10 border-white/15 text-white"
-                  : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+                  ? isDark
+                    ? "bg-white/10 border-white/15 text-white"
+                    : "bg-indigo-100 border-indigo-200 text-indigo-800"
+                  : isDark
+                    ? "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+                    : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
               }`}
               title="Layout and view options"
             >
@@ -823,12 +877,19 @@ If this workflow is already solid and no meaningful change is needed, return no 
               <div
                 className="absolute top-[calc(100%+8px)] right-0 z-30 min-w-52 rounded-xl overflow-hidden"
                 style={{
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "#0B1117",
-                  boxShadow: "0 18px 42px rgba(0,0,0,0.52)",
+                  border: isDark
+                    ? "1px solid rgba(255,255,255,0.12)"
+                    : "1px solid rgba(99,102,241,0.2)",
+                  background: isDark ? "#0B1117" : "#f8faff",
+                  boxShadow: isDark
+                    ? "0 18px 42px rgba(0,0,0,0.52)"
+                    : "0 14px 30px rgba(67,56,202,0.14)",
                 }}
               >
-                <div className="p-1.5 space-y-1 bg-[#0B1117]">
+                <div
+                  className="p-1.5 space-y-1"
+                  style={{ background: isDark ? "#0B1117" : "#f8faff" }}
+                >
                   <HeaderMenuAction
                     onClick={() => {
                       relayoutAllLanes("LR");
@@ -837,6 +898,7 @@ If this workflow is already solid and no meaningful change is needed, return no 
                     icon={<AlignHorizontalJustifyStart size={14} />}
                     label="Horizontal layout"
                     description="Auto-arrange nodes left-to-right"
+                    isDark={isDark}
                   />
                   <HeaderMenuAction
                     onClick={() => {
@@ -846,8 +908,12 @@ If this workflow is already solid and no meaningful change is needed, return no 
                     icon={<AlignVerticalJustifyStart size={14} />}
                     label="Vertical layout"
                     description="Auto-arrange nodes top-to-bottom"
+                    isDark={isDark}
                   />
-                  <div className="my-1 border-t border-white/10" role="separator" />
+                  <div
+                    className={`my-1 border-t ${isDark ? "border-white/10" : "border-indigo-200/70"}`}
+                    role="separator"
+                  />
                   <HeaderMenuAction
                     onClick={() => {
                       setPanelSplit("horizontal");
@@ -856,6 +922,7 @@ If this workflow is already solid and no meaningful change is needed, return no 
                     icon={<AlignHorizontalJustifyStart size={14} />}
                     label="Horizontal split"
                     description="Place canvases side-by-side"
+                    isDark={isDark}
                   />
                   <HeaderMenuAction
                     onClick={() => {
@@ -865,11 +932,25 @@ If this workflow is already solid and no meaningful change is needed, return no 
                     icon={<AlignVerticalJustifyStart size={14} />}
                     label="Vertical split"
                     description="Stack canvases top-to-bottom"
+                    isDark={isDark}
                   />
                 </div>
               </div>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className={`px-2.5 py-1.5 rounded-md border text-[12px] inline-flex items-center gap-1.5 ${
+              isDark
+                ? "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+                : "border-indigo-200 bg-white text-slate-700 hover:bg-indigo-50"
+            }`}
+            title={`Switch to ${isDark ? "light" : "dark"} mode`}
+          >
+            {isDark ? <Sun size={13} /> : <Moon size={13} />}
+            {isDark ? "Light" : "Dark"}
+          </button>
         </div>
       </header>
 
@@ -880,26 +961,45 @@ If this workflow is already solid and no meaningful change is needed, return no 
           return (
           <section
             key={lane.id}
-            className="min-h-0 rounded-xl border border-white/10 bg-black/20 flex flex-col overflow-hidden"
+            className={`min-h-0 rounded-xl border flex flex-col overflow-hidden ${
+              isDark ? "border-white/10 bg-black/20" : "border-slate-300 bg-white"
+            }`}
           >
-            <div className="relative px-3 py-2 border-b border-white/10 flex items-center gap-2">
-              <div className="text-[12px] font-medium text-white/90">{lane.name}</div>
+            <div
+              className={`relative px-3 py-2 border-b flex items-center gap-2 ${
+                isDark ? "border-white/10" : "border-slate-200"
+              }`}
+            >
+              <div className={`text-[12px] font-medium ${isDark ? "text-white/90" : "text-slate-700"}`}>
+                {lane.name}
+              </div>
               <span
                 className={`absolute left-1/2 -translate-x-1/2 inline-flex items-center rounded-lg border px-3 py-1 text-[11px] font-bold uppercase tracking-wider shadow-[0_0_0_1px_rgba(255,255,255,0.04)] ${providerHighlightClasses(
                   lane.provider,
+                  isDark,
                 )}`}
               >
                 {lane.provider}
               </span>
               {winnerLaneId === lane.id && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-amber-400/40 text-amber-200 bg-amber-500/10">
-                  <Trophy size={10} />
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border ${winnerBadgeClasses(
+                    "baseline",
+                    isDark,
+                  )}`}
+                >
+                  <Trophy size={11} />
                   selected baseline
                 </span>
               )}
               {isJudgeWinner && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-yellow-400/45 text-yellow-200 bg-yellow-500/10">
-                  <Trophy size={10} />
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border ${winnerBadgeClasses(
+                    "judge",
+                    isDark,
+                  )}`}
+                >
+                  <Trophy size={11} />
                   judge winner
                 </span>
               )}
@@ -912,7 +1012,11 @@ If this workflow is already solid and no meaningful change is needed, return no 
                       prev.map((x) => (x.id === lane.id ? { ...x, provider } : x)),
                     );
                   }}
-                  className="bg-black/40 border border-white/15 rounded px-2 py-1 text-[11px]"
+                  className={`rounded px-2 py-1 text-[11px] ${
+                    isDark
+                      ? "bg-black/40 border border-white/15 text-white"
+                      : "bg-white border border-slate-300 text-slate-700"
+                  }`}
                   disabled={running}
                 >
                   {PROVIDER_OPTIONS.map((option) => (
@@ -948,31 +1052,51 @@ If this workflow is already solid and no meaningful change is needed, return no 
                 elementsSelectable={false}
                 proOptions={{ hideAttribution: true }}
               >
-                <Background gap={20} color="#ffffff14" />
+                <Background gap={20} color={isDark ? "#ffffff14" : "#3b82f620"} />
                 <Controls
                   showInteractive={false}
-                  className="!bg-gray-900/80 !border-white/10 !shadow-xl [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!text-zinc-300 [&_button:hover]:!bg-white/10 [&_button:hover]:!text-white [&_button:disabled]:!text-zinc-600 [&_button:disabled]:!opacity-70"
+                  className={
+                    isDark
+                      ? "!bg-gray-900/80 !border-white/10 !shadow-xl [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!text-zinc-300 [&_button:hover]:!bg-white/10 [&_button:hover]:!text-white [&_button:disabled]:!text-zinc-600 [&_button:disabled]:!opacity-70"
+                      : "!bg-white/90 !border-indigo-200 !shadow-md [&_button]:!bg-transparent [&_button]:!border-indigo-200 [&_button]:!text-slate-600 [&_button:hover]:!bg-indigo-50 [&_button:hover]:!text-slate-900 [&_button:disabled]:!text-slate-400 [&_button:disabled]:!opacity-70"
+                  }
                 />
               </ReactFlow>
                 );
               })()}
             </div>
 
-            <div className="px-3 py-2 border-t border-white/10 space-y-2">
+            <div
+              className={`px-3 py-2 border-t space-y-2 ${
+                isDark ? "border-white/10" : "border-slate-200"
+              }`}
+            >
               {lane.transientStatus && (
-                <p className="text-[11px] text-amber-200/90 bg-amber-950/30 border border-amber-500/35 rounded px-2 py-1">
+                <p
+                  className={`text-[11px] rounded px-2 py-1 border font-medium ${
+                    isDark
+                      ? "text-amber-200/95 bg-amber-950/35 border-amber-500/35"
+                      : "text-amber-800 bg-amber-50 border-amber-200"
+                  }`}
+                >
                   {lane.transientStatus}
                 </p>
               )}
               {lane.lastError && (
-                <p className="text-[11px] text-rose-300/90 bg-rose-900/20 border border-rose-500/30 rounded px-2 py-1">
+                <p
+                  className={`text-[11px] rounded px-2 py-1 border ${
+                    isDark
+                      ? "text-rose-300/90 bg-rose-900/20 border-rose-500/30"
+                      : "text-rose-700 bg-rose-50 border-rose-200"
+                  }`}
+                >
                   {lane.lastError}
                 </p>
               )}
               {lane.lastReply && (
                 <div className="space-y-1">
                   <p
-                    className={`text-[11px] text-white/75 ${
+                    className={`text-[11px] ${isDark ? "text-white/75" : "text-slate-700"} ${
                       expandedReplies[lane.id] ? "" : "line-clamp-3"
                     }`}
                   >
@@ -987,7 +1111,11 @@ If this workflow is already solid and no meaningful change is needed, return no 
                           [lane.id]: !prev[lane.id],
                         }))
                       }
-                      className="text-[10px] px-2 py-1 rounded border border-white/15 text-white/70 hover:bg-white/10"
+                      className={`text-[10px] px-2 py-1 rounded border ${
+                        isDark
+                          ? "border-white/15 text-white/70 hover:bg-white/10"
+                          : "border-slate-300 text-slate-600 hover:bg-slate-100"
+                      }`}
                     >
                       {expandedReplies[lane.id] ? "View less" : "View more"}
                     </button>
@@ -998,7 +1126,11 @@ If this workflow is already solid and no meaningful change is needed, return no 
                 <button
                   type="button"
                   onClick={() => useLaneAsBaseline(lane.id)}
-                  className="text-[11px] px-2 py-1 rounded border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/20"
+                  className={`text-[11px] px-2 py-1 rounded border ${
+                    isDark
+                      ? "border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/20"
+                      : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                  }`}
                   disabled={running || lane.nodes.length === 0}
                 >
                   Apply as baseline
@@ -1006,7 +1138,11 @@ If this workflow is already solid and no meaningful change is needed, return no 
                 <button
                   type="button"
                   onClick={() => sendLaneToMainCanvas(lane)}
-                  className="text-[11px] px-2 py-1 rounded border border-sky-400/35 text-sky-200 hover:bg-sky-600/20"
+                  className={`text-[11px] px-2 py-1 rounded border ${
+                    isDark
+                      ? "border-sky-400/35 text-sky-200 hover:bg-sky-600/20"
+                      : "border-sky-300 text-sky-700 hover:bg-sky-50"
+                  }`}
                   disabled={lane.nodes.length === 0}
                 >
                   Send to main canvas
@@ -1014,7 +1150,11 @@ If this workflow is already solid and no meaningful change is needed, return no 
                 <button
                   type="button"
                   onClick={() => void selfHealLane(lane)}
-                  className="text-[11px] px-2 py-1 rounded border border-amber-400/35 text-amber-200 hover:bg-amber-600/20"
+                  className={`text-[11px] px-2 py-1 rounded border ${
+                    isDark
+                      ? "border-amber-400/35 text-amber-200 hover:bg-amber-600/20"
+                      : "border-amber-300 text-amber-700 hover:bg-amber-50"
+                  }`}
                   disabled={running}
                 >
                   Fix
@@ -1022,7 +1162,11 @@ If this workflow is already solid and no meaningful change is needed, return no 
                 <button
                   type="button"
                   onClick={() => resetLane(lane.id)}
-                  className="text-[11px] px-2 py-1 rounded border border-white/15 text-white/70 hover:bg-white/10 inline-flex items-center gap-1"
+                  className={`text-[11px] px-2 py-1 rounded border inline-flex items-center gap-1 ${
+                    isDark
+                      ? "border-white/15 text-white/70 hover:bg-white/10"
+                      : "border-slate-300 text-slate-600 hover:bg-slate-100"
+                  }`}
                   disabled={running}
                 >
                   <RotateCcw size={12} />
@@ -1035,27 +1179,45 @@ If this workflow is already solid and no meaningful change is needed, return no 
         })}
       </main>
 
-      <section className="shrink-0 border-t border-white/10 bg-black/35 px-3 py-2">
+      <section
+        className={`shrink-0 border-t px-3 py-2 ${
+          isDark ? "border-white/10 bg-black/35" : "border-indigo-200/70 bg-white"
+        }`}
+      >
         <div className="max-w-[1800px] mx-auto">
           <div className="flex items-center justify-between gap-3 mb-2">
-            <p className="text-[11px] text-white/60">
-              Blind judge review (OpenAI / Claude / Gemini) - judges do not see builder providers.
+            <p className={`text-[11px] ${isDark ? "text-white/65" : "text-slate-700"}`}>
+              Blind judge review (OpenAI / Claude / Gemini) — judges do not see builder providers.
             </p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setJudgesCollapsed((v) => !v)}
-                className="px-2.5 py-1.5 rounded-md border border-white/20 bg-white/5 hover:bg-white/10 text-[11px] text-white inline-flex items-center gap-1.5"
+                className={`px-2.5 py-1.5 rounded-md border text-[11px] inline-flex items-center gap-1.5 ${
+                  isDark
+                    ? "border-white/20 bg-white/5 hover:bg-white/10 text-white"
+                    : "border-slate-300 bg-white hover:bg-slate-100 text-slate-700"
+                }`}
               >
                 {judgesCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
                 {judgesCollapsed ? "Expand judges" : "Minimize judges"}
               </button>
-              <label className="inline-flex items-center gap-1.5 text-[10px] text-white/65 rounded-md border border-white/15 bg-white/5 px-2 py-1.5">
+              <label
+                className={`inline-flex items-center gap-1.5 text-[10px] rounded-md border px-2 py-1.5 ${
+                  isDark
+                    ? "text-white/65 border-white/15 bg-white/5"
+                    : "text-slate-600 border-slate-300 bg-white"
+                }`}
+              >
                 Loop
                 <select
                   value={autoHealCycles}
                   onChange={(e) => setAutoHealCycles(Number(e.target.value))}
-                  className="bg-black/40 border border-white/20 rounded px-1.5 py-0.5 text-[10px] text-white"
+                  className={`rounded px-1.5 py-0.5 text-[10px] ${
+                    isDark
+                      ? "bg-black/40 border border-white/20 text-white"
+                      : "bg-white border border-slate-300 text-slate-700"
+                  }`}
                   disabled={running}
                   title="Max self-review/fix cycles for Fix all lanes"
                 >
@@ -1075,7 +1237,11 @@ If this workflow is already solid and no meaningful change is needed, return no 
                     ? "Run self-review/fix loop on all lanes"
                     : "Build or load a lane first"
                 }
-                className="px-3 py-1.5 rounded-md border border-amber-500/40 bg-amber-700/60 hover:bg-amber-600/80 disabled:opacity-40 text-[11px] text-white"
+                className={`px-3 py-1.5 rounded-md border disabled:opacity-40 text-[11px] ${
+                  isDark
+                    ? "border-amber-500/40 bg-amber-700/60 hover:bg-amber-600/80 text-white"
+                    : "border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-800"
+                }`}
               >
                 Fix all lanes (loop)
               </button>
@@ -1086,7 +1252,11 @@ If this workflow is already solid and no meaningful change is needed, return no 
                   !lastSubmittedPrompt.trim() ||
                   Object.values(judgeStates).some((s) => s.status === "running")
                 }
-                className="px-3 py-1.5 rounded-md border border-sky-500/40 bg-sky-700/70 hover:bg-sky-600/85 disabled:opacity-40 text-[11px] text-white"
+                className={`px-3 py-1.5 rounded-md border disabled:opacity-40 text-[11px] ${
+                  isDark
+                    ? "border-sky-500/40 bg-sky-700/70 hover:bg-sky-600/85 text-white"
+                    : "border-sky-300 bg-sky-100 hover:bg-sky-200 text-sky-800"
+                }`}
               >
                 Run 3 judges
               </button>
@@ -1100,12 +1270,15 @@ If this workflow is already solid and no meaningful change is needed, return no 
                 return (
                   <div
                     key={provider}
-                    className="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 space-y-1.5 min-h-[120px]"
+                    className={`rounded-lg border px-2.5 py-2 space-y-1.5 min-h-[120px] ${
+                      isDark ? "border-white/10 bg-black/30" : "border-slate-300 bg-white"
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <p
                         className={`inline-flex items-center rounded-lg border px-3 py-1 text-[11px] font-bold uppercase tracking-wider shadow-[0_0_0_1px_rgba(255,255,255,0.04)] ${providerHighlightClasses(
                           provider,
+                          isDark,
                         )}`}
                       >
                         {provider} judge
@@ -1115,27 +1288,44 @@ If this workflow is already solid and no meaningful change is needed, return no 
                       )}
                     </div>
                     {state.status === "idle" && (
-                      <p className="text-[11px] text-white/45">
-                        No decision yet. Run judges after generating designs.
-                      </p>
+                      <div
+                        className={`rounded-md px-2 py-1 border ${
+                          isDark
+                            ? "border-white/10 bg-white/[0.03]"
+                            : "border-slate-200 bg-slate-50"
+                        }`}
+                      >
+                        <p className={`text-[11px] ${isDark ? "text-white/55" : "text-slate-600"}`}>
+                          No decision yet. Run judges after generating designs.
+                        </p>
+                      </div>
                     )}
                     {state.status === "error" && (
                       <p className="text-[11px] text-rose-300/90">{state.error}</p>
                     )}
                     {state.status === "done" && state.decision && (
                       <>
-                        <p className="text-[11px] text-emerald-200">
-                          Winner:{" "}
-                          <span className="font-medium">
+                        <div
+                          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold ${
+                            isDark
+                              ? "border-emerald-400/35 bg-emerald-900/20 text-emerald-200"
+                              : "border-emerald-300 bg-emerald-100 text-emerald-800"
+                          }`}
+                        >
+                          <span>Winner:</span>
+                          <span className="font-bold">
                             {designNameById.get(state.decision.winnerId) ?? state.decision.winnerId}
                           </span>
-                        </p>
-                        <p className="text-[11px] text-white/70 line-clamp-3">
+                        </div>
+                        <p className={`text-[11px] line-clamp-3 ${isDark ? "text-white/70" : "text-slate-700"}`}>
                           {state.decision.overallReasoning}
                         </p>
                         <div className="space-y-1">
                           {state.decision.scores.map((score) => (
-                            <p key={score.designId} className="text-[10px] text-white/55">
+                            <p
+                              key={score.designId}
+                              className={`text-[10px] ${isDark ? "text-white/55" : "text-slate-600"}`}
+                            >
                               {designNameById.get(score.designId) ?? score.designId}: {score.score}
                               /100 - {score.reasoning}
                             </p>
@@ -1150,15 +1340,24 @@ If this workflow is already solid and no meaningful change is needed, return no 
           )}
 
           {combinedResult && (
-            <div className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-900/15 px-3 py-2">
-              <p className="text-[11px] text-emerald-200">
+            <div
+              className={`mt-2 rounded-lg border px-3 py-2 ${
+                isDark
+                  ? "border-emerald-500/30 bg-emerald-900/15"
+                  : "border-emerald-300 bg-emerald-50"
+              }`}
+            >
+              <p className={`text-[11px] ${isDark ? "text-emerald-200" : "text-emerald-800"}`}>
                 Combined winner:{" "}
                 <span className="font-semibold">{combinedResult.winnerLabel}</span> (
                 {combinedResult.judgeCount} judges)
               </p>
               <div className="mt-1 flex flex-wrap gap-3">
                 {combinedResult.averages.map((item) => (
-                  <p key={item.id} className="text-[10px] text-emerald-100/85">
+                  <p
+                    key={item.id}
+                    className={`text-[10px] ${isDark ? "text-emerald-100/85" : "text-emerald-700"}`}
+                  >
                     {item.label}: {item.votes} vote(s), avg {item.averageScore}/100
                   </p>
                 ))}
@@ -1168,11 +1367,19 @@ If this workflow is already solid and no meaningful change is needed, return no 
         </div>
       </section>
 
-      <footer className="shrink-0 border-t border-white/10 bg-black/50 p-3">
+      <footer
+        className={`shrink-0 border-t p-3 ${
+          isDark ? "border-white/10 bg-black/50" : "border-indigo-200/70 bg-white"
+        }`}
+      >
         <div className="max-w-[1800px] mx-auto">
-          <div className="rounded-xl border border-white/15 bg-black/35 px-3 py-2">
-            <div className="text-[11px] text-white/50 mb-2">
-              Prompt terminal — sends to all canvases in parallel
+          <div
+            className={`rounded-xl border px-3 py-2 ${
+              isDark ? "border-white/15 bg-black/35" : "border-slate-300 bg-white"
+            }`}
+          >
+            <div className={`text-[11px] mb-2 ${isDark ? "text-white/55" : "text-slate-700"}`}>
+              Prompt terminal — sends to all canvases in parallel.
             </div>
             <div className="flex items-end gap-2">
               <textarea
@@ -1180,14 +1387,22 @@ If this workflow is already solid and no meaningful change is needed, return no 
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Describe the flow to build or how to improve the current baseline..."
                 rows={3}
-                className="flex-1 rounded-md border border-white/15 bg-black/30 px-3 py-2 text-[12px] text-white placeholder:text-white/35 resize-none focus:outline-none focus:ring-1 focus:ring-violet-400/60"
+                className={`flex-1 rounded-md border px-3 py-2 text-[12px] resize-none focus:outline-none focus:ring-1 ${
+                  isDark
+                    ? "border-white/15 bg-black/30 text-white placeholder:text-white/35 focus:ring-violet-400/60"
+                    : "border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 focus:ring-indigo-400/60"
+                }`}
                 disabled={running}
               />
               <button
                 type="button"
                 onClick={() => void sendPrompt()}
                 disabled={!canSend}
-                className="h-10 px-4 rounded-md border border-violet-500/40 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white text-[12px] inline-flex items-center gap-2"
+                className={`h-10 px-4 rounded-md border disabled:opacity-40 text-[12px] inline-flex items-center gap-2 ${
+                  isDark
+                    ? "border-violet-500/40 bg-violet-600 hover:bg-violet-500 text-white"
+                    : "border-indigo-300 bg-indigo-500 hover:bg-indigo-400 text-white"
+                }`}
               >
                 {running ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 {running ? "Running…" : "Run parallel"}

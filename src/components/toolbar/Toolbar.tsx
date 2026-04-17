@@ -4,7 +4,7 @@ import {
   Sun, Moon, Save, FolderOpen, LayoutDashboard,
   ImageDown, Copy, Maximize2, Check, Sparkles, FileCode, Share2, MessageSquare,
   AlignVerticalJustifyStart, AlignHorizontalJustifyStart, Layers, LayoutTemplate, ListOrdered,
-  FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown, AlertCircle, Trash2, Info, FileCode2,
+  FilePlus, BookOpen, FlaskConical, ClipboardCheck, ChevronDown, AlertCircle, Trash2, Info,
   CheckCircle2, ShieldAlert, Lock, Unlock,
 } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
@@ -164,8 +164,6 @@ interface ToolbarProps {
   exportGIFBusy?: boolean
   onExportGIFSelection: () => void
   exportGIFSelectionDisabled?: boolean
-  onGeneratePrompt: () => void
-  generatePromptDisabled?: boolean
   onWorkflowChat?: () => void
 }
 
@@ -190,8 +188,6 @@ export default function Toolbar({
   exportGIFBusy,
   onExportGIFSelection,
   exportGIFSelectionDisabled,
-  onGeneratePrompt,
-  generatePromptDisabled,
   onWorkflowChat,
 }: ToolbarProps) {
   const {
@@ -783,15 +779,6 @@ export default function Toolbar({
             label="Risk analysis"
             description="Identify failure modes and architectural risks"
             disabled={risksDisabled}
-            tone="accent"
-            isDark={isDark}
-          />
-          <MenuAction
-            onClick={() => handleMenuAction(onGeneratePrompt)}
-            icon={<FileCode2 size={14} />}
-            label="Generate prompt"
-            description="Create an implementation brief for coding agents"
-            disabled={generatePromptDisabled}
             tone="accent"
             isDark={isDark}
           />

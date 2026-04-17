@@ -1,8 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Plus, Trash2, Upload, FileText, ChevronDown, ChevronUp, Sparkles, RotateCcw } from 'lucide-react'
+import type { Node, Edge } from 'reactflow'
+import { X, Plus, Trash2, Upload, FileText, ChevronDown, ChevronUp, Sparkles, RotateCcw, Wand2, Loader2, Copy, Check, Download } from 'lucide-react'
 import type { FlowContext, FlowContextDocument } from '../../types/flow'
+import type { BaseNodeData } from '../../types/nodes'
 import { useFlowStore } from '../../hooks/useFlowStore'
+import { synthesizeFlowContextFromDiagram } from '../../lib/api/flowContextSynthesize'
+import {
+  codingAgentMarkdownFilename,
+  generateCodingAgentMarkdownPack,
+} from '../../lib/promptGenerator'
 
 // ── Example data ───────────────────────────────────────────────────────────────
 
@@ -135,6 +142,9 @@ export default function FlowContextModal({
 }: FlowContextModalProps) {
   const theme = useFlowStore((s) => s.theme)
   const isDark = theme === 'dark'
+  const storeNodes = useFlowStore((s) => s.nodes) as Node<BaseNodeData>[]
+  const storeEdges = useFlowStore((s) => s.edges) as Edge[]
+  const layoutDirection = useFlowStore((s) => s.layoutDirection)
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialContext?.description ?? '')
   const [howItWorks, setHowItWorks] = useState(initialContext?.howItWorks ?? '')
@@ -142,8 +152,53 @@ export default function FlowContextModal({
     initialContext?.documents ?? [],
   )
   const [clearCanvas, setClearCanvas] = useState(false)
+  const [synthLoading, setSynthLoading] = useState(false)
+  const [synthError, setSynthError] = useState<string | null>(null)
+  const [exportCopied, setExportCopied] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const buildMarkdownPack = useCallback(() => {
+    const flowLabel = name.trim() || initialName.trim() || 'Untitled Flow'
+    return generateCodingAgentMarkdownPack(
+      flowLabel,
+      storeNodes,
+      storeEdges,
+      { description, howItWorks, documents },
+      layoutDirection,
+    )
+  }, [
+    name,
+    initialName,
+    storeNodes,
+    storeEdges,
+    description,
+    howItWorks,
+    documents,
+    layoutDirection,
+  ])
+
+  const handleCopyMarkdownPack = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(buildMarkdownPack())
+      setExportCopied(true)
+      setTimeout(() => setExportCopied(false), 2000)
+    } catch {
+      /* clipboard may be denied */
+    }
+  }, [buildMarkdownPack])
+
+  const handleDownloadMarkdownPack = useCallback(() => {
+    const flowLabel = name.trim() || initialName.trim() || 'Untitled Flow'
+    const md = buildMarkdownPack()
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = codingAgentMarkdownFilename(flowLabel)
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [buildMarkdownPack, name, initialName])
 
   // Sync when initialContext changes (e.g. opening edit mode with existing data)
   useEffect(() => {
@@ -153,9 +208,33 @@ export default function FlowContextModal({
       setHowItWorks(initialContext?.howItWorks ?? '')
       setDocuments(initialContext?.documents ?? [])
       setClearCanvas(false)
+      setSynthError(null)
+      setSynthLoading(false)
+      setExportCopied(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  const handleGenerateFromDiagram = useCallback(async () => {
+    if (!hasNodes) return
+    setSynthError(null)
+    setSynthLoading(true)
+    try {
+      const flowLabel = name.trim() || initialName.trim() || 'Untitled Flow'
+      const result = await synthesizeFlowContextFromDiagram(
+        storeNodes,
+        storeEdges,
+        flowLabel,
+        { description, howItWorks },
+      )
+      setDescription(result.description)
+      setHowItWorks(result.howItWorks)
+    } catch (e) {
+      setSynthError(e instanceof Error ? e.message : 'Generation failed')
+    } finally {
+      setSynthLoading(false)
+    }
+  }, [hasNodes, storeNodes, storeEdges, name, initialName, description, howItWorks])
 
   const addDocument = useCallback(() => {
     setDocuments((prev) => [
@@ -260,11 +339,30 @@ export default function FlowContextModal({
                   </h2>
                   <p className={`text-[11px] mt-0.5 ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
                     {isNew
-                      ? 'Describe your agent so AI can give targeted suggestions'
-                      : 'Update context to improve AI evaluation suggestions'}
+                      ? 'Describe your agent for Design with AI and reviews. Export a Markdown pack for coding agents from this dialog (see below).'
+                      : 'Used by Design with AI and design review. Export a Markdown pack for coding agents from this dialog (see below).'}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap justify-end">
+                  {hasNodes && (
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerateFromDiagram()}
+                      disabled={synthLoading}
+                      title="Draft both fields from the current canvas (node descriptions, types, edges). Refines existing text if present."
+                      className="
+                        flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+                        text-[11px] font-medium transition-colors disabled:opacity-45
+                      "
+                      style={isDark
+                        ? { color: 'rgba(167,139,250,0.95)', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(167,139,250,0.35)' }
+                        : { color: '#5b21b6', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(124,58,237,0.35)' }
+                      }
+                    >
+                      {synthLoading ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />}
+                      Generate from diagram
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleClearDetails}
@@ -308,6 +406,62 @@ export default function FlowContextModal({
 
               {/* Body */}
               <div className="flex-1 overflow-y-auto min-h-0 p-5 space-y-6">
+                {synthError && (
+                  <p className={`text-[11px] rounded-lg px-3 py-2 border ${isDark ? 'text-red-300 bg-red-950/50 border-red-900/50' : 'text-red-800 bg-red-50 border-red-200'}`}>
+                    {synthError}
+                  </p>
+                )}
+                {hasNodes && (
+                  <p className={`text-[10px] leading-snug ${isDark ? 'text-white/35' : 'text-slate-500'}`}>
+                    Tip: fill each node&rsquo;s Description on the canvas, then use Generate from diagram to draft this context for coding agents. Business documents below are unchanged unless you edit them.
+                  </p>
+                )}
+
+                {/* ── Export for coding agents ── */}
+                <div
+                  className="rounded-xl px-3 py-3"
+                  style={{
+                    background: isDark ? 'rgba(139,92,246,0.08)' : 'rgba(79,70,229,0.06)',
+                    border: isDark ? '1px solid rgba(167,139,250,0.22)' : '1px solid rgba(99,102,241,0.22)',
+                  }}
+                >
+                  <SectionLabel>Export for coding agents</SectionLabel>
+                  <p className={`text-[10px] leading-snug mb-2.5 ${isDark ? 'text-white/45' : 'text-slate-600'}`}>
+                    Copies the fields above (even before Save) plus the current canvas: implementation brief, node ID table, and YAML. Empty canvas is ok; the brief will mostly be context-only.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyMarkdownPack()}
+                      className="
+                        flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+                        text-[11px] font-medium transition-colors
+                      "
+                      style={isDark
+                        ? { color: 'rgba(226,232,240,0.9)', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }
+                        : { color: '#334155', background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(99,102,241,0.28)' }
+                      }
+                    >
+                      {exportCopied ? <Check size={11} className={isDark ? 'text-emerald-400' : 'text-emerald-600'} /> : <Copy size={11} />}
+                      {exportCopied ? 'Copied' : 'Copy Markdown pack'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadMarkdownPack}
+                      className="
+                        flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+                        text-[11px] font-medium transition-colors
+                      "
+                      style={isDark
+                        ? { color: 'rgba(167,139,250,0.95)', background: 'rgba(139,92,246,0.14)', border: '1px solid rgba(167,139,250,0.35)' }
+                        : { color: '#5b21b6', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(124,58,237,0.35)' }
+                      }
+                    >
+                      <Download size={11} />
+                      Download .md
+                    </button>
+                  </div>
+                </div>
 
                 {/* ── Flow Info ── */}
                 <div>

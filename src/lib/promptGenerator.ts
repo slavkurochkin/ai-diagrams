@@ -3,6 +3,11 @@ import type { BaseNodeData } from '../types/nodes'
 import type { FlowContext } from '../types/flow'
 import { getNodeDefinition } from './nodeDefinitions'
 import { filterGraphForAI } from './aiGraphFilter'
+import { serializeFlowToYAML } from './yamlFlow'
+
+function cellForMarkdownTable(s: string): string {
+  return s.replace(/\s+/g, ' ').replace(/\|/g, '·').trim()
+}
 
 function edgeLabel(e: Edge): string {
   const from = e.sourceHandle ? `[${e.sourceHandle}]` : ''
@@ -185,4 +190,83 @@ export function generateImplementationPrompt(
   lines.push('- **Notes**: treat each component\'s "Implementation note" as binding architectural guidance.')
 
   return lines.join('\n')
+}
+
+/**
+ * Safe filename for a downloaded Markdown pack (ASCII, no path separators).
+ */
+export function codingAgentMarkdownFilename(flowName: string): string {
+  const base =
+    flowName
+      .trim()
+      .replace(/[/\\?%*:|"<>]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80) || 'flow'
+  return `${base}-coding-agent.md`
+}
+
+/**
+ * Full Markdown handoff for coding agents: implementation brief, node ID table, and YAML appendix.
+ */
+export function generateCodingAgentMarkdownPack(
+  flowName: string,
+  nodes: Node<BaseNodeData>[],
+  edges: Edge[],
+  flowContext: FlowContext | null,
+  layoutDirection: 'TB' | 'LR',
+): string {
+  const brief = generateImplementationPrompt(flowName, nodes, edges, flowContext)
+
+  const { nodes: contentNodes } = filterGraphForAI(nodes, edges)
+  const tableLines: string[] = []
+  tableLines.push('---')
+  tableLines.push('')
+  tableLines.push('## Appendix A — Node ID map (for YAML and APIs)')
+  tableLines.push('')
+  if (contentNodes.length === 0) {
+    tableLines.push(
+      '_No AI pipeline nodes on the canvas (only presentation nodes such as frames or characters, or an empty diagram)._',
+    )
+    tableLines.push('')
+  } else {
+    tableLines.push('| Node ID | Type | Label | Description (excerpt) |')
+    tableLines.push('| --- | --- | --- | --- |')
+    for (const n of contentNodes) {
+      const def = getNodeDefinition(n.data.nodeType)
+      const labelRaw = n.data.label ?? def?.label ?? n.data.nodeType
+      const desc = typeof n.data.description === 'string' ? n.data.description.trim() : ''
+      const excerpt = desc.length > 120 ? `${desc.slice(0, 117)}...` : desc
+      tableLines.push(
+        `| \`${n.id}\` | \`${n.data.nodeType}\` | ${cellForMarkdownTable(labelRaw)} | ${cellForMarkdownTable(excerpt) || '—'} |`,
+      )
+    }
+    tableLines.push('')
+  }
+
+  const yaml = serializeFlowToYAML(flowName, nodes, edges, layoutDirection)
+  const yamlBlock = [
+    '---',
+    '',
+    '## Appendix B — Diagram YAML (machine-readable)',
+    '',
+    '```yaml',
+    yaml.trimEnd(),
+    '```',
+    '',
+  ].join('\n')
+
+  const preamble = [
+    '# Coding agent export',
+    '',
+    `**Flow:** ${flowName}`,
+    '',
+    'Use this document as a single handoff. The **Implementation Brief** is the primary specification; **Appendix A** maps stable node IDs to labels; **Appendix B** can recreate the diagram in this editor.',
+    '',
+    '---',
+    '',
+  ].join('\n')
+
+  return preamble + brief + '\n' + tableLines.join('\n') + yamlBlock
 }

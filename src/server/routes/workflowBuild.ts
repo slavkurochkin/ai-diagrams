@@ -51,12 +51,30 @@ function contextToText(ctx: FlowContext): string {
   return lines.join('\n')
 }
 
+function nodeAuthorIntentSummary(nodes: SerializedNode[]): string {
+  if (nodes.length === 0) return ''
+  const lines = nodes.map((n) => {
+    const desc =
+      typeof n.description === 'string' && n.description.trim()
+        ? n.description.trim()
+        : '(no description — infer role from label, node type, and config)'
+    return `- **${n.id}** — [${n.nodeType}] "${n.label}": ${desc}`
+  })
+  return [
+    '### Author intent (per node)',
+    'When the user asks to wire or build from canvas context, treat each line as what this instance should do in this diagram (alongside Flow Context and configs below).',
+    '',
+    ...lines,
+  ].join('\n')
+}
+
 function graphSummaryForPrompt(
   nodes: SerializedNode[],
   edges: SerializedEdge[],
   flowName: string,
 ): string {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]))
+  const intentBlock = nodeAuthorIntentSummary(nodes)
   const nodeLines = nodes.map((n) => {
     const descLine =
       typeof n.description === 'string' && n.description.trim()
@@ -83,7 +101,9 @@ function graphSummaryForPrompt(
   return [
     `Flow name: ${flowName}`,
     '',
-    `Nodes (${nodes.length}):`,
+    intentBlock,
+    '',
+    `Nodes (${nodes.length}) — detail:`,
     ...nodeLines,
     '',
     `Connections (${edges.length}):`,
@@ -158,6 +178,15 @@ ${ctxBlock}
 The **Current flow** section above is always the live canvas **right now** (after any prior edits in this chat). Users often send another message to **change** what was built: fix wiring, add missing pieces (guardrails, cache, eval), remove nodes, tweak configs, or reconnect.
 
 When they ask to improve, fix, adjust, add, remove, or reconnect — use the tool with **targeted patches** using existing node \`id\`s and edge \`id\`s from that section. Prefer \`setNodeConfig\`, \`addEdge\`, \`removeEdge\`, \`removeNode\`, and new \`addNode\` only where needed; do not rebuild the whole graph unless they ask to start over.
+
+## Build / wire from nodes already on the canvas
+
+Trigger this mindset when the user wants to **connect**, **wire**, **link**, **complete**, or **build** the flow **from what is already placed** — including phrases like *from nodes context*, *from node descriptions*, *based on context in nodes*, *use the descriptions*, *finish the agent*, or *hook up the nodes*.
+
+- Use **Author intent (per node)** and each \`description:\` under **Nodes — detail** as the main semantic contract for ordering and data flow. Combine with **Agent use-case context** (if any) for the overall story.
+- **Reuse existing nodes by exact \`id\`.** Prefer \`addEdge\` (and \`removeEdge\` / \`removeNode\` only if clearly wrong) over creating duplicates. Use \`addNode\` only when a catalog node type is **missing** but **required** by the described pipeline (e.g. entry \`prompt\`, glue \`promptTemplate\`, \`guardrails\`, or a tool loop piece).
+- If many nodes have no description, infer a sensible topology from \`nodeType\`, labels, and config; you may add \`setNodeDescription\` patches to capture intent for later edits.
+- After wiring, ensure one entry point, valid tool-loop vs linear-tool rules, and no illegal dangling outputs (per the rules below).
 
 ## Patch operations
 

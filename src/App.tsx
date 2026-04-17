@@ -8,7 +8,6 @@ import Sidebar from "./components/panels/Sidebar";
 import Toolbar from "./components/toolbar/Toolbar";
 import ConfigPanel from "./components/panels/ConfigPanel";
 import ExplainPanel from "./components/panels/ExplainPanel";
-import PromptPanel from "./components/panels/PromptPanel";
 import TemplatesPanel from "./components/panels/TemplatesPanel";
 import FlowContextModal from "./components/panels/FlowContextModal";
 import WorkflowChatBody, {
@@ -19,7 +18,6 @@ import DrawingOverlay from "./components/presentation/DrawingOverlay";
 import { useFlowStore } from "./hooks/useFlowStore";
 import { useFlowAnimation } from "./hooks/useFlowAnimation";
 import { streamExplain } from "./lib/api/explain";
-import { generateImplementationPrompt } from "./lib/promptGenerator";
 import { streamEvalSuggestions } from "./lib/api/evalSuggestions";
 import { streamDesignReview } from "./lib/api/designReview";
 import {
@@ -398,8 +396,6 @@ function AppInner() {
     "explain" | "review" | "eval" | "success" | "risks" | "build"
   >("explain");
 
-  const [promptPanelOpen, setPromptPanelOpen] = useState(false);
-  const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [buildWorkspaceMode, setBuildWorkspaceMode] = useState(false);
   const [buildDecisions, setBuildDecisions] = useState<ReviewDecision[]>([]);
   const [buildChatBusy, setBuildChatBusy] = useState(false);
@@ -631,17 +627,6 @@ function AppInner() {
     },
     [nodes, edges, flowName, flowContext],
   );
-
-  const handleGeneratePrompt = useCallback(() => {
-    const prompt = generateImplementationPrompt(
-      flowName,
-      nodes as Node<BaseNodeData>[],
-      edges,
-      flowContext,
-    );
-    setGeneratedPrompt(prompt);
-    setPromptPanelOpen(true);
-  }, [flowName, nodes, edges, flowContext]);
 
   // Apply dark/light class to <html>
   useEffect(() => {
@@ -980,8 +965,6 @@ function AppInner() {
               exportingGIF ||
               !nodes.some((n) => n.selected)
             }
-            onGeneratePrompt={handleGeneratePrompt}
-            generatePromptDisabled={nodes.length === 0}
             onWorkflowChat={() => {
               setBuildWorkspaceMode((v) => !v);
               setAiPanelOpen(false);
@@ -1117,11 +1100,6 @@ function AppInner() {
               open={templatesOpen}
               initialTab={templatesInitialTab}
               onClose={() => setTemplatesOpen(false)}
-            />
-            <PromptPanel
-              open={promptPanelOpen}
-              prompt={generatedPrompt}
-              onClose={() => setPromptPanelOpen(false)}
             />
             <FlowContextModal
               open={contextModalOpen}

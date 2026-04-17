@@ -17,6 +17,7 @@ import {
   Info,
   RotateCw,
   Square,
+  Link2,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ReviewExitShimmerOverlay } from "../ReviewExitShimmerOverlay";
@@ -96,6 +97,13 @@ function rawMarkdownFromReviewerTurn(turn: ChatTurn): string | null {
     return turn.content.trim() || null;
   return turn.content.slice(REVIEWER_TURN_PREFIX.length).trim();
 }
+
+/** User message for one-click “wire from descriptions” — aligned with workflowBuild system prompt. */
+const BUILD_FLOW_FROM_NODES_CONTEXT_MESSAGE = `Wire and complete the agent (or pipeline) using the nodes already on the canvas.
+
+Use the context on those nodes (each node's description, label, and type) as the main guide for what each step does and how data should flow. Follow the Flow Context if it is set.
+
+Prefer addEdge with the exact existing node ids. Only addNode when a catalog node type is clearly missing for a coherent pipeline. Remove or replace edges if needed so the graph has one entry point and valid connectivity (including tool loops where applicable).`;
 
 const ARCHITECT_REFINE_TEMPLATE = `You are refactoring the CURRENT graph, not rebuilding from scratch.
 
@@ -187,6 +195,7 @@ export default function WorkflowChatBody({
   const flowName = useFlowStore((s) => s.flowName);
   const flowContext = useFlowStore((s) => s.flowContext);
   const setFlowContext = useFlowStore((s) => s.setFlowContext);
+  const canvasNodeCount = useFlowStore((s) => s.nodes.length);
   const { fitView } = useReactFlow();
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
@@ -551,107 +560,140 @@ export default function WorkflowChatBody({
     ],
   );
 
+  const submitBuilderMessage = useCallback(
+    async (
+      text: string,
+      options?: {
+        skipContextProposal?: boolean;
+        /** After patches, run LR auto-layout when there is at least one edge (e.g. wiring existing nodes). */
+        reflowAfter?: boolean;
+        /** Default true: clear the compose box. Set false for one-click actions so a draft is preserved. */
+        clearDraft?: boolean;
+      },
+    ) => {
+      const trimmed = text.trim();
+      if (!trimmed || loading || reviewing || improving || autoRunning) return;
+
+      if (turns.length === 0 && !options?.skipContextProposal) {
+        setShowContextProposal(true);
+      }
+      if (options?.skipContextProposal && turns.length === 0) {
+        setShowContextProposal(false);
+      }
+
+      if (options?.clearDraft !== false) {
+        setDraft("");
+      }
+      setRequestError(null);
+      appendToDesignDoc("User request", trimmed);
+      const nextTurns: ChatTurn[] = [
+        ...turns,
+        { role: "user", content: trimmed },
+      ];
+      setTurns(nextTurns);
+      setLoading(true);
+      autoRunCancelledRef.current = false;
+
+      const apiMessages: WorkflowBuildMessage[] = nextTurns.map((t) => ({
+        role: t.role,
+        content: t.content,
+      }));
+
+      let turnsAfterSend: ChatTurn[] | null = null;
+      try {
+        const latest = useFlowStore.getState();
+        const { nodes: sn, edges: se } = serializeFlowForWorkflowApi(
+          latest.nodes,
+          latest.edges,
+        );
+        const res = await workflowBuildChat(apiMessages, {
+          nodes: sn,
+          edges: se,
+          flowName: latest.flowName,
+          flowContext: latest.flowContext ?? null,
+        });
+
+        const assistantText = res.content?.trim() || "(No text reply.)";
+        const applied = res.validatedPatches?.length ?? 0;
+        if (applied > 0) {
+          const wasEmpty = useFlowStore.getState().nodes.length === 0;
+          applyWorkflowPatchesToFlow(res.validatedPatches);
+          const after = useFlowStore.getState();
+          const shouldReflow =
+            after.edges.length > 0 && (wasEmpty || options?.reflowAfter);
+          if (shouldReflow) {
+            const laid = applyAutoLayout(after.nodes, after.edges, "LR");
+            after.setNodes(laid as FlowNode<BaseNodeData>[]);
+          }
+          window.requestAnimationFrame(() => {
+            fitView({ padding: 0.2, duration: 280 });
+          });
+        }
+
+        const assistantTurn: ChatTurn = {
+          role: "assistant",
+          content: assistantText,
+          validationErrors: res.validationErrors?.length
+            ? res.validationErrors
+            : undefined,
+          appliedPatches: applied > 0 ? applied : undefined,
+          kind: "builder",
+        };
+        turnsAfterSend = [...nextTurns, assistantTurn];
+        setTurns(turnsAfterSend);
+        appendToDesignDoc("Builder response", assistantText);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Request failed";
+        setRequestError(msg);
+        setTurns((prev) => prev.slice(0, -1));
+      } finally {
+        setLoading(false);
+      }
+
+      if (turnsAfterSend && autoReviewImproveCycles > 0) {
+        autoRunCancelledRef.current = false;
+        setAutoRunning(true);
+        try {
+          await runAutoReviewImproveSequences(
+            turnsAfterSend,
+            autoReviewImproveCycles,
+            false,
+          );
+        } catch (autoErr) {
+          const msg =
+            autoErr instanceof Error ? autoErr.message : "Auto design failed";
+          setRequestError(msg);
+        } finally {
+          setAutoRunning(false);
+        }
+      }
+    },
+    [
+      loading,
+      reviewing,
+      improving,
+      autoRunning,
+      turns,
+      fitView,
+      appendToDesignDoc,
+      autoReviewImproveCycles,
+      runAutoReviewImproveSequences,
+    ],
+  );
+
   const handleSend = useCallback(async () => {
     const text = draft.trim();
-    if (!text || loading || reviewing || improving || autoRunning) return;
+    if (!text) return;
+    await submitBuilderMessage(text, {});
+  }, [draft, submitBuilderMessage]);
 
-    if (turns.length === 0) {
-      setShowContextProposal(true);
-    }
-
-    setDraft("");
-    setRequestError(null);
-    appendToDesignDoc("User request", text);
-    const nextTurns: ChatTurn[] = [...turns, { role: "user", content: text }];
-    setTurns(nextTurns);
-    setLoading(true);
-    autoRunCancelledRef.current = false;
-
-    const apiMessages: WorkflowBuildMessage[] = nextTurns.map((t) => ({
-      role: t.role,
-      content: t.content,
-    }));
-
-    let turnsAfterSend: ChatTurn[] | null = null;
-    try {
-      const latest = useFlowStore.getState();
-      const { nodes: sn, edges: se } = serializeFlowForWorkflowApi(
-        latest.nodes,
-        latest.edges,
-      );
-      const res = await workflowBuildChat(apiMessages, {
-        nodes: sn,
-        edges: se,
-        flowName: latest.flowName,
-        flowContext: latest.flowContext ?? null,
-      });
-
-      const assistantText = res.content?.trim() || "(No text reply.)";
-      const applied = res.validatedPatches?.length ?? 0;
-      if (applied > 0) {
-        const wasEmpty = useFlowStore.getState().nodes.length === 0;
-        applyWorkflowPatchesToFlow(res.validatedPatches);
-        if (wasEmpty) {
-          const { nodes: laidNodes, edges: laidEdges, setNodes } = useFlowStore.getState();
-          if (laidEdges.length > 0) {
-            const laid = applyAutoLayout(laidNodes, laidEdges, 'LR');
-            setNodes(laid as FlowNode<BaseNodeData>[]);
-          }
-        }
-        window.requestAnimationFrame(() => {
-          fitView({ padding: 0.2, duration: 280 });
-        });
-      }
-
-      const assistantTurn: ChatTurn = {
-        role: "assistant",
-        content: assistantText,
-        validationErrors: res.validationErrors?.length
-          ? res.validationErrors
-          : undefined,
-        appliedPatches: applied > 0 ? applied : undefined,
-        kind: "builder",
-      };
-      turnsAfterSend = [...nextTurns, assistantTurn];
-      setTurns(turnsAfterSend);
-      appendToDesignDoc("Builder response", assistantText);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Request failed";
-      setRequestError(msg);
-      setTurns((prev) => prev.slice(0, -1));
-    } finally {
-      setLoading(false);
-    }
-
-    if (turnsAfterSend && autoReviewImproveCycles > 0) {
-      autoRunCancelledRef.current = false;
-      setAutoRunning(true);
-      try {
-        await runAutoReviewImproveSequences(
-          turnsAfterSend,
-          autoReviewImproveCycles,
-          false,
-        );
-      } catch (autoErr) {
-        const msg =
-          autoErr instanceof Error ? autoErr.message : "Auto design failed";
-        setRequestError(msg);
-      } finally {
-        setAutoRunning(false);
-      }
-    }
-  }, [
-    draft,
-    loading,
-    reviewing,
-    improving,
-    autoRunning,
-    turns,
-    fitView,
-    appendToDesignDoc,
-    autoReviewImproveCycles,
-    runAutoReviewImproveSequences,
-  ]);
+  const handleBuildFromNodesContext = useCallback(async () => {
+    await submitBuilderMessage(BUILD_FLOW_FROM_NODES_CONTEXT_MESSAGE, {
+      skipContextProposal: true,
+      reflowAfter: true,
+      clearDraft: false,
+    });
+  }, [submitBuilderMessage]);
 
   const runDesignReview = useCallback(async (): Promise<ChatTurn[]> => {
     const review = (await fetchReviewMarkdown()).trim();
@@ -1360,6 +1402,14 @@ export default function WorkflowChatBody({
               &ldquo;Add guardrails before the LLM&rdquo; or &ldquo;Connect
               retriever output to the prompt input.&rdquo;
             </p>
+            <p>
+              <span className={isDark ? "text-white/70" : "text-slate-700"}>
+                From the canvas:
+              </span>{" "}
+              Place nodes, write each node&rsquo;s Description in the properties
+              panel, then use &ldquo;Build from nodes context&rdquo; below to wire
+              the flow automatically.
+            </p>
           </div>
         )}
         {turns.map((t, i) => (
@@ -1542,13 +1592,31 @@ export default function WorkflowChatBody({
           onKeyDown={onKeyDown}
           disabled={panelBusy}
           rows={6}
-          placeholder="Describe what to build or improve... (Enter to send, Shift+Enter newline). Uses current graph + flow context."
+          placeholder="Describe what to build or improve… (Enter = send, Shift+Enter = newline). The builder sees the current graph, each node’s Description, and Flow Context."
           className={`w-full rounded-lg px-3 py-2 text-[12px] resize-y min-h-[120px] max-h-[45vh] outline-none border ${
             isDark
               ? "bg-white/5 border-white/15 text-white placeholder:text-white/35 focus:border-violet-500/50"
               : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-violet-500/70"
           }`}
         />
+        <button
+          type="button"
+          onClick={() => void handleBuildFromNodesContext()}
+          disabled={panelBusy || canvasNodeCount === 0}
+          title={
+            canvasNodeCount === 0
+              ? "Add nodes on the canvas first"
+              : "Connect existing nodes using descriptions on each node plus Flow Context"
+          }
+          className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-opacity border ${
+            isDark
+              ? "bg-indigo-600/85 hover:bg-indigo-500/90 text-white border-indigo-400/35 disabled:opacity-40"
+              : "bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-800/25 disabled:opacity-40"
+          }`}
+        >
+          <Link2 size={14} />
+          Build from nodes context
+        </button>
         <button
           type="button"
           onClick={() => void handleSend()}

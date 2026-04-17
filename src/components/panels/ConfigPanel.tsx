@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type FocusEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Trash2, StickyNote, BarChart2, ChevronDown } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
 import { getNodeDefinition } from '../../lib/nodeDefinitions'
+import { sanitizeConfigTextValue } from '../../lib/sanitizeConfigTextValue'
 import { resolvePortAxisPercent } from '../../lib/portLayout'
 import { portHandleFill } from '../../lib/portVisual'
 import type { NotePlacement, PortDefinition } from '../../types/nodes'
@@ -33,12 +34,20 @@ interface FieldProps {
 
 function TextField({ field, value, onChange }: FieldProps) {
   const isDark = useFlowStore((s) => s.theme === 'dark')
+  const blurSanitize =
+    field.rejectTrimmedCaseInsensitive && field.rejectTrimmedCaseInsensitive.length > 0
+      ? (e: FocusEvent<HTMLInputElement>) => {
+          const next = sanitizeConfigTextValue(field, e.target.value)
+          if (next !== e.target.value) onChange(next)
+        }
+      : undefined
   return (
     <input
       type="text"
       value={String(value)}
       placeholder={field.placeholder}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={blurSanitize}
       className={`
         w-full px-2.5 py-1.5 rounded-md text-[12px]
         transition-colors duration-150 focus:outline-none
@@ -52,12 +61,20 @@ function TextField({ field, value, onChange }: FieldProps) {
 
 function TextareaField({ field, value, onChange }: FieldProps) {
   const isDark = useFlowStore((s) => s.theme === 'dark')
+  const blurSanitize =
+    field.rejectTrimmedCaseInsensitive && field.rejectTrimmedCaseInsensitive.length > 0
+      ? (e: FocusEvent<HTMLTextAreaElement>) => {
+          const next = sanitizeConfigTextValue(field, e.target.value)
+          if (next !== e.target.value) onChange(next)
+        }
+      : undefined
   return (
     <textarea
       value={String(value)}
       placeholder={field.placeholder}
       rows={4}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={blurSanitize}
       className={`
         w-full px-2.5 py-1.5 rounded-md text-[12px] resize-none
         transition-colors duration-150 font-mono leading-relaxed focus:outline-none

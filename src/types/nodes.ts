@@ -51,6 +51,11 @@ export interface ConfigField {
   description?: string
   /** Hide this field unless another config key equals the given value */
   visibleWhen?: { key: string; value: string | number | boolean }
+  /**
+   * For `text` / `textarea`: if the trimmed value equals any entry (case-insensitive),
+   * the value is coerced to `''` (e.g. block the literal "custom" on custom-kind labels).
+   */
+  rejectTrimmedCaseInsensitive?: string[]
 }
 
 // ── Node definition (static metadata, not instance data) ─────────────────────
@@ -69,7 +74,7 @@ export interface NodeDefinition {
   /** Short description shown in the sidebar palette */
   description: string
   /** Sidebar category for grouping */
-  category: 'core' | 'data' | 'flow' | 'tool' | 'output' | 'eval' | 'character'
+  category: 'core' | 'data' | 'flow' | 'tool' | 'output' | 'eval' | 'character' | 'integration'
 }
 
 // ── Per-node config data (stored in React Flow node.data) ────────────────────

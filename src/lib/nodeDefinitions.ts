@@ -37,6 +37,27 @@ import {
   TaskCompletionIcon,
   AgentEfficiencyIcon,
   CharacterIcon,
+  GenericDocumentIcon,
+  GenericImageIcon,
+  GenericVideoIcon,
+  GenericMessengerIcon,
+  GenericEmailIcon,
+  GenericDatabaseIcon,
+  GenericStorageIcon,
+  GenericWebIcon,
+  GenericWebPageIcon,
+  GenericCloudIcon,
+  GenericScriptIcon,
+  GenericSchedulerIcon,
+  GenericNotificationsIcon,
+  GenericCalendarIcon,
+  GenericAutomationIcon,
+  GenericCrmIcon,
+  GenericSupportIcon,
+  GenericPaymentsIcon,
+  GenericVoiceIcon,
+  GenericCodeIcon,
+  GenericAnalyticsIcon,
 } from '../components/icons'
 import type { NodeDefinition } from '../types/nodes'
 
@@ -1890,6 +1911,828 @@ const AgentEfficiencyNodeDefinition: NodeDefinition = {
   ],
 }
 
+// ── Generic integrations (vendor-neutral) ───────────────────────────────────
+
+const genericIntegrationPorts = {
+  inputs:  [{ id: 'data', label: 'Data in', type: 'any' as const }],
+  outputs: [{ id: 'data', label: 'Data out', type: 'any' as const }],
+}
+
+const genericIntegrationDescriptionField = {
+  key: 'description',
+  label: 'Description',
+  type: 'textarea' as const,
+  defaultValue: '',
+  placeholder: 'What this connection represents…',
+}
+
+const GenericDocumentNodeDefinition: NodeDefinition = {
+  type: 'genericDocument',
+  label: 'Document',
+  accentColor: '#64748B',
+  icon: GenericDocumentIcon,
+  description: 'Generic document source (PDF, doc, page, spreadsheet export, etc.).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'documentKind',
+      label: 'Document type',
+      type: 'select' as const,
+      defaultValue: 'pdf',
+      options: [
+        { label: 'PDF', value: 'pdf' },
+        { label: 'Spreadsheet', value: 'spreadsheet' },
+        { label: 'Markdown / Text', value: 'markdown' },
+        { label: 'Web page', value: 'webPage' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customKindLabel',
+      label: 'Custom type label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Notion page, Confluence doc…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'documentKind', value: 'custom' },
+    },
+    { key: 'pathOrUrl', label: 'Path / URL', type: 'text' as const, defaultValue: '', placeholder: '/path/to/file.pdf or https://…' },
+    { key: 'url', label: 'Secondary URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericImageNodeDefinition: NodeDefinition = {
+  type: 'genericImage',
+  label: 'Image',
+  accentColor: '#059669',
+  icon: GenericImageIcon,
+  description: 'Generic image source (photos, diagrams, UI screenshots, icons, etc.).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'imageKind',
+      label: 'Image type',
+      type: 'select' as const,
+      defaultValue: 'raster',
+      options: [
+        { label: 'Raster (PNG, JPEG, WebP…)', value: 'raster' },
+        { label: 'Vector (SVG, PDF page…)', value: 'vector' },
+        { label: 'Diagram / chart export', value: 'diagram' },
+        { label: 'Screenshot / capture', value: 'screenshot' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customImageKindLabel',
+      label: 'Custom type label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Figma frame, Miro board export…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'imageKind', value: 'custom' },
+    },
+    { key: 'pathOrUrl', label: 'Path / URL', type: 'text' as const, defaultValue: '', placeholder: '/path/to/image.png or https://…' },
+    { key: 'url', label: 'Secondary URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericVideoNodeDefinition: NodeDefinition = {
+  type: 'genericVideo',
+  label: 'Video',
+  accentColor: '#D97706',
+  icon: GenericVideoIcon,
+  description: 'Generic video source (files, streams, clips, meeting recordings, etc.).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'videoKind',
+      label: 'Video type',
+      type: 'select' as const,
+      defaultValue: 'file',
+      options: [
+        { label: 'File (MP4, MOV, WebM…)', value: 'file' },
+        { label: 'Live / HLS / DASH stream', value: 'stream' },
+        { label: 'Short clip / segment', value: 'clip' },
+        { label: 'Meeting / webinar recording', value: 'meeting' },
+        { label: 'Screen recording', value: 'screen' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customVideoKindLabel',
+      label: 'Custom type label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Loom embed, security DVR feed…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'videoKind', value: 'custom' },
+    },
+    { key: 'pathOrUrl', label: 'Path / URL', type: 'text' as const, defaultValue: '', placeholder: '/path/to/video.mp4 or https://…' },
+    { key: 'url', label: 'Secondary URL', type: 'text' as const, defaultValue: '', placeholder: 'manifest, CDN, or embed URL' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericCloudNodeDefinition: NodeDefinition = {
+  type: 'genericCloud',
+  label: 'Cloud',
+  accentColor: '#2563EB',
+  icon: GenericCloudIcon,
+  description: 'Generic cloud provider surface (AWS-like, GCP-like, Azure-like accounts and regions).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'cloudKind',
+      label: 'Provider',
+      type: 'select' as const,
+      defaultValue: 'aws',
+      options: [
+        { label: 'AWS', value: 'aws' },
+        { label: 'Google Cloud (GCP)', value: 'gcp' },
+        { label: 'Microsoft Azure', value: 'azure' },
+        { label: 'Oracle Cloud', value: 'oci' },
+        { label: 'IBM Cloud', value: 'ibm' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customCloudKindLabel',
+      label: 'Custom provider label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Cloudflare, DigitalOcean…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'cloudKind', value: 'custom' },
+    },
+    { key: 'accountOrProject', label: 'Account / Project', type: 'text' as const, defaultValue: '', placeholder: 'account id, subscription, or project id' },
+    { key: 'regionOrZone', label: 'Region / Zone', type: 'text' as const, defaultValue: '', placeholder: 'e.g. us-east-1, europe-west1' },
+    { key: 'url', label: 'Console URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericScriptNodeDefinition: NodeDefinition = {
+  type: 'genericScript',
+  label: 'Script',
+  accentColor: '#CA8A04',
+  icon: GenericScriptIcon,
+  description: 'Executable code or script (JavaScript, Python, Shell, etc.) — distinct from source-control hosts.',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'scriptLanguage',
+      label: 'Language',
+      type: 'select' as const,
+      defaultValue: 'javascript',
+      options: [
+        { label: 'JavaScript', value: 'javascript' },
+        { label: 'TypeScript', value: 'typescript' },
+        { label: 'Python', value: 'python' },
+        { label: 'Shell', value: 'shell' },
+        { label: 'Ruby', value: 'ruby' },
+        { label: 'Go', value: 'go' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customScriptLanguageLabel',
+      label: 'Custom language label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Deno, Bun, PowerShell…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'scriptLanguage', value: 'custom' },
+    },
+    { key: 'entryOrPath', label: 'Entry / path', type: 'text' as const, defaultValue: '', placeholder: 'main.py, ./scripts/run.sh, handler name…' },
+    { key: 'url', label: 'Repo or gist URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericMessengerNodeDefinition: NodeDefinition = {
+  type: 'genericMessenger',
+  label: 'Messenger',
+  accentColor: '#8B5CF6',
+  icon: GenericMessengerIcon,
+  description: 'Generic chat/DM channel (Slack-like, Teams-like, Discord-like, etc.).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'messengerKind',
+      label: 'Channel type',
+      type: 'select' as const,
+      defaultValue: 'channel',
+      options: [
+        { label: 'Public channel', value: 'channel' },
+        { label: 'Direct message', value: 'dm' },
+        { label: 'Group / thread', value: 'group' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customMessengerLabel',
+      label: 'Custom channel label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. MS Teams channel…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'messengerKind', value: 'custom' },
+    },
+    { key: 'thread', label: 'Thread / Channel', type: 'text' as const, defaultValue: '', placeholder: '#support or thread id' },
+    { key: 'url', label: 'Deep link', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericEmailNodeDefinition: NodeDefinition = {
+  type: 'genericEmail',
+  label: 'Email',
+  accentColor: '#EA4335',
+  icon: GenericEmailIcon,
+  description: 'Generic mailbox integration (inbox triage, outbound send, routing).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'emailMode',
+      label: 'Mode',
+      type: 'select' as const,
+      defaultValue: 'receive',
+      options: [
+        { label: 'Receive (inbox)', value: 'receive' },
+        { label: 'Send (outbox)', value: 'send' },
+        { label: 'Receive + Send', value: 'both' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customEmailModeLabel',
+      label: 'Custom mode label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Shared mailbox rules…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'emailMode', value: 'custom' },
+    },
+    { key: 'address', label: 'Mailbox / Address', type: 'text' as const, defaultValue: '', placeholder: 'ops@company.com' },
+    { key: 'url', label: 'Provider URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericDatabaseNodeDefinition: NodeDefinition = {
+  type: 'genericDatabase',
+  label: 'Database',
+  accentColor: '#336791',
+  icon: GenericDatabaseIcon,
+  description: 'Generic database connection (SQL/NoSQL).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'dbKind',
+      label: 'Engine',
+      type: 'select' as const,
+      defaultValue: 'sql',
+      options: [
+        { label: 'SQL (relational)', value: 'sql' },
+        { label: 'Document store', value: 'document' },
+        { label: 'Key-value', value: 'kv' },
+        { label: 'Graph', value: 'graph' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customDbLabel',
+      label: 'Custom engine label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. DuckDB, Databricks SQL…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'dbKind', value: 'custom' },
+    },
+    { key: 'connection', label: 'Connection / DSN', type: 'text' as const, defaultValue: '', placeholder: 'postgresql://…' },
+    { key: 'url', label: 'Console URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericStorageNodeDefinition: NodeDefinition = {
+  type: 'genericStorage',
+  label: 'Object Storage',
+  accentColor: '#FF9900',
+  icon: GenericStorageIcon,
+  description: 'Generic object/file storage (S3-like, GCS-like, blob containers).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'storageKind',
+      label: 'Backend',
+      type: 'select' as const,
+      defaultValue: 'objectStore',
+      options: [
+        { label: 'Object store (S3-like)', value: 'objectStore' },
+        { label: 'File share / NFS', value: 'fileShare' },
+        { label: 'Managed drive', value: 'drive' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customStorageLabel',
+      label: 'Custom backend label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. MinIO, Azure Blob…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'storageKind', value: 'custom' },
+    },
+    { key: 'bucketOrPath', label: 'Bucket / Path', type: 'text' as const, defaultValue: '', placeholder: 's3://bucket/prefix' },
+    { key: 'url', label: 'Console URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericWebNodeDefinition: NodeDefinition = {
+  type: 'genericWeb',
+  label: 'Web / Scraper',
+  accentColor: '#7C3AED',
+  icon: GenericWebIcon,
+  description: 'Generic web surface (site, portal, scraper target).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'webKind',
+      label: 'Surface',
+      type: 'select' as const,
+      defaultValue: 'site',
+      options: [
+        { label: 'Website', value: 'site' },
+        { label: 'Authenticated portal', value: 'portal' },
+        { label: 'API endpoint', value: 'api' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customWebLabel',
+      label: 'Custom surface label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Authenticated job board…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'webKind', value: 'custom' },
+    },
+    { key: 'url', label: 'URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericWebPageNodeDefinition: NodeDefinition = {
+  type: 'genericWebPage',
+  label: 'Web page',
+  accentColor: '#4F46E5',
+  icon: GenericWebPageIcon,
+  description: 'A browsable web page or screen (marketing site, docs, app UI, form, status).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'pageKind',
+      label: 'Page type',
+      type: 'select' as const,
+      defaultValue: 'landing',
+      options: [
+        { label: 'Marketing / landing', value: 'landing' },
+        { label: 'Documentation', value: 'docs' },
+        { label: 'App / product UI', value: 'app' },
+        { label: 'Form / flow', value: 'form' },
+        { label: 'Status / health', value: 'status' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customPageKindLabel',
+      label: 'Custom page label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Admin console, checkout…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'pageKind', value: 'custom' },
+    },
+    { key: 'pageTitle', label: 'Title / name', type: 'text' as const, defaultValue: '', placeholder: 'short label for the page' },
+    { key: 'url', label: 'URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericCalendarNodeDefinition: NodeDefinition = {
+  type: 'genericCalendar',
+  label: 'Calendar',
+  accentColor: '#4285F4',
+  icon: GenericCalendarIcon,
+  description: 'Generic calendar integration (events, availability, scheduling).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'calendarScope',
+      label: 'Scope',
+      type: 'select' as const,
+      defaultValue: 'personal',
+      options: [
+        { label: 'Personal', value: 'personal' },
+        { label: 'Team / org', value: 'team' },
+        { label: 'Resource (room/equipment)', value: 'resource' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customCalendarLabel',
+      label: 'Custom scope label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Interview scheduling pool…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'calendarScope', value: 'custom' },
+    },
+    { key: 'calendarId', label: 'Calendar / ID', type: 'text' as const, defaultValue: '', placeholder: 'calendar id or name' },
+    { key: 'url', label: 'Link', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericAutomationNodeDefinition: NodeDefinition = {
+  type: 'genericAutomation',
+  label: 'Automation Hub',
+  accentColor: '#FF4A00',
+  icon: GenericAutomationIcon,
+  description: 'Generic automation hub (Zapier-like, Make-like, n8n-like webhooks).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'automationKind',
+      label: 'Trigger style',
+      type: 'select' as const,
+      defaultValue: 'webhook',
+      options: [
+        { label: 'Webhook', value: 'webhook' },
+        { label: 'Scheduled', value: 'schedule' },
+        { label: 'App event', value: 'event' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customAutomationLabel',
+      label: 'Custom trigger label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Queue consumer…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'automationKind', value: 'custom' },
+    },
+    { key: 'workflow', label: 'Workflow / Webhook', type: 'text' as const, defaultValue: '', placeholder: 'workflow name or webhook id' },
+    { key: 'url', label: 'Webhook URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericSchedulerNodeDefinition: NodeDefinition = {
+  type: 'genericScheduler',
+  label: 'Scheduler',
+  accentColor: '#EA580C',
+  icon: GenericSchedulerIcon,
+  description: 'Time-based or queue-based scheduling (cron, job queues, calendar triggers, delays).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'schedulerKind',
+      label: 'Schedule style',
+      type: 'select' as const,
+      defaultValue: 'cron',
+      options: [
+        { label: 'Cron / fixed cadence', value: 'cron' },
+        { label: 'Queue / worker', value: 'queue' },
+        { label: 'Calendar / event-based', value: 'calendar' },
+        { label: 'Delay / retry policy', value: 'delay' },
+        { label: 'Batch window', value: 'batch' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customSchedulerKindLabel',
+      label: 'Custom style label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Step Functions, Airflow DAG…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'schedulerKind', value: 'custom' },
+    },
+    { key: 'scheduleOrCron', label: 'Schedule / cron / rule', type: 'text' as const, defaultValue: '', placeholder: '0 * * * *  or  human description' },
+    { key: 'jobOrQueue', label: 'Job / queue / resource', type: 'text' as const, defaultValue: '', placeholder: 'job name, queue id, or resource' },
+    { key: 'url', label: 'Endpoint URL', type: 'text' as const, defaultValue: '', placeholder: 'optional callback or dashboard' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericNotificationsNodeDefinition: NodeDefinition = {
+  type: 'genericNotifications',
+  label: 'Notifications',
+  accentColor: '#F97316',
+  icon: GenericNotificationsIcon,
+  description: 'Outbound alerts and notifications (push, email, SMS, in-app, webhooks, chat alerts).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'notificationKind',
+      label: 'Channel',
+      type: 'select' as const,
+      defaultValue: 'push',
+      options: [
+        { label: 'Push (mobile / desktop)', value: 'push' },
+        { label: 'Email', value: 'email' },
+        { label: 'SMS', value: 'sms' },
+        { label: 'In-app / feed', value: 'inApp' },
+        { label: 'Webhook / callback', value: 'webhook' },
+        { label: 'Chat / team alert', value: 'chat' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customNotificationKindLabel',
+      label: 'Custom channel label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. PagerDuty, Opsgenie route…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'notificationKind', value: 'custom' },
+    },
+    { key: 'destination', label: 'Topic / audience / address', type: 'text' as const, defaultValue: '', placeholder: 'topic arn, segment, #channel, phone…' },
+    { key: 'url', label: 'Webhook or console URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericCrmNodeDefinition: NodeDefinition = {
+  type: 'genericCrm',
+  label: 'CRM',
+  accentColor: '#00A1E0',
+  icon: GenericCrmIcon,
+  description: 'Generic CRM object integration (accounts, leads, opportunities).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'crmObjectKind',
+      label: 'Object template',
+      type: 'select' as const,
+      defaultValue: 'lead',
+      options: [
+        { label: 'Lead', value: 'lead' },
+        { label: 'Contact / Account', value: 'contact' },
+        { label: 'Opportunity / Deal', value: 'deal' },
+        { label: 'Case / Ticket', value: 'case' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customCrmObjectLabel',
+      label: 'Custom object label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Partner record…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'crmObjectKind', value: 'custom' },
+    },
+    {
+      key: 'objectType',
+      label: 'Object name',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'Describe the CRM object…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'crmObjectKind', value: 'custom' },
+    },
+    { key: 'url', label: 'Record URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericSupportNodeDefinition: NodeDefinition = {
+  type: 'genericSupport',
+  label: 'Support Desk',
+  accentColor: '#03363D',
+  icon: GenericSupportIcon,
+  description: 'Generic ticketing/support surface (Zendesk-like, Intercom-like).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'supportKind',
+      label: 'Desk type',
+      type: 'select' as const,
+      defaultValue: 'ticketing',
+      options: [
+        { label: 'Ticketing', value: 'ticketing' },
+        { label: 'Live chat', value: 'chat' },
+        { label: 'Knowledge base', value: 'kb' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customSupportLabel',
+      label: 'Custom desk label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. VIP concierge…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'supportKind', value: 'custom' },
+    },
+    { key: 'queue', label: 'Queue / Inbox', type: 'text' as const, defaultValue: '', placeholder: 'queue name or id' },
+    { key: 'url', label: 'Ticket URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericPaymentsNodeDefinition: NodeDefinition = {
+  type: 'genericPayments',
+  label: 'Payments',
+  accentColor: '#635BFF',
+  icon: GenericPaymentsIcon,
+  description: 'Generic payments/commerce integration (Stripe-like, Shopify-like).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'paymentsKind',
+      label: 'Surface',
+      type: 'select' as const,
+      defaultValue: 'payments',
+      options: [
+        { label: 'Payments API', value: 'payments' },
+        { label: 'E-commerce / storefront', value: 'commerce' },
+        { label: 'Billing / subscriptions', value: 'billing' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customPaymentsLabel',
+      label: 'Custom surface label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Invoicing portal…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'paymentsKind', value: 'custom' },
+    },
+    { key: 'account', label: 'Account / Store', type: 'text' as const, defaultValue: '', placeholder: 'account id or store name' },
+    { key: 'url', label: 'Dashboard URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericVoiceNodeDefinition: NodeDefinition = {
+  type: 'genericVoice',
+  label: 'Voice / SMS',
+  accentColor: '#F22F46',
+  icon: GenericVoiceIcon,
+  description: 'Generic telephony/SMS integration (Twilio-like providers).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'telephonyKind',
+      label: 'Channel',
+      type: 'select' as const,
+      defaultValue: 'sms',
+      options: [
+        { label: 'SMS', value: 'sms' },
+        { label: 'Voice call', value: 'voice' },
+        { label: 'WhatsApp / rich messaging', value: 'rich' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customTelephonyLabel',
+      label: 'Custom channel label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. RCS, fax gateway…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'telephonyKind', value: 'custom' },
+    },
+    { key: 'phoneNumber', label: 'Number / Sender ID', type: 'text' as const, defaultValue: '', placeholder: '+1…' },
+    { key: 'url', label: 'Provider URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericCodeNodeDefinition: NodeDefinition = {
+  type: 'genericCode',
+  label: 'Code Host',
+  accentColor: '#24292E',
+  icon: GenericCodeIcon,
+  description: 'Generic source control surface (GitHub-like, GitLab-like).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'codeHostKind',
+      label: 'Host type',
+      type: 'select' as const,
+      defaultValue: 'git',
+      options: [
+        { label: 'Git hosting', value: 'git' },
+        { label: 'Package registry', value: 'registry' },
+        { label: 'CI / build system', value: 'ci' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customCodeHostLabel',
+      label: 'Custom host label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Phabricator…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'codeHostKind', value: 'custom' },
+    },
+    { key: 'repository', label: 'Repo / Project', type: 'text' as const, defaultValue: '', placeholder: 'org/repo or project path' },
+    { key: 'url', label: 'URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GenericAnalyticsNodeDefinition: NodeDefinition = {
+  type: 'genericAnalytics',
+  label: 'Analytics / BI',
+  accentColor: '#0EA5E9',
+  icon: GenericAnalyticsIcon,
+  description: 'Generic analytics warehouse/BI (Snowflake-like, BigQuery-like).',
+  category: 'integration',
+  ...genericIntegrationPorts,
+  configFields: [
+    {
+      key: 'analyticsKind',
+      label: 'Workload',
+      type: 'select' as const,
+      defaultValue: 'warehouse',
+      options: [
+        { label: 'Warehouse / lakehouse', value: 'warehouse' },
+        { label: 'BI / dashboards', value: 'bi' },
+        { label: 'Metrics store', value: 'metrics' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customAnalyticsLabel',
+      label: 'Custom workload label',
+      type: 'text' as const,
+      defaultValue: '',
+      placeholder: 'e.g. Experiment results DB…',
+      rejectTrimmedCaseInsensitive: ['custom'],
+      visibleWhen: { key: 'analyticsKind', value: 'custom' },
+    },
+    { key: 'projectOrDataset', label: 'Project / Dataset', type: 'text' as const, defaultValue: '', placeholder: 'project.dataset' },
+    { key: 'url', label: 'Console URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
+    genericIntegrationDescriptionField,
+  ],
+}
+
+const GENERIC_INTEGRATION_NODE_DEFINITIONS: NodeDefinition[] = [
+  GenericDocumentNodeDefinition,
+  GenericImageNodeDefinition,
+  GenericVideoNodeDefinition,
+  GenericCloudNodeDefinition,
+  GenericScriptNodeDefinition,
+  GenericMessengerNodeDefinition,
+  GenericEmailNodeDefinition,
+  GenericDatabaseNodeDefinition,
+  GenericStorageNodeDefinition,
+  GenericWebNodeDefinition,
+  GenericWebPageNodeDefinition,
+  GenericCalendarNodeDefinition,
+  GenericAutomationNodeDefinition,
+  GenericSchedulerNodeDefinition,
+  GenericNotificationsNodeDefinition,
+  GenericCrmNodeDefinition,
+  GenericSupportNodeDefinition,
+  GenericPaymentsNodeDefinition,
+  GenericVoiceNodeDefinition,
+  GenericCodeNodeDefinition,
+  GenericAnalyticsNodeDefinition,
+]
+
 const CharacterNodeDefinition: NodeDefinition = {
   type: 'character',
   label: 'Character',
@@ -2087,7 +2930,7 @@ const NODE_DEFINITIONS: NodeDefinition[] = [
     def.category === 'eval' || def.type === 'evaluator'
       ? EVAL_NODE_ACCENT
       : PRIMARY_NODE_ACCENT,
-})).concat([CharacterNodeDefinition])
+})).concat([...GENERIC_INTEGRATION_NODE_DEFINITIONS, CharacterNodeDefinition])
 
 /** Returns all registered node definitions. */
 export function getAllNodeDefinitions(): NodeDefinition[] {

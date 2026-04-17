@@ -83,6 +83,7 @@ const CATEGORY_ORDER: NodeDefinition['category'][] = [
   'output',
   'eval',
   'character',
+  'integration',
 ]
 
 const CATEGORY_HEADINGS: Record<NodeDefinition['category'], string> = {
@@ -93,6 +94,7 @@ const CATEGORY_HEADINGS: Record<NodeDefinition['category'], string> = {
   output: 'OUTPUT & SAFETY',
   eval: 'EVALUATION',
   character: 'CHARACTERS',
+  integration: 'INTEGRATIONS',
 }
 
 function padTypeColumn(types: string[]): number {

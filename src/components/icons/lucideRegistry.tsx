@@ -1,28 +1,43 @@
 import {
+  AppWindow,
   ArrowUpDown,
   BadgeCheck,
   BarChart3,
+  Bell,
   BookOpenCheck,
   Bot,
   Braces,
   BrainCircuit,
+  Building2,
+  CalendarClock,
+  CalendarDays,
   CheckCheck,
   ClipboardList,
+  Cloud,
   Combine,
+  CreditCard,
   Database,
   DatabaseBackup,
   DatabaseZap,
   FileCode2,
+  FileText,
   Filter,
   Gauge,
+  GitBranch,
   GitCompareArrows,
   Globe,
   Gavel,
+  HardDrive,
+  Headset,
   History,
+  Image,
+  LineChart,
+  Mail,
   MessageSquareReply,
   MessageSquareText,
   MessageSquareWarning,
   MessagesSquare,
+  Phone,
   Route,
   Scale,
   ScanSearch,
@@ -31,9 +46,12 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Square,
+  Terminal,
   UserRoundCheck,
   Users,
+  Video,
   Waypoints,
+  Webhook,
   Workflow,
   Wrench,
 } from 'lucide-react'
@@ -102,3 +120,27 @@ export const ToolUseEvalIcon = createIcon(ScanSearch)
 export const TrajectoryEvalIcon = createIcon(Workflow)
 export const TaskCompletionIcon = createIcon(CheckCheck)
 export const AgentEfficiencyIcon = createIcon(Gauge)
+
+// ── Generic integration primitives (vendor-neutral) ───────────────────────────
+
+export const GenericDocumentIcon = createIcon(FileText)
+export const GenericImageIcon = createIcon(Image)
+export const GenericVideoIcon = createIcon(Video)
+export const GenericMessengerIcon = createIcon(MessagesSquare)
+export const GenericEmailIcon = createIcon(Mail)
+export const GenericDatabaseIcon = createIcon(Database)
+export const GenericStorageIcon = createIcon(HardDrive)
+export const GenericWebIcon = createIcon(Globe)
+export const GenericWebPageIcon = createIcon(AppWindow)
+export const GenericCloudIcon = createIcon(Cloud)
+export const GenericScriptIcon = createIcon(Terminal)
+export const GenericSchedulerIcon = createIcon(CalendarClock)
+export const GenericNotificationsIcon = createIcon(Bell)
+export const GenericCalendarIcon = createIcon(CalendarDays)
+export const GenericAutomationIcon = createIcon(Webhook)
+export const GenericCrmIcon = createIcon(Building2)
+export const GenericSupportIcon = createIcon(Headset)
+export const GenericPaymentsIcon = createIcon(CreditCard)
+export const GenericVoiceIcon = createIcon(Phone)
+export const GenericCodeIcon = createIcon(GitBranch)
+export const GenericAnalyticsIcon = createIcon(LineChart)

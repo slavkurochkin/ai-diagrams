@@ -1,5 +1,6 @@
 import type { ConfigField } from '../types/nodes'
 import { buildDefaultConfig, getAllNodeDefinitions, getNodeDefinition } from './nodeDefinitions'
+import { sanitizeConfigTextValue } from './sanitizeConfigTextValue'
 
 // ── Wire format (API / tool output) ───────────────────────────────────────────
 
@@ -168,10 +169,11 @@ function coerceConfigValue(
 ): { ok: true; value: string | number | boolean } | { ok: false; error: string } {
   switch (field.type) {
     case 'text':
-    case 'textarea':
-      if (typeof value === 'string') return { ok: true, value }
+    case 'textarea': {
+      if (typeof value === 'string') return { ok: true, value: sanitizeConfigTextValue(field, value) }
       if (value === null || value === undefined) return { ok: false, error: 'expected string' }
-      return { ok: true, value: String(value) }
+      return { ok: true, value: sanitizeConfigTextValue(field, String(value)) }
+    }
     case 'number':
     case 'slider': {
       if (typeof value === 'number' && !Number.isNaN(value)) return { ok: true, value }

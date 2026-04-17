@@ -37,6 +37,7 @@ import TrajectoryEvalNode from './TrajectoryEvalNode'
 import TaskCompletionNode from './TaskCompletionNode'
 import AgentEfficiencyNode from './AgentEfficiencyNode'
 import CharacterNode from './CharacterNode'
+import GenericIntegrationNode from './GenericIntegrationNode'
 
 /**
  * nodeTypes maps the `type` string on each React Flow Node to the
@@ -94,6 +95,28 @@ export const nodeTypes: NodeTypes = {
   agentEfficiency: AgentEfficiencyNode,
   // Characters
   character: CharacterNode,
+  // Integrations (generic)
+  genericDocument: GenericIntegrationNode,
+  genericImage: GenericIntegrationNode,
+  genericVideo: GenericIntegrationNode,
+  genericCloud: GenericIntegrationNode,
+  genericScript: GenericIntegrationNode,
+  genericMessenger: GenericIntegrationNode,
+  genericEmail: GenericIntegrationNode,
+  genericDatabase: GenericIntegrationNode,
+  genericStorage: GenericIntegrationNode,
+  genericWeb: GenericIntegrationNode,
+  genericWebPage: GenericIntegrationNode,
+  genericCalendar: GenericIntegrationNode,
+  genericAutomation: GenericIntegrationNode,
+  genericScheduler: GenericIntegrationNode,
+  genericNotifications: GenericIntegrationNode,
+  genericCrm: GenericIntegrationNode,
+  genericSupport: GenericIntegrationNode,
+  genericPayments: GenericIntegrationNode,
+  genericVoice: GenericIntegrationNode,
+  genericCode: GenericIntegrationNode,
+  genericAnalytics: GenericIntegrationNode,
 }
 
 export {

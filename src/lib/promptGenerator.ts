@@ -23,6 +23,130 @@ function configLines(config: Record<string, string | number | boolean> | undefin
   return lines.length ? lines.join('\n') : ''
 }
 
+function coerceNumber(v: unknown, fallback: number): number {
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'string') {
+    const parsed = Number(v)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return fallback
+}
+
+interface FrameGroup {
+  id: string
+  title: string
+  left: number
+  top: number
+  right: number
+  bottom: number
+  memberIds: string[]
+}
+
+function buildFrameGroups(
+  nodes: Node<BaseNodeData>[],
+  contentNodeIds: Set<string>,
+): FrameGroup[] {
+  const frameNodes = nodes.filter((n) => n.type === 'frame')
+  const regularNodes = nodes.filter((n) => n.type !== 'frame')
+
+  const groups: FrameGroup[] = []
+  for (const frame of frameNodes) {
+    const width = coerceNumber(frame.style?.width, coerceNumber(frame.data.config?.width, 420))
+    const height = coerceNumber(frame.style?.height, coerceNumber(frame.data.config?.height, 260))
+    const titleRaw = frame.data.config?.title
+    const title = typeof titleRaw === 'string' && titleRaw.trim() ? titleRaw.trim() : 'Section'
+
+    const left = frame.position.x
+    const top = frame.position.y
+    const right = left + Math.max(1, width)
+    const bottom = top + Math.max(1, height)
+
+    const memberIds = regularNodes
+      .filter((n) => {
+        if (!contentNodeIds.has(n.id)) return false
+        const nx = n.position.x
+        const ny = n.position.y
+        return nx >= left && nx <= right && ny >= top && ny <= bottom
+      })
+      .map((n) => n.id)
+
+    if (memberIds.length === 0) continue
+    groups.push({ id: frame.id, title, left, top, right, bottom, memberIds })
+  }
+
+  return groups
+}
+
+function appendTaskDecompositionAppendix(
+  lines: string[],
+  groups: FrameGroup[],
+  contentNodes: Node<BaseNodeData>[],
+  contentEdges: Edge[],
+): void {
+  lines.push('---')
+  lines.push('')
+  lines.push('## Appendix B — Task decomposition by frame')
+  lines.push('')
+
+  if (groups.length === 0) {
+    lines.push('_No frame groups detected with AI pipeline nodes inside._')
+    lines.push('')
+    return
+  }
+
+  const nodeById = new Map(contentNodes.map((n) => [n.id, n]))
+  const labelFor = (id: string): string => {
+    const n = nodeById.get(id)
+    if (!n) return id
+    const def = getNodeDefinition(n.data.nodeType)
+    return n.data.label ?? def?.label ?? n.data.nodeType
+  }
+
+  groups.forEach((group, idx) => {
+    lines.push(`### ${idx + 1}. ${group.title} (\`${group.id}\`)`)
+    lines.push('')
+
+    const memberSet = new Set(group.memberIds)
+    const inbound = contentEdges.filter((e) => !memberSet.has(e.source) && memberSet.has(e.target))
+    const outbound = contentEdges.filter((e) => memberSet.has(e.source) && !memberSet.has(e.target))
+
+    lines.push('**Nodes in this slice:**')
+    for (const id of group.memberIds) {
+      const node = nodeById.get(id)
+      if (!node) continue
+      lines.push(`- \`${id}\` — **${labelFor(id)}** (\`${node.data.nodeType}\`)`)
+    }
+
+    lines.push('')
+    lines.push('**Inbound contracts (inputs to this slice):**')
+    if (inbound.length === 0) {
+      lines.push('- None')
+    } else {
+      for (const e of inbound) {
+        const connector = edgeLabel(e)
+        lines.push(
+          `- **${labelFor(e.source)}** (\`${e.source}\`) → **${labelFor(e.target)}** (\`${e.target}\`)${connector ? `  \`${connector}\`` : ''}`,
+        )
+      }
+    }
+
+    lines.push('')
+    lines.push('**Outbound contracts (outputs from this slice):**')
+    if (outbound.length === 0) {
+      lines.push('- None')
+    } else {
+      for (const e of outbound) {
+        const connector = edgeLabel(e)
+        lines.push(
+          `- **${labelFor(e.source)}** (\`${e.source}\`) → **${labelFor(e.target)}** (\`${e.target}\`)${connector ? `  \`${connector}\`` : ''}`,
+        )
+      }
+    }
+
+    lines.push('')
+  })
+}
+
 /**
  * Generates a structured implementation brief that a coding agent (e.g. Claude)
  * can use to build the described AI pipeline from scratch.
@@ -219,7 +343,9 @@ export function generateCodingAgentMarkdownPack(
 ): string {
   const brief = generateImplementationPrompt(flowName, nodes, edges, flowContext)
 
-  const { nodes: contentNodes } = filterGraphForAI(nodes, edges)
+  const { nodes: contentNodes, edges: contentEdges } = filterGraphForAI(nodes, edges)
+  const contentNodeIds = new Set(contentNodes.map((n) => n.id))
+  const frameGroups = buildFrameGroups(nodes, contentNodeIds)
   const tableLines: string[] = []
   tableLines.push('---')
   tableLines.push('')
@@ -245,11 +371,19 @@ export function generateCodingAgentMarkdownPack(
     tableLines.push('')
   }
 
+  const decompositionLines: string[] = []
+  appendTaskDecompositionAppendix(
+    decompositionLines,
+    frameGroups,
+    contentNodes,
+    contentEdges,
+  )
+
   const yaml = serializeFlowToYAML(flowName, nodes, edges, layoutDirection)
   const yamlBlock = [
     '---',
     '',
-    '## Appendix B — Diagram YAML (machine-readable)',
+    '## Appendix C — Diagram YAML (machine-readable)',
     '',
     '```yaml',
     yaml.trimEnd(),
@@ -262,11 +396,11 @@ export function generateCodingAgentMarkdownPack(
     '',
     `**Flow:** ${flowName}`,
     '',
-    'Use this document as a single handoff. The **Implementation Brief** is the primary specification; **Appendix A** maps stable node IDs to labels; **Appendix B** can recreate the diagram in this editor.',
+    'Use this document as a single handoff. The **Implementation Brief** is the primary specification; **Appendix A** maps stable node IDs to labels; **Appendix B** captures task decomposition from frame groups; **Appendix C** can recreate the diagram in this editor.',
     '',
     '---',
     '',
   ].join('\n')
 
-  return preamble + brief + '\n' + tableLines.join('\n') + yamlBlock
+  return preamble + brief + '\n' + tableLines.join('\n') + decompositionLines.join('\n') + yamlBlock
 }

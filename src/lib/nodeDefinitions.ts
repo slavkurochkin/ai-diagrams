@@ -1918,14 +1918,6 @@ const genericIntegrationPorts = {
   outputs: [{ id: 'data', label: 'Data out', type: 'any' as const }],
 }
 
-const genericIntegrationDescriptionField = {
-  key: 'description',
-  label: 'Description',
-  type: 'textarea' as const,
-  defaultValue: '',
-  placeholder: 'What this connection represents…',
-}
-
 const GenericDocumentNodeDefinition: NodeDefinition = {
   type: 'genericDocument',
   label: 'Document',
@@ -1959,7 +1951,6 @@ const GenericDocumentNodeDefinition: NodeDefinition = {
     },
     { key: 'pathOrUrl', label: 'Path / URL', type: 'text' as const, defaultValue: '', placeholder: '/path/to/file.pdf or https://…' },
     { key: 'url', label: 'Secondary URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -1996,7 +1987,6 @@ const GenericImageNodeDefinition: NodeDefinition = {
     },
     { key: 'pathOrUrl', label: 'Path / URL', type: 'text' as const, defaultValue: '', placeholder: '/path/to/image.png or https://…' },
     { key: 'url', label: 'Secondary URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2034,7 +2024,6 @@ const GenericVideoNodeDefinition: NodeDefinition = {
     },
     { key: 'pathOrUrl', label: 'Path / URL', type: 'text' as const, defaultValue: '', placeholder: '/path/to/video.mp4 or https://…' },
     { key: 'url', label: 'Secondary URL', type: 'text' as const, defaultValue: '', placeholder: 'manifest, CDN, or embed URL' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2073,7 +2062,6 @@ const GenericCloudNodeDefinition: NodeDefinition = {
     { key: 'accountOrProject', label: 'Account / Project', type: 'text' as const, defaultValue: '', placeholder: 'account id, subscription, or project id' },
     { key: 'regionOrZone', label: 'Region / Zone', type: 'text' as const, defaultValue: '', placeholder: 'e.g. us-east-1, europe-west1' },
     { key: 'url', label: 'Console URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2112,7 +2100,6 @@ const GenericScriptNodeDefinition: NodeDefinition = {
     },
     { key: 'entryOrPath', label: 'Entry / path', type: 'text' as const, defaultValue: '', placeholder: 'main.py, ./scripts/run.sh, handler name…' },
     { key: 'url', label: 'Repo or gist URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2148,7 +2135,6 @@ const GenericMessengerNodeDefinition: NodeDefinition = {
     },
     { key: 'thread', label: 'Thread / Channel', type: 'text' as const, defaultValue: '', placeholder: '#support or thread id' },
     { key: 'url', label: 'Deep link', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2184,7 +2170,6 @@ const GenericEmailNodeDefinition: NodeDefinition = {
     },
     { key: 'address', label: 'Mailbox / Address', type: 'text' as const, defaultValue: '', placeholder: 'ops@company.com' },
     { key: 'url', label: 'Provider URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2221,7 +2206,6 @@ const GenericDatabaseNodeDefinition: NodeDefinition = {
     },
     { key: 'connection', label: 'Connection / DSN', type: 'text' as const, defaultValue: '', placeholder: 'postgresql://…' },
     { key: 'url', label: 'Console URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2257,7 +2241,6 @@ const GenericStorageNodeDefinition: NodeDefinition = {
     },
     { key: 'bucketOrPath', label: 'Bucket / Path', type: 'text' as const, defaultValue: '', placeholder: 's3://bucket/prefix' },
     { key: 'url', label: 'Console URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2292,7 +2275,6 @@ const GenericWebNodeDefinition: NodeDefinition = {
       visibleWhen: { key: 'webKind', value: 'custom' },
     },
     { key: 'url', label: 'URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2330,7 +2312,6 @@ const GenericWebPageNodeDefinition: NodeDefinition = {
     },
     { key: 'pageTitle', label: 'Title / name', type: 'text' as const, defaultValue: '', placeholder: 'short label for the page' },
     { key: 'url', label: 'URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2366,7 +2347,6 @@ const GenericCalendarNodeDefinition: NodeDefinition = {
     },
     { key: 'calendarId', label: 'Calendar / ID', type: 'text' as const, defaultValue: '', placeholder: 'calendar id or name' },
     { key: 'url', label: 'Link', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2402,7 +2382,6 @@ const GenericAutomationNodeDefinition: NodeDefinition = {
     },
     { key: 'workflow', label: 'Workflow / Webhook', type: 'text' as const, defaultValue: '', placeholder: 'workflow name or webhook id' },
     { key: 'url', label: 'Webhook URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2441,7 +2420,6 @@ const GenericSchedulerNodeDefinition: NodeDefinition = {
     { key: 'scheduleOrCron', label: 'Schedule / cron / rule', type: 'text' as const, defaultValue: '', placeholder: '0 * * * *  or  human description' },
     { key: 'jobOrQueue', label: 'Job / queue / resource', type: 'text' as const, defaultValue: '', placeholder: 'job name, queue id, or resource' },
     { key: 'url', label: 'Endpoint URL', type: 'text' as const, defaultValue: '', placeholder: 'optional callback or dashboard' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2480,7 +2458,6 @@ const GenericNotificationsNodeDefinition: NodeDefinition = {
     },
     { key: 'destination', label: 'Topic / audience / address', type: 'text' as const, defaultValue: '', placeholder: 'topic arn, segment, #channel, phone…' },
     { key: 'url', label: 'Webhook or console URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2525,7 +2502,6 @@ const GenericCrmNodeDefinition: NodeDefinition = {
       visibleWhen: { key: 'crmObjectKind', value: 'custom' },
     },
     { key: 'url', label: 'Record URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2561,7 +2537,6 @@ const GenericSupportNodeDefinition: NodeDefinition = {
     },
     { key: 'queue', label: 'Queue / Inbox', type: 'text' as const, defaultValue: '', placeholder: 'queue name or id' },
     { key: 'url', label: 'Ticket URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2597,7 +2572,6 @@ const GenericPaymentsNodeDefinition: NodeDefinition = {
     },
     { key: 'account', label: 'Account / Store', type: 'text' as const, defaultValue: '', placeholder: 'account id or store name' },
     { key: 'url', label: 'Dashboard URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2633,7 +2607,6 @@ const GenericVoiceNodeDefinition: NodeDefinition = {
     },
     { key: 'phoneNumber', label: 'Number / Sender ID', type: 'text' as const, defaultValue: '', placeholder: '+1…' },
     { key: 'url', label: 'Provider URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2669,7 +2642,6 @@ const GenericCodeNodeDefinition: NodeDefinition = {
     },
     { key: 'repository', label: 'Repo / Project', type: 'text' as const, defaultValue: '', placeholder: 'org/repo or project path' },
     { key: 'url', label: 'URL', type: 'text' as const, defaultValue: '', placeholder: 'https://…' },
-    genericIntegrationDescriptionField,
   ],
 }
 
@@ -2705,7 +2677,6 @@ const GenericAnalyticsNodeDefinition: NodeDefinition = {
     },
     { key: 'projectOrDataset', label: 'Project / Dataset', type: 'text' as const, defaultValue: '', placeholder: 'project.dataset' },
     { key: 'url', label: 'Console URL', type: 'text' as const, defaultValue: '', placeholder: 'optional' },
-    genericIntegrationDescriptionField,
   ],
 }
 

@@ -16,6 +16,7 @@ const SerializedNodeSchema = z.object({
   id: z.string(),
   nodeType: z.string(),
   label: z.string(),
+  description: z.string().optional(),
   config: z.record(z.string(), z.unknown()),
 })
 

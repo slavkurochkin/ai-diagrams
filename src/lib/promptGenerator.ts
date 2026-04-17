@@ -84,6 +84,13 @@ export function generateImplementationPrompt(
         lines.push(`**Type:** \`${node.data.nodeType}\``)
       }
 
+      const instDesc =
+        typeof node.data.description === 'string' ? node.data.description.trim() : ''
+      if (instDesc) {
+        lines.push('')
+        lines.push(`**In this diagram:** ${instDesc}`)
+      }
+
       const cfgStr = configLines(node.data.config as Record<string, string | number | boolean> | undefined)
       if (cfgStr) {
         lines.push('')

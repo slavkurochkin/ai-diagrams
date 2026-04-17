@@ -249,7 +249,7 @@ function FieldRow({ field, value, onChange }: FieldProps) {
 // ── Config Panel ───────────────────────────────────────────────────────────────
 
 export default function ConfigPanel() {
-  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, layoutDirection, theme, updateNodeConfig, updateNodeLabel, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, updateNodeHeaderTextColor, toggleNodeNoteVisible, updateNodeNotePlacement, updateNodePortOffset, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
+  const { selectedNodeId, selectedEdgeId, nodes, edges, globalPathColor, layoutDirection, theme, updateNodeConfig, updateNodeLabel, updateNodeDescription, updateEdgePriority, updateEdgeTravelSpeed, updateEdgeThickness, updateEdgeColor, updateNodeNote, updateNodeAccentColor, updateNodeHeaderTextColor, toggleNodeNoteVisible, updateNodeNotePlacement, updateNodePortOffset, bringFrameToFront, sendFrameToBack, removeNode, setSelectedNode, setSelectedEdge } =
     useFlowStore()
   const isDark = theme === 'dark'
 
@@ -263,6 +263,18 @@ export default function ConfigPanel() {
   const def = selectedNode ? getNodeDefinition(selectedNode.data.nodeType) : null
   const isFrameNode = selectedNode?.data.nodeType === 'frame'
   const isTextNode = selectedNode?.data.nodeType === 'text'
+  const descriptionFieldValue = (() => {
+    if (!selectedNode) return ''
+    if (selectedNode.data.description !== undefined) {
+      return selectedNode.data.description
+    }
+    const legacy =
+      selectedNode.data.nodeType.startsWith('generic') &&
+      typeof selectedNode.data.config.description === 'string'
+        ? selectedNode.data.config.description
+        : ''
+    return legacy
+  })()
   const accentColor = selectedNode?.data.accentColor ?? def?.accentColor ?? '#2563EB'
   const outgoingEdges = selectedNode
     ? edges.filter((e) => e.source === selectedNode.id)
@@ -392,6 +404,28 @@ export default function ConfigPanel() {
 
           {/* ── Scrollable fields ────────────────────────────────────────── */}
           <div className={`flex-1 overflow-y-auto sidebar-scroll px-4 py-4 space-y-5 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+            <div className="space-y-1.5">
+              <label className={`text-[11px] font-medium uppercase tracking-wide ${isDark ? 'text-white/60' : 'text-slate-600'}`}>
+                Description
+              </label>
+              <textarea
+                value={descriptionFieldValue}
+                placeholder="What this node does in this diagram (helps AI and collaborators)…"
+                rows={3}
+                onChange={(e) => updateNodeDescription(selectedNode.id, e.target.value)}
+                className={`
+                  w-full px-2.5 py-1.5 rounded-md text-[12px] resize-none
+                  transition-colors duration-150 leading-relaxed focus:outline-none
+                  ${isDark
+                    ? 'bg-white/5 border border-white/10 text-white/80 placeholder-white/25 focus:border-white/30 focus:bg-white/10'
+                    : 'bg-white border border-indigo-200/80 text-slate-800 placeholder-slate-400 focus:border-indigo-400/60 focus:bg-white'}
+                `}
+              />
+              <p className={`text-[10px] leading-relaxed ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
+                Shown only here and in AI context — not on the canvas. Use Note for markdown beside the node.
+              </p>
+            </div>
+
             {def.configFields
               .filter((field) => {
                 if (!field.visibleWhen) return true

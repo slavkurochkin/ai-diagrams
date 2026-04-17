@@ -84,6 +84,11 @@ export interface BaseNodeData {
   nodeType: string
   /** Display label (can be renamed by user) */
   label: string
+  /**
+   * Short plain-text intent for this instance (diagram context for people + AI).
+   * Distinct from `note` (markdown callout) and from node-type palette text in NodeDefinition.
+   */
+  description?: string
   /** Optional accent color override for this specific node instance. */
   accentColor?: string
   /** Title row text + icon color on the node card (defaults to white on the header gradient). */

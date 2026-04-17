@@ -25,22 +25,30 @@ function kindPreview(cfg: Cfg, key: string, defaultValue: string, customLabelKey
   return v
 }
 
+/** Instance-level description first; legacy config.description for older flows. */
+function instanceOrConfigDescription(data: BaseNodeData, cfg: Cfg): string {
+  const top = typeof data.description === 'string' ? data.description.trim() : ''
+  if (top) return top
+  return pick(cfg, 'description')
+}
+
 /** Prefer URL for the third row; if unset, surface description so the card is not blank. */
-function linkOrNote(cfg: Cfg): { label: string; value: string } {
+function linkOrNote(data: BaseNodeData, cfg: Cfg): { label: string; value: string } {
   const url = pick(cfg, 'url')
   if (url) return { label: 'link', value: url }
-  return { label: 'note', value: pick(cfg, 'description') }
+  return { label: 'note', value: instanceOrConfigDescription(data, cfg) }
 }
 
 export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
-  const cfg = props.data.config as Cfg
-  const t = props.data.nodeType
+  const { data } = props
+  const cfg = data.config as Cfg
+  const t = data.nodeType
 
   let preview: { label: string; value: string | number | boolean }[] = []
 
   switch (t) {
     case 'genericDocument': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'type', value: kindPreview(cfg, 'documentKind', 'pdf', 'customKindLabel') },
         { label: 'path', value: pick(cfg, 'pathOrUrl') },
@@ -49,7 +57,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericImage': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'type', value: kindPreview(cfg, 'imageKind', 'raster', 'customImageKindLabel') },
         { label: 'path', value: pick(cfg, 'pathOrUrl') },
@@ -58,7 +66,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericVideo': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'type', value: kindPreview(cfg, 'videoKind', 'file', 'customVideoKindLabel') },
         { label: 'path', value: pick(cfg, 'pathOrUrl') },
@@ -68,7 +76,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
     }
     case 'genericCloud': {
       const region = pick(cfg, 'regionOrZone')
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       const row3 = region
         ? { label: 'region', value: region }
         : { label: tail.label === 'link' ? 'link' : tail.label, value: tail.value }
@@ -80,7 +88,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericScript': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'lang', value: kindPreview(cfg, 'scriptLanguage', 'javascript', 'customScriptLanguageLabel') },
         { label: 'entry', value: pick(cfg, 'entryOrPath') },
@@ -89,7 +97,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericMessenger': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'chan', value: kindPreview(cfg, 'messengerKind', 'channel', 'customMessengerLabel') },
         { label: 'thread', value: pick(cfg, 'thread') },
@@ -98,7 +106,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericEmail': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'mode', value: kindPreview(cfg, 'emailMode', 'receive', 'customEmailModeLabel') },
         { label: 'addr', value: pick(cfg, 'address') },
@@ -107,7 +115,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericDatabase': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'engine', value: kindPreview(cfg, 'dbKind', 'sql', 'customDbLabel') },
         { label: 'conn', value: pick(cfg, 'connection') },
@@ -116,7 +124,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericStorage': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'back', value: kindPreview(cfg, 'storageKind', 'objectStore', 'customStorageLabel') },
         { label: 'bucket', value: pick(cfg, 'bucketOrPath') },
@@ -128,7 +136,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       preview = [
         { label: 'surf', value: kindPreview(cfg, 'webKind', 'site', 'customWebLabel') },
         { label: 'url', value: pick(cfg, 'url') },
-        { label: 'note', value: pick(cfg, 'description') },
+        { label: 'note', value: instanceOrConfigDescription(data, cfg) },
       ]
       break
     case 'genericWebPage': {
@@ -138,13 +146,13 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
         { label: 'title', value: pick(cfg, 'pageTitle') },
         {
           label: pageUrl ? 'url' : 'note',
-          value: pageUrl || pick(cfg, 'description'),
+          value: pageUrl || instanceOrConfigDescription(data, cfg),
         },
       ]
       break
     }
     case 'genericCalendar': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'scope', value: kindPreview(cfg, 'calendarScope', 'personal', 'customCalendarLabel') },
         { label: 'cal', value: pick(cfg, 'calendarId') },
@@ -153,7 +161,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericAutomation': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'trig', value: kindPreview(cfg, 'automationKind', 'webhook', 'customAutomationLabel') },
         { label: 'flow', value: pick(cfg, 'workflow') },
@@ -163,7 +171,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
     }
     case 'genericScheduler': {
       const sched = pick(cfg, 'scheduleOrCron')
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       const row3 = sched ? { label: 'cron', value: sched } : { label: tail.label, value: tail.value }
       preview = [
         { label: 'style', value: kindPreview(cfg, 'schedulerKind', 'cron', 'customSchedulerKindLabel') },
@@ -173,7 +181,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericNotifications': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'chan', value: kindPreview(cfg, 'notificationKind', 'push', 'customNotificationKindLabel') },
         { label: 'dest', value: pick(cfg, 'destination') },
@@ -182,7 +190,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericCrm': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'obj', value: kindPreview(cfg, 'crmObjectKind', 'lead', 'customCrmObjectLabel') },
         { label: 'name', value: pick(cfg, 'objectType') },
@@ -191,7 +199,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericSupport': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'desk', value: kindPreview(cfg, 'supportKind', 'ticketing', 'customSupportLabel') },
         { label: 'queue', value: pick(cfg, 'queue') },
@@ -200,7 +208,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericPayments': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'surf', value: kindPreview(cfg, 'paymentsKind', 'payments', 'customPaymentsLabel') },
         { label: 'acct', value: pick(cfg, 'account') },
@@ -209,7 +217,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericVoice': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'chan', value: kindPreview(cfg, 'telephonyKind', 'sms', 'customTelephonyLabel') },
         { label: 'num', value: pick(cfg, 'phoneNumber') },
@@ -218,7 +226,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericCode': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'host', value: kindPreview(cfg, 'codeHostKind', 'git', 'customCodeHostLabel') },
         { label: 'repo', value: pick(cfg, 'repository') },
@@ -227,7 +235,7 @@ export default function GenericIntegrationNode(props: NodeProps<BaseNodeData>) {
       break
     }
     case 'genericAnalytics': {
-      const tail = linkOrNote(cfg)
+      const tail = linkOrNote(data, cfg)
       preview = [
         { label: 'work', value: kindPreview(cfg, 'analyticsKind', 'warehouse', 'customAnalyticsLabel') },
         { label: 'proj', value: pick(cfg, 'projectOrDataset') },

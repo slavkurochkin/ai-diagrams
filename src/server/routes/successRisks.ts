@@ -9,6 +9,7 @@ interface SerializedNode {
   id: string
   nodeType: string
   label: string
+  description?: string
   config: Record<string, unknown>
 }
 
@@ -24,6 +25,7 @@ interface NeighborNode {
   id: string
   nodeType: string
   label: string
+  description?: string
   config: Record<string, unknown>
 }
 
@@ -56,25 +58,33 @@ interface AnalysisRequest {
 // ── Serialisers ───────────────────────────────────────────────────────────────
 
 function formatNode(n: NeighborNode): string {
+  const desc =
+    typeof n.description === 'string' && n.description.trim()
+      ? `    description: ${n.description.trim()}`
+      : ''
   const cfg = Object.entries(n.config)
     .filter(([, v]) => v !== undefined && v !== '' && v !== null)
     .map(([k, v]) => `    ${k}: ${String(v)}`)
     .join('\n')
-  return cfg
-    ? `[${n.nodeType}] "${n.label}"\n${cfg}`
-    : `[${n.nodeType}] "${n.label}"`
+  const body = [desc, cfg].filter(Boolean).join('\n')
+  return body ? `[${n.nodeType}] "${n.label}"\n${body}` : `[${n.nodeType}] "${n.label}"`
 }
 
 function graphToText(nodes: SerializedNode[], edges: SerializedEdge[], flowName: string): string {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]))
 
   const nodeLines = nodes.map((n) => {
+    const descLine =
+      typeof n.description === 'string' && n.description.trim()
+        ? `    description: ${n.description.trim()}`
+        : ''
     const cfg = Object.entries(n.config)
       .filter(([, v]) => v !== undefined && v !== '' && v !== null)
       .map(([k, v]) => `    ${k}: ${String(v)}`)
       .join('\n')
-    return cfg
-      ? `- [${n.nodeType}] "${n.label}" (id: ${n.id})\n${cfg}`
+    const body = [descLine, cfg].filter(Boolean).join('\n')
+    return body
+      ? `- [${n.nodeType}] "${n.label}" (id: ${n.id})\n${body}`
       : `- [${n.nodeType}] "${n.label}" (id: ${n.id})`
   })
 

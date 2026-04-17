@@ -38,6 +38,7 @@ type LocalNode = {
   id: string;
   nodeType: string;
   label: string;
+  description?: string;
   config: Record<string, unknown>;
   position: { x: number; y: number };
 };
@@ -210,6 +211,18 @@ function nextGridPosition(index: number): { x: number; y: number } {
   return { x: 48 + col * spacingX, y: 64 + row * spacingY };
 }
 
+function localNodeToWorkflowApi(n: LocalNode) {
+  return {
+    id: n.id,
+    nodeType: n.nodeType,
+    label: n.label,
+    ...(typeof n.description === "string" && n.description.trim()
+      ? { description: n.description.trim() }
+      : {}),
+    config: { ...n.config },
+  };
+}
+
 function applyPatches(
   currentNodes: LocalNode[],
   currentEdges: Edge[],
@@ -229,6 +242,9 @@ function applyPatches(
           label: patch.label ?? def?.label ?? patch.nodeType,
           config: { ...buildDefaultConfig(patch.nodeType), ...(patch.config ?? {}) },
           position: patch.position ?? nextGridPosition(nodes.length),
+          ...(typeof patch.description === "string" && patch.description.trim()
+            ? { description: patch.description.trim() }
+            : {}),
         });
         break;
       }
@@ -266,6 +282,13 @@ function applyPatches(
       }
       case "setNodeLabel": {
         nodes = nodes.map((n) => (n.id === patch.nodeId ? { ...n, label: patch.label } : n));
+        break;
+      }
+      case "setNodeDescription": {
+        const t = patch.description.trim();
+        nodes = nodes.map((n) =>
+          n.id === patch.nodeId ? { ...n, ...(t ? { description: t } : { description: undefined }) } : n,
+        );
         break;
       }
       default:
@@ -367,12 +390,7 @@ export default function ParallelBuildPage() {
 
       const runBuild = async () =>
         workflowBuildChat(nextTurns, {
-          nodes: lane.nodes.map((n) => ({
-            id: n.id,
-            nodeType: n.nodeType,
-            label: n.label,
-            config: { ...n.config },
-          })),
+          nodes: lane.nodes.map(localNodeToWorkflowApi),
           edges: lane.edges.map((e) => ({
             id: e.id,
             source: e.source,
@@ -509,12 +527,7 @@ If this workflow is already solid and no meaningful change is needed, return no 
 
     try {
       const res = await workflowBuildChat(nextTurns, {
-        nodes: lane.nodes.map((n) => ({
-          id: n.id,
-          nodeType: n.nodeType,
-          label: n.label,
-          config: { ...n.config },
-        })),
+        nodes: lane.nodes.map(localNodeToWorkflowApi),
         edges: lane.edges.map((e) => ({
           id: e.id,
           source: e.source,
@@ -628,6 +641,9 @@ If this workflow is already solid and no meaningful change is needed, return no 
         nodeType: n.nodeType,
         label: n.label,
         config: n.config as Record<string, string | number | boolean>,
+        ...(typeof n.description === "string" && n.description.trim()
+          ? { description: n.description.trim() }
+          : {}),
       },
     }));
     const contextDescription = lastSubmittedPrompt.trim();
@@ -659,12 +675,7 @@ If this workflow is already solid and no meaningful change is needed, return no 
     const candidates = lanes.map((lane, index) => ({
       id: `design-${index + 1}`,
       label: `Design ${String.fromCharCode(65 + index)}`,
-      nodes: lane.nodes.map((n) => ({
-        id: n.id,
-        nodeType: n.nodeType,
-        label: n.label,
-        config: { ...n.config },
-      })),
+      nodes: lane.nodes.map(localNodeToWorkflowApi),
       edges: lane.edges.map((e) => ({
         id: e.id,
         source: e.source,
@@ -753,6 +764,9 @@ If this workflow is already solid and no meaningful change is needed, return no 
             nodeType: n.nodeType,
             label: n.label,
             config: n.config as Record<string, string | number | boolean>,
+            ...(typeof n.description === "string" && n.description.trim()
+              ? { description: n.description.trim() }
+              : {}),
           },
         }));
         const laidOut = applyAutoLayout(flowNodes, lane.edges, direction);
@@ -1038,6 +1052,9 @@ If this workflow is already solid and no meaningful change is needed, return no 
                     nodeType: n.nodeType,
                     label: n.label,
                     config: n.config as Record<string, string | number | boolean>,
+                    ...(typeof n.description === "string" && n.description.trim()
+                      ? { description: n.description.trim() }
+                      : {}),
                   },
                 }));
                 return (

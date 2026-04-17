@@ -58,12 +58,17 @@ function graphSummaryForPrompt(
 ): string {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]))
   const nodeLines = nodes.map((n) => {
+    const descLine =
+      typeof n.description === 'string' && n.description.trim()
+        ? `    description: ${n.description.trim()}`
+        : ''
     const configEntries = Object.entries(n.config)
       .filter(([, v]) => v !== undefined && v !== '' && v !== null)
       .map(([k, v]) => `    ${k}: ${String(v)}`)
       .join('\n')
-    return configEntries
-      ? `- [${n.nodeType}] "${n.label}" (id: ${n.id})\n${configEntries}`
+    const body = [descLine, configEntries].filter(Boolean).join('\n')
+    return body
+      ? `- [${n.nodeType}] "${n.label}" (id: ${n.id})\n${body}`
       : `- [${n.nodeType}] "${n.label}" (id: ${n.id})`
   })
   const edgeLines = edges.map((e) => {
@@ -110,6 +115,7 @@ const WORKFLOW_PATCH_TOOL: ChatCompletionTool = {
                   'removeEdge',
                   'setNodeConfig',
                   'setNodeLabel',
+                  'setNodeDescription',
                 ],
               },
               note: {
@@ -157,12 +163,13 @@ When they ask to improve, fix, adjust, add, remove, or reconnect — use the too
 
 You may call the tool \`apply_workflow_changes\` with an ordered \`patches\` array:
 
-- **addNode** — { op, id, nodeType, label?, config?, position?, note? } (omit \`position\` for spaced auto-layout on the canvas; always set \`note\` to a 1–2 sentence explanation of why this node is needed in this specific diagram)
+- **addNode** — { op, id, nodeType, label?, config?, position?, note?, description? } (omit \`position\` for spaced auto-layout on the canvas; set \`description\` to a short plain-text statement of this node’s role in **this** diagram — used as authoritative context for wiring; optional \`note\` can still explain rationale for the canvas note card)
 - **removeNode** — { op, id }
 - **addEdge** — { op, id, source, target, sourceHandle?, targetHandle? } (use node ids; omit handles to auto-connect, or set catalog port ids)
 - **removeEdge** — { op, id } (must match \`edge id\` shown on each connection line in Current flow)
 - **setNodeConfig** — { op, nodeId, config, merge? } (merge defaults true; if false, resets to defaults then applies config)
 - **setNodeLabel** — { op, nodeId, label }
+- **setNodeDescription** — { op, nodeId, description } (plain text; empty string clears)
 
 Rules:
 - Use only node \`type\` values that appear in the catalog.

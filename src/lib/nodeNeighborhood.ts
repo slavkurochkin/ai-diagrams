@@ -7,6 +7,7 @@ export interface SerializedNeighborNode {
   id: string
   nodeType: string
   label: string
+  description?: string
   config: Record<string, string | number | boolean>
 }
 
@@ -19,10 +20,12 @@ export interface NodeNeighborhood {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function serializeNode(n: Node<BaseNodeData>): SerializedNeighborNode {
+  const desc = typeof n.data.description === 'string' ? n.data.description.trim() : ''
   return {
     id: n.id,
     nodeType: n.data.nodeType,
     label: n.data.label,
+    ...(desc ? { description: desc } : {}),
     config: n.data.config ?? {},
   }
 }

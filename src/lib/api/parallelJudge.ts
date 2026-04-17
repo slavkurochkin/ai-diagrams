@@ -4,6 +4,7 @@ interface SerializedNode {
   id: string
   nodeType: string
   label: string
+  description?: string
   config: Record<string, unknown>
 }
 

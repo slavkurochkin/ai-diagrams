@@ -9,6 +9,7 @@ interface SerializedNode {
   id: string
   nodeType: string
   label: string
+  description?: string
   config: Record<string, unknown>
 }
 
@@ -32,13 +33,17 @@ function graphToText(nodes: SerializedNode[], edges: SerializedEdge[], flowName:
   const nodeMap = new Map(nodes.map((n) => [n.id, n]))
 
   const nodeLines = nodes.map((n) => {
+    const descLine =
+      typeof n.description === 'string' && n.description.trim()
+        ? `    description: ${n.description.trim()}`
+        : ''
     const configEntries = Object.entries(n.config)
       .filter(([, v]) => v !== undefined && v !== '' && v !== null)
       .map(([k, v]) => `    ${k}: ${String(v)}`)
       .join('\n')
-
-    return configEntries
-      ? `- [${n.nodeType.toUpperCase()}] "${n.label}" (id: ${n.id})\n${configEntries}`
+    const body = [descLine, configEntries].filter(Boolean).join('\n')
+    return body
+      ? `- [${n.nodeType.toUpperCase()}] "${n.label}" (id: ${n.id})\n${body}`
       : `- [${n.nodeType.toUpperCase()}] "${n.label}" (id: ${n.id})`
   })
 

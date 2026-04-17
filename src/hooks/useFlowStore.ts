@@ -49,10 +49,12 @@ interface FlowStore {
     type: string,
     position: { x: number; y: number },
     initialConfig?: Record<string, string | number | boolean>,
-    options?: { id?: string; label?: string; note?: string },
+    options?: { id?: string; label?: string; note?: string; description?: string },
   ) => void
   /** Renames the display label of a node. */
   updateNodeLabel: (nodeId: string, label: string) => void
+  /** Sets or clears the instance description (intent in this diagram). */
+  updateNodeDescription: (nodeId: string, description: string) => void
   /** Deep-merges partial config into the node's data.config. */
   updateNodeConfig: (
     nodeId: string,
@@ -397,6 +399,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
           config: mergedConfig,
           animationState: 'idle',
           ...(options?.note ? { note: options.note } : {}),
+          ...(options?.description?.trim() ? { description: options.description.trim() } : {}),
         },
       }
       return {
@@ -419,6 +422,32 @@ export const useFlowStore = create<FlowStore>((set) => ({
       nodes: state.nodes.map((node) =>
         node.id === nodeId ? { ...node, data: { ...node.data, label } } : node,
       ),
+    }))
+  },
+
+  updateNodeDescription: (nodeId, description) => {
+    const raw = typeof description === 'string' ? description : ''
+    set((state) => ({
+      nodes: state.nodes.map((node) => {
+        if (node.id !== nodeId) return node
+        const isGenericIntegration = node.data.nodeType.startsWith('generic')
+        const config =
+          isGenericIntegration && 'description' in node.data.config
+            ? (() => {
+                const next = { ...node.data.config }
+                delete next.description
+                return next
+              })()
+            : node.data.config
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            config,
+            ...(raw === '' ? { description: undefined } : { description: raw }),
+          },
+        }
+      }),
     }))
   },
 

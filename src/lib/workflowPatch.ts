@@ -8,6 +8,8 @@ export interface SerializedNode {
   id: string
   nodeType: string
   label: string
+  /** Instance intent in this diagram (optional). */
+  description?: string
   config: Record<string, unknown>
 }
 
@@ -28,6 +30,8 @@ export type WorkflowPatch =
       config?: Record<string, unknown>
       position?: { x: number; y: number }
       note?: string
+      /** Plain-text role of this node in this diagram (optional). */
+      description?: string
     }
   | { op: 'removeNode'; id: string }
   | {
@@ -41,6 +45,7 @@ export type WorkflowPatch =
   | { op: 'removeEdge'; id: string }
   | { op: 'setNodeConfig'; nodeId: string; config: Record<string, unknown>; merge?: boolean }
   | { op: 'setNodeLabel'; nodeId: string; label: string }
+  | { op: 'setNodeDescription'; nodeId: string; description: string }
 
 type SimNode = SerializedNode
 type SimEdge = SerializedEdge
@@ -87,9 +92,13 @@ function parsePatch(raw: unknown): { ok: true; patch: WorkflowPatch } | { ok: fa
     const config = raw.config
     const position = raw.position
     const note = raw.note
+    const description = raw.description
     if (label !== undefined && typeof label !== 'string') return { ok: false, error: 'label must be a string' }
     if (config !== undefined && !isRecord(config)) return { ok: false, error: 'config must be an object' }
     if (note !== undefined && typeof note !== 'string') return { ok: false, error: 'note must be a string' }
+    if (description !== undefined && typeof description !== 'string') {
+      return { ok: false, error: 'description must be a string' }
+    }
     let pos: { x: number; y: number } | undefined
     if (position !== undefined) {
       if (!isRecord(position)) return { ok: false, error: 'position must be an object' }
@@ -108,6 +117,7 @@ function parsePatch(raw: unknown): { ok: true; patch: WorkflowPatch } | { ok: fa
         ...(config ? { config } : {}),
         ...(pos ? { position: pos } : {}),
         ...(typeof note === 'string' && note ? { note } : {}),
+        ...(typeof description === 'string' && description.trim() ? { description: description.trim() } : {}),
       },
     }
   }
@@ -158,6 +168,14 @@ function parsePatch(raw: unknown): { ok: true; patch: WorkflowPatch } | { ok: fa
     if (typeof nodeId !== 'string' || !nodeId) return { ok: false, error: 'setNodeLabel requires nodeId' }
     if (typeof label !== 'string' || !label) return { ok: false, error: 'setNodeLabel requires non-empty label' }
     return { ok: true, patch: { op: 'setNodeLabel', nodeId, label } }
+  }
+
+  if (op === 'setNodeDescription') {
+    const nodeId = raw.nodeId
+    const description = raw.description
+    if (typeof nodeId !== 'string' || !nodeId) return { ok: false, error: 'setNodeDescription requires nodeId' }
+    if (typeof description !== 'string') return { ok: false, error: 'setNodeDescription requires description string' }
+    return { ok: true, patch: { op: 'setNodeDescription', nodeId, description } }
   }
 
   return { ok: false, error: `unknown op "${op}"` }
@@ -796,6 +814,10 @@ function validatePatchAgainstGraph(
     if (!nodes.has(p.nodeId)) return `node "${p.nodeId}" not found`
     return null
   }
+  if (p.op === 'setNodeDescription') {
+    if (!nodes.has(p.nodeId)) return `node "${p.nodeId}" not found`
+    return null
+  }
   return 'invalid patch'
 }
 
@@ -808,11 +830,13 @@ function applyPatchToSimulation(
     const base = { ...buildDefaultConfig(p.nodeType), ...(p.config ?? {}) } as Record<string, unknown>
     const n = normalizeFullConfigForNodeType(p.nodeType, base)
     const def = getNodeDefinition(p.nodeType)
+    const desc = typeof p.description === 'string' ? p.description.trim() : ''
     nodes.set(p.id, {
       id: p.id,
       nodeType: p.nodeType,
       label: p.label ?? def?.label ?? p.nodeType,
       config: (n.ok ? n.config : base) as Record<string, unknown>,
+      ...(desc ? { description: desc } : {}),
     })
     return
   }
@@ -850,6 +874,12 @@ function applyPatchToSimulation(
   if (p.op === 'setNodeLabel') {
     const node = nodes.get(p.nodeId)!
     node.label = p.label
+  }
+  if (p.op === 'setNodeDescription') {
+    const node = nodes.get(p.nodeId)!
+    const t = p.description.trim()
+    if (t) node.description = t
+    else delete node.description
   }
 }
 
@@ -911,6 +941,17 @@ export function validateWorkflowPatches(
       patch = nodeId !== patch.nodeId ? { ...patch, nodeId } : patch
     }
     if (patch.op === 'setNodeLabel') {
+      const nodeId = resolveNodeRef(applyBatchNodeIdRewrite(patch.nodeId, batchNodeIdRewrites), nodes)
+      if (!nodeId) {
+        errors.push(
+          prefix +
+            `node "${patch.nodeId}" not found (use node id, label, or unique nodeType)`,
+        )
+        continue
+      }
+      patch = nodeId !== patch.nodeId ? { ...patch, nodeId } : patch
+    }
+    if (patch.op === 'setNodeDescription') {
       const nodeId = resolveNodeRef(applyBatchNodeIdRewrite(patch.nodeId, batchNodeIdRewrites), nodes)
       if (!nodeId) {
         errors.push(
@@ -1001,6 +1042,9 @@ export function graphAfterValidPatches(
       id: n.id,
       nodeType: n.nodeType,
       label: n.label,
+      ...(typeof n.description === 'string' && n.description.trim()
+        ? { description: n.description.trim() }
+        : {}),
       config: { ...n.config },
     })),
     edges: Array.from(edges.values()),

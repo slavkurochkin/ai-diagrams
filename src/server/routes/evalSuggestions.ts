@@ -10,6 +10,7 @@ interface SerializedNode {
   id: string
   nodeType: string
   label: string
+  description?: string
   config: Record<string, unknown>
   note?: string
 }
@@ -51,13 +52,17 @@ function graphToText(nodes: SerializedNode[], edges: SerializedEdge[], flowName:
   const nodeMap = new Map(nodes.map((n) => [n.id, n]))
 
   const nodeLines = nodes.map((n) => {
+    const descLines =
+      typeof n.description === 'string' && n.description.trim()
+        ? [`    description: ${n.description.trim()}`]
+        : []
     const configLines = Object.entries(n.config)
       .filter(([, v]) => v !== undefined && v !== '' && v !== null)
       .map(([k, v]) => `    ${k}: ${String(v)}`)
     const noteLines = n.note
       ? ['    note (strategy / context):', ...n.note.split('\n').map((line) => `    ${line}`)]
       : []
-    const body = [...configLines, ...noteLines].join('\n')
+    const body = [...descLines, ...configLines, ...noteLines].join('\n')
     return body
       ? `- [${n.nodeType.toUpperCase()}] "${n.label}" (id: ${n.id})\n${body}`
       : `- [${n.nodeType.toUpperCase()}] "${n.label}" (id: ${n.id})`

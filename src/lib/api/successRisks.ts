@@ -53,6 +53,9 @@ function serializeGraph(nodes: Node<BaseNodeData>[], edges: Edge[]) {
       id: n.id,
       nodeType: n.data.nodeType,
       label: n.data.label,
+      ...(typeof n.data.description === 'string' && n.data.description.trim()
+        ? { description: n.data.description.trim() }
+        : {}),
       config: n.data.config ?? {},
     })),
     edges: aiEdges.map((e) => ({

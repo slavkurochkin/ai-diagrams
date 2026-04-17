@@ -10,6 +10,8 @@ interface YAMLNodeSpec {
   id: string
   type: string
   label?: string
+  /** Instance intent in this diagram (plain text). */
+  description?: string
   accentColor?: string
   headerTextColor?: string
   config?: Record<string, string | number | boolean>
@@ -135,6 +137,19 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
     const rfId = `${n.type}-${_counter++}`
     idMap.set(n.id, rfId)
     const sizedStyle = getSizedNodeStyle(n.type, n.config)
+    const baseConfig = { ...buildDefaultConfig(n.type), ...(n.config ?? {}) }
+    const fromYaml = typeof n.description === 'string' ? n.description.trim() : ''
+    const cfgDesc =
+      typeof baseConfig.description === 'string' ? String(baseConfig.description).trim() : ''
+    let config = { ...baseConfig }
+    let nodeDescription: string | undefined
+    if (fromYaml) {
+      nodeDescription = fromYaml
+      if ('description' in config) delete config.description
+    } else if (cfgDesc) {
+      nodeDescription = cfgDesc
+      delete config.description
+    }
     nodes.push({
       id: rfId,
       type: n.type,
@@ -144,11 +159,12 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
       data: {
         nodeType: n.type,
         label: n.label ?? getNodeDefinition(n.type)!.label,
+        ...(nodeDescription ? { description: nodeDescription } : {}),
         ...(n.accentColor !== undefined && { accentColor: n.accentColor }),
         ...(n.headerTextColor !== undefined &&
           typeof n.headerTextColor === 'string' &&
           n.headerTextColor.trim() && { headerTextColor: n.headerTextColor.trim() }),
-        config: { ...buildDefaultConfig(n.type), ...(n.config ?? {}) },
+        config,
         animationState: 'idle',
         ...(n.note !== undefined && { note: n.note }),
         ...(n.noteAlwaysVisible !== undefined && { noteAlwaysVisible: n.noteAlwaysVisible }),
@@ -239,6 +255,9 @@ export function serializeFlowToYAML(
       if (n.data.accentColor && n.data.accentColor !== defAccent) entry.accentColor = n.data.accentColor
       if (typeof n.data.headerTextColor === 'string' && n.data.headerTextColor.trim()) {
         entry.headerTextColor = n.data.headerTextColor.trim()
+      }
+      if (typeof n.data.description === 'string' && n.data.description.trim()) {
+        entry.description = n.data.description.trim()
       }
       const cfg = n.data.config
       if (cfg && Object.keys(cfg).length > 0) entry.config = cfg

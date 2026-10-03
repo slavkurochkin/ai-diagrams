@@ -6,6 +6,7 @@ export default function RouterNode(props: NodeProps<BaseNodeData>) {
   const config = props.data.config
   const preview = [
     { label: 'condition', value: config.conditionType ?? 'llm' },
+    { label: 'routes', value: `${config.routeCount ?? 2} + default` },
     { label: 'rule', value: config.condition ?? '' },
   ]
   return <BaseNode {...props} preview={preview} />

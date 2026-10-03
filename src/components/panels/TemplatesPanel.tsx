@@ -165,6 +165,9 @@ export default function TemplatesPanel({ open, onClose, initialTab = 'templates'
         setError(result.error)
         return false
       }
+      if (result.warnings.length > 0) {
+        console.warn('[AgentFlow] Imported flow has connections that break port rules:', result.warnings)
+      }
 
       if (nodes.length > 0) {
         const ok = window.confirm(
@@ -412,7 +415,7 @@ nodes:
     type: llm            # node type (see sidebar); use "frame" or "text" for annotations
     label: "My LLM"      # optional label override
     config:              # optional config overrides
-      model: gpt-4o
+      model: claude-sonnet-5-5
     note: "Markdown note"
     position:            # optional explicit canvas position
       x: 320

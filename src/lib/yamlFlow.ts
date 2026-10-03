@@ -2,7 +2,8 @@ import * as yaml from 'js-yaml'
 import type { Node, Edge } from 'reactflow'
 import type { BaseNodeData } from '../types/nodes'
 import type { NotePlacement } from '../types/nodes'
-import { buildDefaultConfig, getNodeDefinition } from './nodeDefinitions'
+import { buildDefaultConfig, getNodeDefinition, upgradeLegacyConfig } from './nodeDefinitions'
+import { checkConnection } from './connectionRules'
 
 // ── YAML schema types ─────────────────────────────────────────────────────────
 
@@ -80,6 +81,11 @@ export interface ParsedFlow {
   edges: Edge[]
   hasExplicitPositions: boolean
   layoutDirection?: 'TB' | 'LR'
+  /**
+   * Edges that break connection rules (missing port, incompatible types). They are kept so
+   * user-authored files never lose data on import, but callers should surface these.
+   */
+  warnings: string[]
 }
 
 let _counter = 2000
@@ -137,7 +143,7 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
     const rfId = `${n.type}-${_counter++}`
     idMap.set(n.id, rfId)
     const sizedStyle = getSizedNodeStyle(n.type, n.config)
-    const baseConfig = { ...buildDefaultConfig(n.type), ...(n.config ?? {}) }
+    const baseConfig = upgradeLegacyConfig(n.type, { ...buildDefaultConfig(n.type), ...(n.config ?? {}) })
     const fromYaml = typeof n.description === 'string' ? n.description.trim() : ''
     const cfgDesc =
       typeof baseConfig.description === 'string' ? String(baseConfig.description).trim() : ''
@@ -194,12 +200,25 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
   }
 
   const edges: Edge[] = []
+  const warnings: string[] = []
+  const nodeById = new Map(nodes.map((n) => [n.id, n]))
   for (let i = 0; i < (doc.edges ?? []).length; i++) {
     const e = doc.edges![i]
     const source = idMap.get(e.from)
     const target = idMap.get(e.to)
     if (!source) return { error: `Edge references unknown source node: "${e.from}"` }
     if (!target) return { error: `Edge references unknown target node: "${e.to}"` }
+    if (e.fromHandle && e.toHandle) {
+      const s = nodeById.get(source)!
+      const t = nodeById.get(target)!
+      const conn = checkConnection(
+        { nodeType: s.data.nodeType, config: s.data.config },
+        e.fromHandle,
+        { nodeType: t.data.nodeType, config: t.data.config },
+        e.toHandle,
+      )
+      if (!conn.ok) warnings.push(`edge ${e.from} → ${e.to}: ${conn.error}`)
+    }
     edges.push({
       id: `yaml-edge-${i}-${_counter++}`,
       source,
@@ -229,7 +248,7 @@ export function parseFlowYAML(yamlStr: string): ParsedFlow | { error: string } {
       Number.isFinite(n.position.y),
   )
 
-  return { name: doc.name ?? 'Imported Flow', nodes, edges, hasExplicitPositions, layoutDirection: doc.layoutDirection }
+  return { name: doc.name ?? 'Imported Flow', nodes, edges, hasExplicitPositions, layoutDirection: doc.layoutDirection, warnings }
 }
 
 // ── Serialize ─────────────────────────────────────────────────────────────────

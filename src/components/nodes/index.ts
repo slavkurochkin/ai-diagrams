@@ -38,6 +38,16 @@ import TaskCompletionNode from './TaskCompletionNode'
 import AgentEfficiencyNode from './AgentEfficiencyNode'
 import CharacterNode from './CharacterNode'
 import GenericIntegrationNode from './GenericIntegrationNode'
+import TriggerNode from './TriggerNode'
+import StateNode from './StateNode'
+import TracingNode from './TracingNode'
+import MonitorNode from './MonitorNode'
+import OutputNode from './OutputNode'
+import SubAgentNode from './SubAgentNode'
+import HumanApprovalNode from './HumanApprovalNode'
+import LoopNode from './LoopNode'
+import MCPServerNode from './MCPServerNode'
+import CodeExecNode from './CodeExecNode'
 
 /**
  * nodeTypes maps the `type` string on each React Flow Node to the
@@ -50,11 +60,15 @@ import GenericIntegrationNode from './GenericIntegrationNode'
  */
 export const nodeTypes: NodeTypes = {
   // Core
+  trigger: TriggerNode,
   llm: LLMNode,
   agent: AgentNode,
+  subAgent: SubAgentNode,
   prompt: PromptNode,
   promptTemplate: PromptTemplateNode,
   memory: MemoryNode,
+  state: StateNode,
+  output: OutputNode,
   // Data
   dataLoader: DataLoaderNode,
   chunker: ChunkerNode,
@@ -67,15 +81,21 @@ export const nodeTypes: NodeTypes = {
   router: RouterNode,
   aggregator: AggregatorNode,
   classifier: ClassifierNode,
+  humanApproval: HumanApprovalNode,
+  loop: LoopNode,
   frame: FrameNode,
   text: TextNode,
   // Tools
   toolCall: ToolCallNode,
   webSearch: WebSearchNode,
+  mcpServer: MCPServerNode,
+  codeExec: CodeExecNode,
   // Output
   outputParser: OutputParserNode,
   evaluator: EvaluatorNode,
   guardrails: GuardrailsNode,
+  tracing: TracingNode,
+  monitor: MonitorNode,
   // Evaluation strategies
   llmJudge: LLMJudgeNode,
   rubric: RubricNode,

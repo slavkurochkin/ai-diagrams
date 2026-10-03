@@ -1,5 +1,15 @@
 import {
   LLMIcon,
+  TriggerIcon,
+  OutputIcon,
+  SubAgentIcon,
+  HumanApprovalIcon,
+  LoopIcon,
+  MCPServerIcon,
+  CodeExecIcon,
+  StateIcon,
+  TracingIcon,
+  MonitorIcon,
   AgentIcon,
   PromptIcon,
   PromptTemplateIcon,
@@ -59,16 +69,58 @@ import {
   GenericCodeIcon,
   GenericAnalyticsIcon,
 } from '../components/icons'
-import type { NodeDefinition } from '../types/nodes'
+import type { ConfigField, NodeDefinition, PortDefinition } from '../types/nodes'
+import {
+  CHAT_MODEL_OPTIONS,
+  DEFAULT_CHAT_MODEL,
+  DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_JUDGE_MODEL,
+  DEFAULT_RERANK_MODEL,
+  EFFORT_OPTIONS,
+  MODELS_WITH_EFFORT,
+  MODELS_WITH_TEMPERATURE,
+  EMBEDDING_MODEL_OPTIONS,
+  JUDGE_MODEL_OPTIONS,
+  RERANK_MODEL_OPTIONS,
+  resolveLegacySelectValue,
+} from './modelCatalog'
 
 // ── Node definitions ──────────────────────────────────────────────────────────
 // Add new nodes here. The rest of the app picks them up automatically via
 // `getAllNodeDefinitions()` and the nodeTypes map in components/nodes/index.ts.
 
-const LLMNodeDefinition: NodeDefinition = {
+/**
+ * Built-in node definitions get their accent color from the registry below
+ * (one primary color, one for eval nodes), so they don't declare their own.
+ */
+type CoreNodeDefinition = Omit<NodeDefinition, 'accentColor'>
+
+// ── Config-driven port helpers ────────────────────────────────────────────────
+
+const LETTERS = 'ABCDEFGH'
+const MAX_DYNAMIC_PORTS = LETTERS.length
+
+function clampCount(raw: unknown, fallback: number): number {
+  const n = Math.round(Number(raw))
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(MAX_DYNAMIC_PORTS, Math.max(2, n))
+}
+
+function splitList(raw: unknown): string[] {
+  return String(raw ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+}
+
+/** Stable port id for a classifier class name ("Billing issue" → "class_billing_issue"). */
+export function classPortId(name: string): string {
+  return `class_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`
+}
+
+const LLMNodeDefinition: CoreNodeDefinition = {
   type: 'llm',
   label: 'LLM',
-  accentColor: '#0F766E',
   icon: LLMIcon,
   description: 'Large language model call with configurable provider and parameters.',
   category: 'core',
@@ -86,16 +138,30 @@ const LLMNodeDefinition: NodeDefinition = {
       key: 'model',
       label: 'Model',
       type: 'select',
-      defaultValue: 'gpt-4o',
+      defaultValue: DEFAULT_CHAT_MODEL,
+      options: CHAT_MODEL_OPTIONS,
+    },
+    {
+      key: 'effort',
+      label: 'Reasoning Effort',
+      type: 'select',
+      defaultValue: 'default',
+      options: EFFORT_OPTIONS,
+      visibleWhen: { key: 'model', oneOf: MODELS_WITH_EFFORT },
+      description: 'Thinking depth vs. cost/latency. Low for chat and classification; high or xhigh for coding and agentic work.',
+    },
+    {
+      key: 'thinking',
+      label: 'Show Reasoning',
+      type: 'select',
+      defaultValue: 'hidden',
       options: [
-        { label: 'GPT-4o', value: 'gpt-4o' },
-        { label: 'GPT-4o Mini', value: 'gpt-4o-mini' },
-        { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' },
-        { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-        { label: 'Claude 3 Haiku', value: 'claude-3-haiku-20240307' },
-        { label: 'Gemini 1.5 Pro', value: 'gemini-1.5-pro' },
-        { label: 'Llama 3.1 70B', value: 'llama-3.1-70b-instruct' },
+        { label: 'Hidden (default)', value: 'hidden' },
+        { label: 'Summarized', value: 'summarized' },
+        { label: 'Progress updates', value: 'updates' },
       ],
+      visibleWhen: { key: 'model', oneOf: MODELS_WITH_EFFORT },
+      description: 'Whether the reasoning is surfaced to the caller. It runs either way.',
     },
     {
       key: 'temperature',
@@ -105,7 +171,8 @@ const LLMNodeDefinition: NodeDefinition = {
       min: 0,
       max: 2,
       step: 0.05,
-      description: 'Controls randomness. Lower = more deterministic.',
+      visibleWhen: { key: 'model', oneOf: MODELS_WITH_TEMPERATURE },
+      description: 'Controls randomness. Lower = more deterministic. Not accepted by current reasoning models.',
     },
     {
       key: 'maxTokens',
@@ -130,13 +197,31 @@ const LLMNodeDefinition: NodeDefinition = {
       defaultValue: false,
       description: 'Stream tokens as they are generated.',
     },
+    {
+      key: 'responseFormat',
+      label: 'Response Format',
+      type: 'select',
+      defaultValue: 'text',
+      options: [
+        { label: 'Free text', value: 'text' },
+        { label: 'JSON schema (structured output)', value: 'json-schema' },
+      ],
+      description: 'Structured output constrains the response to a schema — no Output Parser needed.',
+    },
+    {
+      key: 'outputSchema',
+      label: 'Output Schema',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}',
+      visibleWhen: { key: 'responseFormat', value: 'json-schema' },
+    },
   ],
 }
 
-const PromptTemplateNodeDefinition: NodeDefinition = {
+const PromptTemplateNodeDefinition: CoreNodeDefinition = {
   type: 'promptTemplate',
   label: 'Prompt Template',
-  accentColor: '#2563EB',
   icon: PromptTemplateIcon,
   description: 'Renders a Jinja-style template with dynamic variable injection.',
   category: 'core',
@@ -167,10 +252,9 @@ const PromptTemplateNodeDefinition: NodeDefinition = {
   ],
 }
 
-const VectorDBNodeDefinition: NodeDefinition = {
+const VectorDBNodeDefinition: CoreNodeDefinition = {
   type: 'vectorDB',
   label: 'Vector DB',
-  accentColor: '#0891B2',
   icon: VectorDBIcon,
   description: 'Vector store index used as persistent retrieval backing storage.',
   category: 'data',
@@ -227,10 +311,9 @@ const VectorDBNodeDefinition: NodeDefinition = {
   ],
 }
 
-const AgentNodeDefinition: NodeDefinition = {
+const AgentNodeDefinition: CoreNodeDefinition = {
   type: 'agent',
   label: 'Agent',
-  accentColor: '#E11D48',
   icon: AgentIcon,
   description: 'Autonomous agent that reasons, plans, and calls tools iteratively.',
   category: 'core',
@@ -245,6 +328,13 @@ const AgentNodeDefinition: NodeDefinition = {
     { id: 'response', label: 'Response', type: 'text' },
   ],
   configFields: [
+    {
+      key: 'model',
+      label: 'Model',
+      type: 'select',
+      defaultValue: DEFAULT_CHAT_MODEL,
+      options: CHAT_MODEL_OPTIONS,
+    },
     {
       key: 'instructions',
       label: 'Instructions',
@@ -272,10 +362,9 @@ const AgentNodeDefinition: NodeDefinition = {
   ],
 }
 
-const PromptNodeDefinition: NodeDefinition = {
+const PromptNodeDefinition: CoreNodeDefinition = {
   type: 'prompt',
   label: 'Prompt',
-  accentColor: '#0EA5E9',
   icon: PromptIcon,
   description: 'A single chat message with a fixed role and content.',
   category: 'core',
@@ -307,10 +396,9 @@ const PromptNodeDefinition: NodeDefinition = {
   ],
 }
 
-const MemoryNodeDefinition: NodeDefinition = {
+const MemoryNodeDefinition: CoreNodeDefinition = {
   type: 'memory',
   label: 'Memory',
-  accentColor: '#CA8A04',
   icon: MemoryIcon,
   description: 'Stores and retrieves conversation history or entity state.',
   category: 'core',
@@ -330,6 +418,8 @@ const MemoryNodeDefinition: NodeDefinition = {
         { label: 'Conversation Buffer', value: 'conversation' },
         { label: 'Summary', value: 'summary' },
         { label: 'Entity', value: 'entity' },
+        { label: 'Vector (long-term recall)', value: 'vector' },
+        { label: 'Persistent Files (memory dir)', value: 'files' },
       ],
     },
     {
@@ -354,10 +444,9 @@ const MemoryNodeDefinition: NodeDefinition = {
   ],
 }
 
-const DataLoaderNodeDefinition: NodeDefinition = {
+const DataLoaderNodeDefinition: CoreNodeDefinition = {
   type: 'dataLoader',
   label: 'Data Loader',
-  accentColor: '#475569',
   icon: DataLoaderIcon,
   description: 'Ingests documents from files, URLs, S3, or databases.',
   category: 'data',
@@ -395,10 +484,9 @@ const DataLoaderNodeDefinition: NodeDefinition = {
   ],
 }
 
-const ChunkerNodeDefinition: NodeDefinition = {
+const ChunkerNodeDefinition: CoreNodeDefinition = {
   type: 'chunker',
   label: 'Chunker',
-  accentColor: '#78716C',
   icon: ChunkerIcon,
   description: 'Splits documents into smaller overlapping text chunks.',
   category: 'data',
@@ -442,10 +530,9 @@ const ChunkerNodeDefinition: NodeDefinition = {
   ],
 }
 
-const EmbeddingNodeDefinition: NodeDefinition = {
+const EmbeddingNodeDefinition: CoreNodeDefinition = {
   type: 'embedding',
   label: 'Embedding',
-  accentColor: '#4F46E5',
   icon: EmbeddingIcon,
   description: 'Converts text into dense vector representations.',
   category: 'data',
@@ -460,14 +547,8 @@ const EmbeddingNodeDefinition: NodeDefinition = {
       key: 'model',
       label: 'Model',
       type: 'select',
-      defaultValue: 'text-embedding-3-small',
-      options: [
-        { label: 'text-embedding-3-small', value: 'text-embedding-3-small' },
-        { label: 'text-embedding-3-large', value: 'text-embedding-3-large' },
-        { label: 'text-embedding-ada-002', value: 'text-embedding-ada-002' },
-        { label: 'embed-english-v3.0', value: 'embed-english-v3.0' },
-        { label: 'nomic-embed-text', value: 'nomic-embed-text' },
-      ],
+      defaultValue: DEFAULT_EMBEDDING_MODEL,
+      options: EMBEDDING_MODEL_OPTIONS,
     },
     {
       key: 'dimensions',
@@ -488,10 +569,9 @@ const EmbeddingNodeDefinition: NodeDefinition = {
   ],
 }
 
-const RetrieverNodeDefinition: NodeDefinition = {
+const RetrieverNodeDefinition: CoreNodeDefinition = {
   type: 'retriever',
   label: 'Retriever',
-  accentColor: '#0D9488',
   icon: RetrieverIcon,
   description: 'Fetches the most relevant document chunks from a vector store.',
   category: 'data',
@@ -538,10 +618,9 @@ const RetrieverNodeDefinition: NodeDefinition = {
   ],
 }
 
-const RerankerNodeDefinition: NodeDefinition = {
+const RerankerNodeDefinition: CoreNodeDefinition = {
   type: 'reranker',
   label: 'Reranker',
-  accentColor: '#DB2777',
   icon: RerankerIcon,
   description: 'Cross-encoder re-ranking to improve retrieval precision.',
   category: 'data',
@@ -557,13 +636,8 @@ const RerankerNodeDefinition: NodeDefinition = {
       key: 'model',
       label: 'Model',
       type: 'select',
-      defaultValue: 'cohere-rerank-3',
-      options: [
-        { label: 'Cohere Rerank 3', value: 'cohere-rerank-3' },
-        { label: 'Cohere Rerank 3 Nimble', value: 'cohere-rerank-3-nimble' },
-        { label: 'BGE Reranker (local)', value: 'bge-reranker-large' },
-        { label: 'ms-marco-MiniLM (local)', value: 'ms-marco-minilm' },
-      ],
+      defaultValue: DEFAULT_RERANK_MODEL,
+      options: RERANK_MODEL_OPTIONS,
     },
     {
       key: 'topN',
@@ -578,10 +652,9 @@ const RerankerNodeDefinition: NodeDefinition = {
   ],
 }
 
-const CacheNodeDefinition: NodeDefinition = {
+const CacheNodeDefinition: CoreNodeDefinition = {
   type: 'cache',
   label: 'Cache',
-  accentColor: '#059669',
   icon: CacheIcon,
   description: 'Semantic or exact cache to avoid redundant LLM calls.',
   category: 'data',
@@ -626,12 +699,11 @@ const CacheNodeDefinition: NodeDefinition = {
   ],
 }
 
-const RouterNodeDefinition: NodeDefinition = {
+const RouterNodeDefinition: CoreNodeDefinition = {
   type: 'router',
   label: 'Router',
-  accentColor: '#D97706',
   icon: RouterIcon,
-  description: 'Conditionally routes flow to one of several downstream paths.',
+  description: 'Conditionally routes flow to one of N downstream paths (routeCount 2–8 → outputs routeA…routeH, plus default).',
   category: 'flow',
   inputs: [
     { id: 'input', label: 'Input', type: 'any' },
@@ -641,7 +713,38 @@ const RouterNodeDefinition: NodeDefinition = {
     { id: 'routeB', label: 'Route B', type: 'any' },
     { id: 'default', label: 'Default', type: 'any' },
   ],
+  resolvePorts: (config) => {
+    const count = clampCount(config.routeCount, 2)
+    const names = splitList(config.routeLabels)
+    const routes: PortDefinition[] = Array.from({ length: count }, (_, i) => ({
+      id: `route${LETTERS[i]}`,
+      label: names[i] ?? `Route ${LETTERS[i]}`,
+      type: 'any',
+    }))
+    return {
+      inputs: [{ id: 'input', label: 'Input', type: 'any' }],
+      outputs: [...routes, { id: 'default', label: 'Default', type: 'any' }],
+    }
+  },
   configFields: [
+    {
+      key: 'routeCount',
+      label: 'Routes',
+      type: 'number',
+      defaultValue: 2,
+      min: 2,
+      max: 8,
+      step: 1,
+      description: 'Number of branches (output ids routeA…routeH), plus a Default branch.',
+    },
+    {
+      key: 'routeLabels',
+      label: 'Route Names',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'Billing, Technical, Sales',
+      description: 'Optional comma-separated port labels, in order.',
+    },
     {
       key: 'conditionType',
       label: 'Condition Type',
@@ -663,12 +766,11 @@ const RouterNodeDefinition: NodeDefinition = {
   ],
 }
 
-const AggregatorNodeDefinition: NodeDefinition = {
+const AggregatorNodeDefinition: CoreNodeDefinition = {
   type: 'aggregator',
   label: 'Aggregator',
-  accentColor: '#65A30D',
   icon: AggregatorIcon,
-  description: 'Merges multiple upstream outputs into a single result.',
+  description: 'Merges parallel upstream outputs into one result (inputCount 2–8 → inputs inputA…inputH).',
   category: 'flow',
   inputs: [
     { id: 'inputA', label: 'Input A', type: 'any' },
@@ -677,7 +779,25 @@ const AggregatorNodeDefinition: NodeDefinition = {
   outputs: [
     { id: 'merged', label: 'Merged', type: 'any' },
   ],
+  resolvePorts: (config) => ({
+    inputs: Array.from({ length: clampCount(config.inputCount, 2) }, (_, i) => ({
+      id: `input${LETTERS[i]}`,
+      label: `Input ${LETTERS[i]}`,
+      type: 'any' as const,
+    })),
+    outputs: [{ id: 'merged', label: 'Merged', type: 'any' }],
+  }),
   configFields: [
+    {
+      key: 'inputCount',
+      label: 'Inputs',
+      type: 'number',
+      defaultValue: 2,
+      min: 2,
+      max: 8,
+      step: 1,
+      description: 'Number of upstream branches to merge (input ids inputA…inputH).',
+    },
     {
       key: 'strategy',
       label: 'Strategy',
@@ -687,6 +807,8 @@ const AggregatorNodeDefinition: NodeDefinition = {
         { label: 'Concatenate', value: 'concat' },
         { label: 'Merge (JSON)', value: 'merge' },
         { label: 'Majority Vote', value: 'vote' },
+        { label: 'LLM Synthesis', value: 'synthesize' },
+        { label: 'First to Finish', value: 'first' },
       ],
     },
     {
@@ -699,12 +821,11 @@ const AggregatorNodeDefinition: NodeDefinition = {
   ],
 }
 
-const ClassifierNodeDefinition: NodeDefinition = {
+const ClassifierNodeDefinition: CoreNodeDefinition = {
   type: 'classifier',
   label: 'Classifier',
-  accentColor: '#C026D3',
   icon: ClassifierIcon,
-  description: 'Assigns a discrete label to input text using an LLM or classifier.',
+  description: 'Assigns a discrete label to input text; with branchPerClass, adds one output per class (class_<name>) for branching.',
   category: 'flow',
   inputs: [
     { id: 'input', label: 'Input', type: 'text' },
@@ -713,6 +834,24 @@ const ClassifierNodeDefinition: NodeDefinition = {
     { id: 'label', label: 'Label', type: 'text' },
     { id: 'confidence', label: 'Confidence', type: 'structured' },
   ],
+  resolvePorts: (config) => {
+    const base: PortDefinition[] = [
+      { id: 'label', label: 'Label', type: 'text' },
+      { id: 'confidence', label: 'Confidence', type: 'structured' },
+    ]
+    if (!config.branchPerClass) {
+      return { inputs: [{ id: 'input', label: 'Input', type: 'text' }], outputs: base }
+    }
+    const seen = new Set<string>()
+    const branches: PortDefinition[] = []
+    for (const name of splitList(config.classes)) {
+      const id = classPortId(name)
+      if (id === 'class_' || seen.has(id)) continue
+      seen.add(id)
+      branches.push({ id, label: name, type: 'any' })
+    }
+    return { inputs: [{ id: 'input', label: 'Input', type: 'text' }], outputs: [...branches, ...base] }
+  },
   configFields: [
     {
       key: 'classes',
@@ -732,6 +871,13 @@ const ClassifierNodeDefinition: NodeDefinition = {
       ],
     },
     {
+      key: 'branchPerClass',
+      label: 'Branch per Class',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Add one output per class (ids class_<name>) so the flow can branch on the label.',
+    },
+    {
       key: 'threshold',
       label: 'Confidence Threshold',
       type: 'slider',
@@ -746,10 +892,9 @@ const ClassifierNodeDefinition: NodeDefinition = {
 /** Default frame tint strength (0–1). 15% keeps frames subtle; raise for a stronger panel. */
 export const DEFAULT_FRAME_OPACITY = 0.15
 
-const FrameNodeDefinition: NodeDefinition = {
+const FrameNodeDefinition: CoreNodeDefinition = {
   type: 'frame',
   label: 'Frame',
-  accentColor: '#2664e8',
   icon: FrameIcon,
   description: 'Resizable background section for grouping related nodes on the canvas.',
   category: 'flow',
@@ -801,10 +946,9 @@ const FrameNodeDefinition: NodeDefinition = {
   ],
 }
 
-const TextNodeDefinition: NodeDefinition = {
+const TextNodeDefinition: CoreNodeDefinition = {
   type: 'text',
   label: 'Text',
-  accentColor: '#94A3B8',
   icon: TextIcon,
   description: 'Resizable annotation block for adding explanations and markdown notes directly on the canvas.',
   category: 'flow',
@@ -849,10 +993,9 @@ const TextNodeDefinition: NodeDefinition = {
   ],
 }
 
-const ToolCallNodeDefinition: NodeDefinition = {
+const ToolCallNodeDefinition: CoreNodeDefinition = {
   type: 'toolCall',
   label: 'Tool Call',
-  accentColor: '#EA580C',
   icon: ToolCallIcon,
   description: 'Executes a named function/tool and returns the result.',
   category: 'tool',
@@ -899,10 +1042,9 @@ const ToolCallNodeDefinition: NodeDefinition = {
   ],
 }
 
-const WebSearchNodeDefinition: NodeDefinition = {
+const WebSearchNodeDefinition: CoreNodeDefinition = {
   type: 'webSearch',
   label: 'Web Search',
-  accentColor: '#1D4ED8',
   icon: WebSearchIcon,
   description: 'Queries the web and returns ranked result snippets.',
   category: 'tool',
@@ -920,9 +1062,11 @@ const WebSearchNodeDefinition: NodeDefinition = {
       defaultValue: 'brave',
       options: [
         { label: 'Brave Search', value: 'brave' },
-        { label: 'SerpAPI (Google)', value: 'serp' },
-        { label: 'Bing Search', value: 'bing' },
         { label: 'Tavily', value: 'tavily' },
+        { label: 'Exa', value: 'exa' },
+        { label: 'Perplexity Search', value: 'perplexity' },
+        { label: 'SerpAPI (Google)', value: 'serp' },
+        { label: 'Model-native web search', value: 'native' },
       ],
     },
     {
@@ -943,10 +1087,9 @@ const WebSearchNodeDefinition: NodeDefinition = {
   ],
 }
 
-const OutputParserNodeDefinition: NodeDefinition = {
+const OutputParserNodeDefinition: CoreNodeDefinition = {
   type: 'outputParser',
   label: 'Output Parser',
-  accentColor: '#0F766E',
   icon: OutputParserIcon,
   description: 'Parses raw LLM text into structured JSON, YAML, or CSV.',
   category: 'output',
@@ -987,10 +1130,9 @@ const OutputParserNodeDefinition: NodeDefinition = {
   ],
 }
 
-const EvaluatorNodeDefinition: NodeDefinition = {
+const EvaluatorNodeDefinition: CoreNodeDefinition = {
   type: 'evaluator',
   label: 'Evaluator',
-  accentColor: '#16A34A',
   icon: EvaluatorIcon,
   description: 'Scores LLM responses against a reference using automatic metrics.',
   category: 'output',
@@ -1029,10 +1171,9 @@ const EvaluatorNodeDefinition: NodeDefinition = {
   ],
 }
 
-const GuardrailsNodeDefinition: NodeDefinition = {
+const GuardrailsNodeDefinition: CoreNodeDefinition = {
   type: 'guardrails',
   label: 'Guardrails',
-  accentColor: '#DC2626',
   icon: GuardrailsIcon,
   description: 'Screens content for toxicity, PII, hallucination, or policy violations.',
   category: 'output',
@@ -1066,12 +1207,605 @@ const GuardrailsNodeDefinition: NodeDefinition = {
   ],
 }
 
+// ── Entry / exit, orchestration & runtime nodes ──────────────────────────────
+
+const TriggerNodeDefinition: CoreNodeDefinition = {
+  type: 'trigger',
+  label: 'Trigger',
+  icon: TriggerIcon,
+  description: 'Entry point that starts the workflow: user message, webhook, schedule, event, or API call.',
+  category: 'core',
+  inputs: [],
+  outputs: [
+    { id: 'payload', label: 'Payload', type: 'text' },
+    { id: 'metadata', label: 'Metadata', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'triggerType',
+      label: 'Trigger Type',
+      type: 'select',
+      defaultValue: 'user-message',
+      options: [
+        { label: 'User message (chat)', value: 'user-message' },
+        { label: 'Webhook', value: 'webhook' },
+        { label: 'Schedule (cron)', value: 'schedule' },
+        { label: 'Event / queue', value: 'event' },
+        { label: 'API request', value: 'api' },
+        { label: 'File upload', value: 'file-upload' },
+        { label: 'Manual run', value: 'manual' },
+      ],
+    },
+    {
+      key: 'schedule',
+      label: 'Cron Schedule',
+      type: 'text',
+      defaultValue: '0 9 * * 1-5',
+      placeholder: '0 9 * * 1-5',
+      visibleWhen: { key: 'triggerType', value: 'schedule' },
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'e.g. GitHub check_run, Stripe invoice.paid, /api/ask',
+      description: 'What emits the trigger (endpoint, event name, or channel).',
+    },
+  ],
+}
+
+const OutputNodeDefinition: CoreNodeDefinition = {
+  type: 'output',
+  label: 'Output',
+  icon: OutputIcon,
+  description: 'Terminal node: delivers the final result to the user, an API response, a file, or another system.',
+  category: 'core',
+  inputs: [
+    { id: 'input', label: 'Input', type: 'any' },
+  ],
+  outputs: [],
+  configFields: [
+    {
+      key: 'destination',
+      label: 'Destination',
+      type: 'select',
+      defaultValue: 'user',
+      options: [
+        { label: 'User (chat reply)', value: 'user' },
+        { label: 'API response', value: 'api' },
+        { label: 'File / artifact', value: 'file' },
+        { label: 'Webhook / callback', value: 'webhook' },
+        { label: 'Notification (Slack, email…)', value: 'notification' },
+        { label: 'Database write', value: 'database' },
+      ],
+    },
+    {
+      key: 'format',
+      label: 'Format',
+      type: 'select',
+      defaultValue: 'markdown',
+      options: [
+        { label: 'Plain text', value: 'text' },
+        { label: 'Markdown', value: 'markdown' },
+        { label: 'JSON', value: 'json' },
+      ],
+    },
+    {
+      key: 'streaming',
+      label: 'Stream to Destination',
+      type: 'boolean',
+      defaultValue: false,
+    },
+  ],
+}
+
+const SubAgentNodeDefinition: CoreNodeDefinition = {
+  type: 'subAgent',
+  label: 'Sub-Agent',
+  icon: SubAgentIcon,
+  description: 'Specialist agent that an orchestrator agent delegates a task to; returns its result to the caller.',
+  category: 'core',
+  inputs: [
+    { id: 'task', label: 'Task', type: 'text' },
+    { id: 'context', label: 'Context', type: 'any' },
+    { id: 'tools', label: 'Observations', type: 'any' },
+  ],
+  outputs: [
+    { id: 'result', label: 'Result', type: 'text' },
+    { id: 'artifacts', label: 'Artifacts', type: 'structured' },
+    { id: 'toolRequests', label: 'Tool Requests', type: 'any' },
+  ],
+  configFields: [
+    {
+      key: 'model',
+      label: 'Model',
+      type: 'select',
+      defaultValue: 'claude-haiku-4-5',
+      options: CHAT_MODEL_OPTIONS,
+    },
+    {
+      key: 'role',
+      label: 'Role / Instructions',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: 'You research one topic and return a cited summary…',
+    },
+    {
+      key: 'maxIterations',
+      label: 'Max Iterations',
+      type: 'number',
+      defaultValue: 10,
+      min: 1,
+      max: 50,
+      step: 1,
+    },
+    {
+      key: 'returnMode',
+      label: 'Returns',
+      type: 'select',
+      defaultValue: 'summary',
+      options: [
+        { label: 'Final summary only', value: 'summary' },
+        { label: 'Structured result', value: 'structured' },
+        { label: 'Full transcript', value: 'transcript' },
+      ],
+      description: 'How much of its work the sub-agent hands back to the orchestrator.',
+    },
+  ],
+}
+
+const HumanApprovalNodeDefinition: CoreNodeDefinition = {
+  type: 'humanApproval',
+  label: 'Human Approval',
+  icon: HumanApprovalIcon,
+  description: 'Pauses the run until a person approves, edits, or rejects a proposed action (human-in-the-loop).',
+  category: 'flow',
+  inputs: [
+    { id: 'proposal', label: 'Proposal', type: 'any' },
+    { id: 'context', label: 'Context', type: 'text' },
+  ],
+  outputs: [
+    { id: 'approved', label: 'Approved', type: 'any', color: '#16A34A' },
+    { id: 'rejected', label: 'Rejected', type: 'structured', color: '#DC2626' },
+  ],
+  configFields: [
+    {
+      key: 'channel',
+      label: 'Review Channel',
+      type: 'select',
+      defaultValue: 'app',
+      options: [
+        { label: 'In-app review queue', value: 'app' },
+        { label: 'Slack', value: 'slack' },
+        { label: 'Email', value: 'email' },
+        { label: 'Ticket (Jira, Linear…)', value: 'ticket' },
+      ],
+    },
+    {
+      key: 'approvers',
+      label: 'Approvers',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'on-call, finance-team',
+    },
+    {
+      key: 'allowEdits',
+      label: 'Allow Edits',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Reviewer can modify the proposal before approving.',
+    },
+    {
+      key: 'timeoutMinutes',
+      label: 'Timeout (minutes)',
+      type: 'number',
+      defaultValue: 60,
+      min: 0,
+      max: 10080,
+      step: 5,
+      description: '0 = wait indefinitely.',
+    },
+    {
+      key: 'onTimeout',
+      label: 'On Timeout',
+      type: 'select',
+      defaultValue: 'reject',
+      options: [
+        { label: 'Reject', value: 'reject' },
+        { label: 'Auto-approve', value: 'approve' },
+        { label: 'Escalate', value: 'escalate' },
+      ],
+    },
+  ],
+}
+
+const LoopNodeDefinition: CoreNodeDefinition = {
+  type: 'loop',
+  label: 'Loop / Map',
+  icon: LoopIcon,
+  description: 'Runs a sub-flow once per item (map, in parallel or in sequence) or repeats until a condition holds.',
+  category: 'flow',
+  inputs: [
+    { id: 'items', label: 'Items', type: 'any' },
+    { id: 'itemResult', label: 'Item Result', type: 'any' },
+  ],
+  outputs: [
+    { id: 'item', label: 'Each Item', type: 'any' },
+    { id: 'results', label: 'All Results', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'mode',
+      label: 'Mode',
+      type: 'select',
+      defaultValue: 'parallel',
+      options: [
+        { label: 'Map — parallel', value: 'parallel' },
+        { label: 'Map — sequential', value: 'sequential' },
+        { label: 'Repeat while condition', value: 'while' },
+      ],
+    },
+    {
+      key: 'maxConcurrency',
+      label: 'Max Concurrency',
+      type: 'number',
+      defaultValue: 5,
+      min: 1,
+      max: 100,
+      step: 1,
+      visibleWhen: { key: 'mode', value: 'parallel' },
+    },
+    {
+      key: 'condition',
+      label: 'Continue While',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: 'score < 0.8',
+      visibleWhen: { key: 'mode', value: 'while' },
+    },
+    {
+      key: 'maxIterations',
+      label: 'Max Iterations',
+      type: 'number',
+      defaultValue: 100,
+      min: 1,
+      max: 10000,
+      step: 1,
+    },
+  ],
+}
+
+const MCPServerNodeDefinition: CoreNodeDefinition = {
+  type: 'mcpServer',
+  label: 'MCP Server',
+  icon: MCPServerIcon,
+  description: 'Model Context Protocol server exposing a set of tools (and resources) to an agent through one connection.',
+  category: 'tool',
+  inputs: [
+    { id: 'call', label: 'Call', type: 'tool-call' },
+  ],
+  outputs: [
+    { id: 'result', label: 'Result', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'serverName',
+      label: 'Server Name',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'github, linear, postgres…',
+    },
+    {
+      key: 'transport',
+      label: 'Transport',
+      type: 'select',
+      defaultValue: 'http',
+      options: [
+        { label: 'Streamable HTTP (remote)', value: 'http' },
+        { label: 'stdio (local process)', value: 'stdio' },
+      ],
+    },
+    {
+      key: 'endpoint',
+      label: 'URL / Command',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'https://mcp.example.com/mcp  or  npx my-mcp-server',
+    },
+    {
+      key: 'allowedTools',
+      label: 'Allowed Tools',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'search_issues, create_issue (blank = all)',
+    },
+    {
+      key: 'requireApproval',
+      label: 'Require Approval for Writes',
+      type: 'boolean',
+      defaultValue: false,
+    },
+  ],
+}
+
+const CodeExecNodeDefinition: CoreNodeDefinition = {
+  type: 'codeExec',
+  label: 'Code Execution',
+  icon: CodeExecIcon,
+  description: 'Runs model-written code in a sandbox (analysis, file transforms, calculations) and returns the output.',
+  category: 'tool',
+  inputs: [
+    { id: 'call', label: 'Call', type: 'tool-call' },
+    { id: 'files', label: 'Files', type: 'any' },
+  ],
+  outputs: [
+    { id: 'result', label: 'Result', type: 'structured' },
+    { id: 'stdout', label: 'Stdout', type: 'text' },
+  ],
+  configFields: [
+    {
+      key: 'language',
+      label: 'Language',
+      type: 'select',
+      defaultValue: 'python',
+      options: [
+        { label: 'Python', value: 'python' },
+        { label: 'JavaScript / TypeScript', value: 'javascript' },
+        { label: 'Bash', value: 'bash' },
+      ],
+    },
+    {
+      key: 'sandbox',
+      label: 'Sandbox',
+      type: 'select',
+      defaultValue: 'hosted',
+      options: [
+        { label: 'Provider-hosted (server tool)', value: 'hosted' },
+        { label: 'Container (Docker, E2B…)', value: 'container' },
+        { label: 'Local process', value: 'local' },
+      ],
+    },
+    {
+      key: 'timeout',
+      label: 'Timeout (s)',
+      type: 'number',
+      defaultValue: 60,
+      min: 1,
+      max: 3600,
+      step: 1,
+    },
+    {
+      key: 'networkAccess',
+      label: 'Network Access',
+      type: 'boolean',
+      defaultValue: false,
+    },
+  ],
+}
+
+const StateNodeDefinition: CoreNodeDefinition = {
+  type: 'state',
+  label: 'State',
+  icon: StateIcon,
+  description: 'Shared workflow state that steps read and write (status, decisions, intermediate results), optionally checkpointed so paused or failed runs can resume.',
+  category: 'core',
+  inputs: [
+    { id: 'write', label: 'Write', type: 'any' },
+  ],
+  outputs: [
+    { id: 'read', label: 'Read', type: 'any' },
+  ],
+  configFields: [
+    {
+      key: 'scope',
+      label: 'Scope',
+      type: 'select',
+      defaultValue: 'run',
+      options: [
+        { label: 'Run (one execution)', value: 'run' },
+        { label: 'Session (one conversation)', value: 'session' },
+        { label: 'User (across sessions)', value: 'user' },
+        { label: 'Global (shared by all runs)', value: 'global' },
+      ],
+    },
+    {
+      key: 'keys',
+      label: 'Keys / Schema',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: 'status, assignee, approval_decision  — or a JSON Schema',
+      description: 'What the state holds. Comma-separated keys or a JSON Schema.',
+    },
+    {
+      key: 'backend',
+      label: 'Backend',
+      type: 'select',
+      defaultValue: 'memory',
+      options: [
+        { label: 'In-memory (not durable)', value: 'memory' },
+        { label: 'Redis', value: 'redis' },
+        { label: 'Postgres', value: 'postgres' },
+      ],
+    },
+    {
+      key: 'checkpointing',
+      label: 'Checkpointing',
+      type: 'select',
+      defaultValue: 'pause',
+      options: [
+        { label: 'Off', value: 'off' },
+        { label: 'Every step', value: 'step' },
+        { label: 'Before tool calls', value: 'tools' },
+        { label: 'When the run pauses (approval, waits)', value: 'pause' },
+      ],
+      visibleWhen: { key: 'backend', oneOf: ['redis', 'postgres'] },
+      description: 'When to persist a snapshot the run can resume from.',
+    },
+    {
+      key: 'retentionDays',
+      label: 'Retention (days)',
+      type: 'number',
+      defaultValue: 30,
+      min: 0,
+      max: 3650,
+      step: 1,
+      visibleWhen: { key: 'backend', oneOf: ['redis', 'postgres'] },
+      description: '0 = keep forever.',
+    },
+  ],
+}
+
+const TracingNodeDefinition: CoreNodeDefinition = {
+  type: 'tracing',
+  label: 'Tracing',
+  icon: TracingIcon,
+  description: 'Observability sink: records traces of every step (prompts, tool calls, tokens, latency) for the whole flow or its frame. Not wired with edges.',
+  category: 'output',
+  inputs: [],
+  outputs: [],
+  configFields: [
+    {
+      key: 'provider',
+      label: 'Provider',
+      type: 'select',
+      defaultValue: 'opentelemetry',
+      options: [
+        { label: 'OpenTelemetry (OTLP)', value: 'opentelemetry' },
+        { label: 'Langfuse', value: 'langfuse' },
+        { label: 'LangSmith', value: 'langsmith' },
+        { label: 'Arize Phoenix', value: 'phoenix' },
+        { label: 'Datadog LLM Observability', value: 'datadog' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'scope',
+      label: 'Scope',
+      type: 'select',
+      defaultValue: 'flow',
+      options: [
+        { label: 'Whole flow', value: 'flow' },
+        { label: 'Nodes in the same frame', value: 'frame' },
+      ],
+    },
+    {
+      key: 'endpoint',
+      label: 'Endpoint / Project',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'https://otel-collector:4318  or  project name',
+    },
+    {
+      key: 'captureContent',
+      label: 'Capture Prompts & Responses',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'captureToolCalls',
+      label: 'Capture Tool Calls',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'captureUsage',
+      label: 'Capture Tokens & Cost',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'redactPII',
+      label: 'Redact PII',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'sampleRate',
+      label: 'Sample Rate',
+      type: 'slider',
+      defaultValue: 1,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      description: 'Fraction of runs traced.',
+    },
+  ],
+}
+
+const MonitorNodeDefinition: CoreNodeDefinition = {
+  type: 'monitor',
+  label: 'Monitor',
+  icon: MonitorIcon,
+  description: 'Watches a runtime metric (latency, errors, cost, refusals, eval score) over a time window and raises an alert when it crosses a threshold.',
+  category: 'output',
+  inputs: [
+    { id: 'metrics', label: 'Metrics', type: 'any' },
+  ],
+  outputs: [
+    { id: 'alert', label: 'Alert', type: 'structured', color: '#DC2626' },
+  ],
+  configFields: [
+    {
+      key: 'metric',
+      label: 'Metric',
+      type: 'select',
+      defaultValue: 'latencyP95',
+      options: [
+        { label: 'Latency p95 (s)', value: 'latencyP95' },
+        { label: 'Error rate (%)', value: 'errorRate' },
+        { label: 'Cost per run ($)', value: 'costPerRun' },
+        { label: 'Refusal rate (%)', value: 'refusalRate' },
+        { label: 'Eval score', value: 'evalScore' },
+        { label: 'Custom', value: 'custom' },
+      ],
+    },
+    {
+      key: 'customMetric',
+      label: 'Custom Metric',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'e.g. approval_wait_minutes',
+      visibleWhen: { key: 'metric', value: 'custom' },
+    },
+    {
+      key: 'operator',
+      label: 'Alert When',
+      type: 'select',
+      defaultValue: '>',
+      options: [
+        { label: 'Above threshold', value: '>' },
+        { label: 'Below threshold', value: '<' },
+      ],
+    },
+    {
+      key: 'threshold',
+      label: 'Threshold',
+      type: 'number',
+      defaultValue: 10,
+      min: 0,
+      step: 0.1,
+      description: 'In the metric\'s unit (seconds, %, $, or score).',
+    },
+    {
+      key: 'window',
+      label: 'Window',
+      type: 'select',
+      defaultValue: '1h',
+      options: [
+        { label: '5 minutes', value: '5m' },
+        { label: '1 hour', value: '1h' },
+        { label: '24 hours', value: '24h' },
+      ],
+    },
+  ],
+}
+
 // ── Evaluation strategy nodes ─────────────────────────────────────────────────
 
-const LLMJudgeNodeDefinition: NodeDefinition = {
+const LLMJudgeNodeDefinition: CoreNodeDefinition = {
   type: 'llmJudge',
   label: 'LLM Judge',
-  accentColor: '#BE185D',
   icon: LLMJudgeIcon,
   description: 'Uses an LLM to score or evaluate another model\'s output against a rubric.',
   category: 'eval',
@@ -1089,13 +1823,8 @@ const LLMJudgeNodeDefinition: NodeDefinition = {
       key: 'judgeModel',
       label: 'Judge Model',
       type: 'select',
-      defaultValue: 'gpt-4o',
-      options: [
-        { label: 'GPT-4o', value: 'gpt-4o' },
-        { label: 'GPT-4o Mini', value: 'gpt-4o-mini' },
-        { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-        { label: 'Gemini 1.5 Pro', value: 'gemini-1.5-pro' },
-      ],
+      defaultValue: DEFAULT_JUDGE_MODEL,
+      options: JUDGE_MODEL_OPTIONS,
     },
     {
       key: 'scoringScale',
@@ -1125,10 +1854,9 @@ const LLMJudgeNodeDefinition: NodeDefinition = {
   ],
 }
 
-const RubricNodeDefinition: NodeDefinition = {
+const RubricNodeDefinition: CoreNodeDefinition = {
   type: 'rubric',
   label: 'Rubric',
-  accentColor: '#2563EB',
   icon: RubricIcon,
   description: 'Defines evaluation criteria and scoring dimensions for downstream judges.',
   category: 'eval',
@@ -1167,10 +1895,9 @@ const RubricNodeDefinition: NodeDefinition = {
   ],
 }
 
-const ComparatorNodeDefinition: NodeDefinition = {
+const ComparatorNodeDefinition: CoreNodeDefinition = {
   type: 'comparator',
   label: 'A/B Comparator',
-  accentColor: '#D97706',
   icon: ComparatorIcon,
   description: 'Pairwise comparison of two model responses — picks the better one.',
   category: 'eval',
@@ -1188,12 +1915,8 @@ const ComparatorNodeDefinition: NodeDefinition = {
       key: 'judgeModel',
       label: 'Judge Model',
       type: 'select',
-      defaultValue: 'gpt-4o',
-      options: [
-        { label: 'GPT-4o', value: 'gpt-4o' },
-        { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-        { label: 'Gemini 1.5 Pro', value: 'gemini-1.5-pro' },
-      ],
+      defaultValue: DEFAULT_JUDGE_MODEL,
+      options: JUDGE_MODEL_OPTIONS,
     },
     {
       key: 'positionBias',
@@ -1205,10 +1928,9 @@ const ComparatorNodeDefinition: NodeDefinition = {
   ],
 }
 
-const GroundTruthNodeDefinition: NodeDefinition = {
+const GroundTruthNodeDefinition: CoreNodeDefinition = {
   type: 'groundTruth',
   label: 'Ground Truth',
-  accentColor: '#0D9488',
   icon: GroundTruthIcon,
   description: 'Provides reference answers for evaluation — from dataset, DB, or manual entry.',
   category: 'eval',
@@ -1249,10 +1971,9 @@ const GroundTruthNodeDefinition: NodeDefinition = {
   ],
 }
 
-const EvalMetricsNodeDefinition: NodeDefinition = {
+const EvalMetricsNodeDefinition: CoreNodeDefinition = {
   type: 'evalMetrics',
   label: 'Metrics',
-  accentColor: '#4F46E5',
   icon: EvalMetricsIcon,
   description: 'Computes automated metrics: BLEU, ROUGE, BERTScore, F1, exact match.',
   category: 'eval',
@@ -1297,10 +2018,9 @@ const EvalMetricsNodeDefinition: NodeDefinition = {
   ],
 }
 
-const CritiqueNodeDefinition: NodeDefinition = {
+const CritiqueNodeDefinition: CoreNodeDefinition = {
   type: 'critique',
   label: 'Critique',
-  accentColor: '#EA580C',
   icon: CritiqueIcon,
   description: 'Self-critique loop — model reviews its own output and optionally revises it.',
   category: 'eval',
@@ -1317,11 +2037,8 @@ const CritiqueNodeDefinition: NodeDefinition = {
       key: 'model',
       label: 'Model',
       type: 'select',
-      defaultValue: 'gpt-4o',
-      options: [
-        { label: 'GPT-4o', value: 'gpt-4o' },
-        { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-      ],
+      defaultValue: DEFAULT_CHAT_MODEL,
+      options: CHAT_MODEL_OPTIONS,
     },
     {
       key: 'critiqueAspects',
@@ -1348,10 +2065,9 @@ const CritiqueNodeDefinition: NodeDefinition = {
   ],
 }
 
-const ThresholdGateNodeDefinition: NodeDefinition = {
+const ThresholdGateNodeDefinition: CoreNodeDefinition = {
   type: 'thresholdGate',
   label: 'Threshold Gate',
-  accentColor: '#DC2626',
   icon: ThresholdGateIcon,
   description: 'Routes flow based on whether a score passes or fails a defined threshold.',
   category: 'eval',
@@ -1405,10 +2121,9 @@ const ThresholdGateNodeDefinition: NodeDefinition = {
   ],
 }
 
-const HumanRaterNodeDefinition: NodeDefinition = {
+const HumanRaterNodeDefinition: CoreNodeDefinition = {
   type: 'humanRater',
   label: 'Human Rater',
-  accentColor: '#CA8A04',
   icon: HumanRaterIcon,
   description: 'Human-in-the-loop evaluation step — collects ratings and free-text feedback.',
   category: 'eval',
@@ -1454,16 +2169,15 @@ const HumanRaterNodeDefinition: NodeDefinition = {
   ],
 }
 
-const RAGEvaluatorNodeDefinition: NodeDefinition = {
+const RAGEvaluatorNodeDefinition: CoreNodeDefinition = {
   type: 'ragEvaluator',
   label: 'RAG Evaluator',
-  accentColor: '#0891B2',
   icon: RAGEvalIcon,
   description: 'Measures retrieval and generation quality: Recall@k, Precision@k, MRR, NDCG@k, Faithfulness, Context Precision/Recall.',
   category: 'eval',
   inputs: [
     { id: 'query',     label: 'Query',     type: 'text' },
-    { id: 'contexts',  label: 'Contexts',  type: 'structured' },
+    { id: 'contexts',  label: 'Contexts',  type: 'text' },
     { id: 'response',  label: 'Response',  type: 'text' },
     { id: 'reference', label: 'Reference', type: 'text' },
   ],
@@ -1540,22 +2254,17 @@ const RAGEvaluatorNodeDefinition: NodeDefinition = {
       key: 'judgeModel',
       label: 'LLM Judge (for LLM-based metrics)',
       type: 'select',
-      defaultValue: 'gpt-4o',
-      options: [
-        { label: 'GPT-4o', value: 'gpt-4o' },
-        { label: 'GPT-4o Mini', value: 'gpt-4o-mini' },
-        { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-      ],
+      defaultValue: DEFAULT_JUDGE_MODEL,
+      options: JUDGE_MODEL_OPTIONS,
     },
   ],
 }
 
 // ── Agent evaluation nodes ────────────────────────────────────────────────────
 
-const SingleTurnEvalNodeDefinition: NodeDefinition = {
+const SingleTurnEvalNodeDefinition: CoreNodeDefinition = {
   type: 'singleTurnEval',
   label: 'Single-Turn Eval',
-  accentColor: '#0F766E',
   icon: SingleTurnEvalIcon,
   description: 'Evaluates one query-response exchange on relevance, correctness, and helpfulness.',
   category: 'eval',
@@ -1573,12 +2282,8 @@ const SingleTurnEvalNodeDefinition: NodeDefinition = {
       key: 'judgeModel',
       label: 'Judge Model',
       type: 'select',
-      defaultValue: 'gpt-4o',
-      options: [
-        { label: 'GPT-4o', value: 'gpt-4o' },
-        { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-        { label: 'Gemini 1.5 Pro', value: 'gemini-1.5-pro' },
-      ],
+      defaultValue: DEFAULT_JUDGE_MODEL,
+      options: JUDGE_MODEL_OPTIONS,
     },
     {
       key: 'relevance',
@@ -1622,10 +2327,9 @@ const SingleTurnEvalNodeDefinition: NodeDefinition = {
   ],
 }
 
-const MultiTurnEvalNodeDefinition: NodeDefinition = {
+const MultiTurnEvalNodeDefinition: CoreNodeDefinition = {
   type: 'multiTurnEval',
   label: 'Multi-Turn Eval',
-  accentColor: '#6D28D9',
   icon: MultiTurnEvalIcon,
   description: 'Evaluates a full conversation: coherence, goal progress, consistency across turns.',
   category: 'eval',
@@ -1642,11 +2346,8 @@ const MultiTurnEvalNodeDefinition: NodeDefinition = {
       key: 'judgeModel',
       label: 'Judge Model',
       type: 'select',
-      defaultValue: 'gpt-4o',
-      options: [
-        { label: 'GPT-4o', value: 'gpt-4o' },
-        { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-      ],
+      defaultValue: DEFAULT_JUDGE_MODEL,
+      options: JUDGE_MODEL_OPTIONS,
     },
     {
       key: 'coherence',
@@ -1688,10 +2389,9 @@ const MultiTurnEvalNodeDefinition: NodeDefinition = {
   ],
 }
 
-const ToolUseEvalNodeDefinition: NodeDefinition = {
+const ToolUseEvalNodeDefinition: CoreNodeDefinition = {
   type: 'toolUseEval',
   label: 'Tool Use Eval',
-  accentColor: '#EA580C',
   icon: ToolUseEvalIcon,
   description: 'Checks whether the agent called the correct tools with correct arguments.',
   category: 'eval',
@@ -1746,10 +2446,9 @@ const ToolUseEvalNodeDefinition: NodeDefinition = {
   ],
 }
 
-const TrajectoryEvalNodeDefinition: NodeDefinition = {
+const TrajectoryEvalNodeDefinition: CoreNodeDefinition = {
   type: 'trajectoryEval',
   label: 'Trajectory Eval',
-  accentColor: '#0D9488',
   icon: TrajectoryEvalIcon,
   description: 'Evaluates the full sequence of agent actions — not just the final answer.',
   category: 'eval',
@@ -1767,11 +2466,8 @@ const TrajectoryEvalNodeDefinition: NodeDefinition = {
       key: 'judgeModel',
       label: 'Judge Model',
       type: 'select',
-      defaultValue: 'gpt-4o',
-      options: [
-        { label: 'GPT-4o', value: 'gpt-4o' },
-        { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-      ],
+      defaultValue: DEFAULT_JUDGE_MODEL,
+      options: JUDGE_MODEL_OPTIONS,
     },
     {
       key: 'strategy',
@@ -1804,10 +2500,9 @@ const TrajectoryEvalNodeDefinition: NodeDefinition = {
   ],
 }
 
-const TaskCompletionNodeDefinition: NodeDefinition = {
+const TaskCompletionNodeDefinition: CoreNodeDefinition = {
   type: 'taskCompletion',
   label: 'Task Completion',
-  accentColor: '#16A34A',
   icon: TaskCompletionIcon,
   description: 'Binary or graded assessment of whether the agent achieved the specified goal.',
   category: 'eval',
@@ -1837,11 +2532,8 @@ const TaskCompletionNodeDefinition: NodeDefinition = {
       key: 'judgeModel',
       label: 'Judge Model',
       type: 'select',
-      defaultValue: 'gpt-4o',
-      options: [
-        { label: 'GPT-4o', value: 'gpt-4o' },
-        { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-      ],
+      defaultValue: DEFAULT_JUDGE_MODEL,
+      options: JUDGE_MODEL_OPTIONS,
     },
     {
       key: 'allowPartialCredit',
@@ -1853,10 +2545,9 @@ const TaskCompletionNodeDefinition: NodeDefinition = {
   ],
 }
 
-const AgentEfficiencyNodeDefinition: NodeDefinition = {
+const AgentEfficiencyNodeDefinition: CoreNodeDefinition = {
   type: 'agentEfficiency',
   label: 'Agent Efficiency',
-  accentColor: '#CA8A04',
   icon: AgentEfficiencyIcon,
   description: 'Measures agent efficiency: steps taken, tool calls, tokens used, and estimated cost.',
   category: 'eval',
@@ -2850,13 +3541,17 @@ const CharacterNodeDefinition: NodeDefinition = {
 const PRIMARY_NODE_ACCENT = '#2563EB'
 const EVAL_NODE_ACCENT = '#38BDF8'
 
-const NODE_DEFINITIONS: NodeDefinition[] = [
+const NODE_DEFINITIONS: NodeDefinition[] = ([
   // Core
+  TriggerNodeDefinition,
   LLMNodeDefinition,
   AgentNodeDefinition,
+  SubAgentNodeDefinition,
   PromptNodeDefinition,
   PromptTemplateNodeDefinition,
   MemoryNodeDefinition,
+  StateNodeDefinition,
+  OutputNodeDefinition,
   // Data
   DataLoaderNodeDefinition,
   ChunkerNodeDefinition,
@@ -2869,15 +3564,21 @@ const NODE_DEFINITIONS: NodeDefinition[] = [
   RouterNodeDefinition,
   AggregatorNodeDefinition,
   ClassifierNodeDefinition,
+  HumanApprovalNodeDefinition,
+  LoopNodeDefinition,
   FrameNodeDefinition,
   TextNodeDefinition,
   // Tools
   ToolCallNodeDefinition,
   WebSearchNodeDefinition,
+  MCPServerNodeDefinition,
+  CodeExecNodeDefinition,
   // Output
   OutputParserNodeDefinition,
   EvaluatorNodeDefinition,
   GuardrailsNodeDefinition,
+  TracingNodeDefinition,
+  MonitorNodeDefinition,
   // Evaluation strategies
   LLMJudgeNodeDefinition,
   RubricNodeDefinition,
@@ -2895,7 +3596,7 @@ const NODE_DEFINITIONS: NodeDefinition[] = [
   TrajectoryEvalNodeDefinition,
   TaskCompletionNodeDefinition,
   AgentEfficiencyNodeDefinition,
-].map((def) => ({
+] as CoreNodeDefinition[]).map((def) => ({
   ...def,
   accentColor:
     def.category === 'eval' || def.type === 'evaluator'
@@ -2913,6 +3614,30 @@ export function getNodeDefinition(type: string): NodeDefinition | undefined {
   return NODE_DEFINITIONS.find((d) => d.type === type)
 }
 
+/**
+ * Ports for a node instance. Prefer this over `def.inputs` / `def.outputs`:
+ * some node types (router, aggregator, classifier) derive their ports from config.
+ */
+export function resolveNodePorts(
+  def: NodeDefinition,
+  config: Record<string, unknown> | undefined,
+): { inputs: PortDefinition[]; outputs: PortDefinition[] } {
+  if (!def.resolvePorts) return { inputs: def.inputs, outputs: def.outputs }
+  return def.resolvePorts({
+    ...buildDefaultConfig(def.type),
+    ...((config ?? {}) as Record<string, string | number | boolean>),
+  })
+}
+
+/** Whether a config field applies given the node's current config (see `ConfigField.visibleWhen`). */
+export function isConfigFieldVisible(field: ConfigField, config: Record<string, unknown> | undefined): boolean {
+  const cond = field.visibleWhen
+  if (!cond) return true
+  const current = config?.[cond.key]
+  if ('oneOf' in cond) return cond.oneOf.some((v) => v === current)
+  return current === cond.value
+}
+
 /** Builds the default config Record for a node type (all fields at defaultValue). */
 export function buildDefaultConfig(type: string): Record<string, string | number | boolean> {
   const def = getNodeDefinition(type)
@@ -2920,6 +3645,23 @@ export function buildDefaultConfig(type: string): Record<string, string | number
   return Object.fromEntries(
     def.configFields.map((f) => [f.key, f.defaultValue])
   )
+}
+
+/**
+ * Rewrites retired select values (e.g. `gpt-4o`, `claude-3-5-sonnet-…`) in a saved config
+ * to their current equivalents so old diagrams render and validate.
+ */
+export function upgradeLegacyConfig<T extends Record<string, unknown>>(type: string, config: T): T {
+  const def = getNodeDefinition(type)
+  if (!def) return config
+  let out: Record<string, unknown> | null = null
+  for (const field of def.configFields) {
+    const v = config[field.key]
+    if (field.type !== 'select' || typeof v !== 'string') continue
+    const next = resolveLegacySelectValue(v, field.options)
+    if (next !== v) (out ??= { ...config })[field.key] = next
+  }
+  return (out ?? config) as T
 }
 
 export {

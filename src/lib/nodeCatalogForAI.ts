@@ -4,6 +4,7 @@ import type {
   PortDefinition,
   PortType,
   SelectOption,
+  VisibleWhen,
 } from '../types/nodes'
 import { getAllNodeDefinitions } from './nodeDefinitions'
 
@@ -28,7 +29,7 @@ export interface ConfigFieldForAI {
   max?: number
   step?: number
   description?: string
-  visibleWhen?: { key: string; value: string | number | boolean }
+  visibleWhen?: VisibleWhen
 }
 
 export interface NodeDefinitionForAI {

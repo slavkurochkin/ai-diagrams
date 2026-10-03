@@ -54,6 +54,16 @@ import {
   Webhook,
   Workflow,
   Wrench,
+  BotMessageSquare,
+  Hand,
+  Play,
+  Plug,
+  Repeat,
+  SendHorizontal,
+  SquareTerminal,
+  Layers,
+  Activity,
+  BellRing,
 } from 'lucide-react'
 
 export interface IconProps {
@@ -78,6 +88,16 @@ const createIcon = (Icon: LucideIconComponent) => {
 }
 
 export const LLMIcon = createIcon(BrainCircuit)
+export const TriggerIcon = createIcon(Play)
+export const OutputIcon = createIcon(SendHorizontal)
+export const SubAgentIcon = createIcon(BotMessageSquare)
+export const HumanApprovalIcon = createIcon(Hand)
+export const LoopIcon = createIcon(Repeat)
+export const MCPServerIcon = createIcon(Plug)
+export const CodeExecIcon = createIcon(SquareTerminal)
+export const StateIcon = createIcon(Layers)
+export const TracingIcon = createIcon(Activity)
+export const MonitorIcon = createIcon(BellRing)
 export const AgentIcon = createIcon(Bot)
 export const PromptIcon = createIcon(MessageSquareText)
 export const PromptTemplateIcon = createIcon(FileCode2)

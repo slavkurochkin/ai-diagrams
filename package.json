@@ -8,6 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "server": "tsx watch src/server/index.ts",
     "dev:full": "concurrently \"npm run dev\" \"npm run server\"",
     "mcp:workflow": "tsx src/mcp/workflowServer.ts"
@@ -46,6 +48,7 @@
     "tailwindcss": "^3.4.4",
     "tsx": "^4.15.0",
     "typescript": "^5.4.5",
-    "vite": "^5.3.1"
+    "vite": "^5.3.1",
+    "vitest": "^3.2.7"
   }
 }

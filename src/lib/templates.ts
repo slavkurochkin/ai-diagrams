@@ -19,15 +19,14 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     yaml: `name: Basic RAG Pipeline
 nodes:
   - id: user_query
-    type: promptTemplate
-    label: User Query
+    type: trigger
+    label: User Question
     config:
-      template: "{{question}}"
-      inputVariables: question
+      triggerType: user-message
   - id: loader
     type: dataLoader
     config:
-      source: local
+      source: file
     note: "Loads PDF, HTML, or plain text documents"
   - id: chunker
     type: chunker
@@ -51,13 +50,17 @@ nodes:
     type: llm
     label: Answer LLM
     config:
-      model: gpt-4o
-  - id: parser
-    type: outputParser
+      model: claude-sonnet-5-5
+  - id: answer
+    type: output
+    label: Answer
+    config:
+      destination: user
+      format: markdown
 edges:
   - from: user_query
     to: vectordb
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: query
   - from: loader
     to: chunker
@@ -77,16 +80,16 @@ edges:
     toHandle: inputB
   - from: user_query
     to: prompt
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: inputA
   - from: prompt
     to: llm
     fromHandle: merged
     toHandle: prompt
   - from: llm
-    to: parser
+    to: answer
     fromHandle: response
-    toHandle: text`,
+    toHandle: input`,
   },
 
   {
@@ -98,11 +101,10 @@ edges:
     yaml: `name: Query Expansion RAG
 nodes:
   - id: user_query
-    type: promptTemplate
-    label: User Query
+    type: trigger
+    label: User Question
     config:
-      template: "{{question}}"
-      inputVariables: question
+      triggerType: user-message
   - id: expand_prompt
     type: promptTemplate
     label: Expansion Prompt
@@ -116,7 +118,7 @@ nodes:
     type: llm
     label: Query Expander
     config:
-      model: gpt-4o-mini
+      model: claude-haiku-4-5
       temperature: 0.3
   - id: query_embedder
     type: embedding
@@ -145,13 +147,17 @@ nodes:
     type: llm
     label: Answer LLM
     config:
-      model: gpt-4o
-  - id: parser
-    type: outputParser
+      model: claude-sonnet-5-5
+  - id: answer
+    type: output
+    label: Answer
+    config:
+      destination: user
+      format: markdown
 edges:
   - from: user_query
     to: expansion_context
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: inputA
   - from: expand_prompt
     to: expansion_context
@@ -199,7 +205,7 @@ edges:
     toHandle: documents
   - from: user_query
     to: answer_context
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: inputA
   - from: reranker
     to: answer_context
@@ -210,9 +216,9 @@ edges:
     fromHandle: merged
     toHandle: prompt
   - from: llm_answer
-    to: parser
+    to: answer
     fromHandle: response
-    toHandle: text`,
+    toHandle: input`,
   },
 
   {
@@ -225,11 +231,10 @@ edges:
 nodes:
   # ── Main pipeline (top row, left → right) ──────────────────────────────────
   - id: user_query
-    type: promptTemplate
-    label: User Query
+    type: trigger
+    label: User Question
     config:
-      template: "{{question}}"
-      inputVariables: question
+      triggerType: user-message
     note: "The current user turn — feeds the retrieval path, the prompt builder, and memory"
     position:
       x: 60
@@ -254,6 +259,7 @@ nodes:
     type: aggregator
     label: Prompt Builder
     config:
+      inputCount: 3
       strategy: concat
     note: "Assembles three inputs: (A) current question, (B) conversation history, (C) retrieved context"
     position:
@@ -262,14 +268,16 @@ nodes:
   - id: llm
     type: llm
     config:
-      model: gpt-4o
+      model: claude-sonnet-5-5
     note: "Generates an answer grounded in retrieved context and aware of prior conversation turns"
     position:
       x: 1160
       y: 160
-  - id: parser
-    type: outputParser
+  - id: answer
+    type: output
+    label: Answer
     config:
+      destination: user
       format: markdown
     position:
       x: 1420
@@ -279,7 +287,7 @@ nodes:
     type: memory
     label: Conversation Memory
     config:
-      memoryType: buffer
+      memoryType: conversation
       windowSize: 10
     note: "Reads: injects prior turns into the prompt\\nWrites: the LLM reply loops back here so next turn has full context"
     position:
@@ -289,7 +297,7 @@ edges:
   # Retrieval path
   - from: user_query
     to: embedder
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: text
   - from: embedder
     to: retriever
@@ -297,12 +305,12 @@ edges:
     toHandle: embedding
   - from: user_query
     to: retriever
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: query
   # Prompt assembly
   - from: user_query
     to: prompt
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: inputA
   - from: memory
     to: prompt
@@ -318,13 +326,13 @@ edges:
     fromHandle: merged
     toHandle: prompt
   - from: llm
-    to: parser
+    to: answer
     fromHandle: response
-    toHandle: text
+    toHandle: input
   # Memory write — user input in, LLM response loops back
   - from: user_query
     to: memory
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: input
   - from: llm
     to: memory
@@ -344,18 +352,17 @@ edges:
     yaml: `name: Agentic Loop
 nodes:
   - id: user_input
-    type: promptTemplate
-    label: User Query
+    type: trigger
+    label: User Message
     config:
-      template: "{{question}}"
-      inputVariables: question
+      triggerType: user-message
     position:
       x: 100
       y: 180
   - id: memory
     type: memory
     config:
-      memoryType: buffer
+      memoryType: conversation
       windowSize: 10
     note: "Stores user messages and agent replies across turns"
     position:
@@ -387,12 +394,13 @@ nodes:
       x: 810
       y: 120
   - id: toolcall
-    type: toolCall
-    label: Code Executor
+    type: codeExec
+    label: Code Execution
     config:
-      toolName: run_python
+      language: python
+      sandbox: hosted
       timeout: 30
-    note: "Executes Python code and returns stdout"
+    note: "Runs model-written Python in a sandbox and returns the result"
     position:
       x: 810
       y: 260
@@ -404,9 +412,11 @@ nodes:
     position:
       x: 810
       y: 440
-  - id: parser
-    type: outputParser
+  - id: answer
+    type: output
+    label: Answer
     config:
+      destination: user
       format: markdown
     position:
       x: 1110
@@ -415,12 +425,12 @@ edges:
   # User input enters both the live prompt path and the conversation memory
   - from: user_input
     to: agent
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: prompt
     executionPriority: 1
   - from: user_input
     to: memory
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: input
     executionPriority: 1
   - from: memory
@@ -460,9 +470,9 @@ edges:
     fromHandle: response
     toHandle: input
   - from: guardrails
-    to: parser
+    to: answer
     fromHandle: passed
-    toHandle: text`,
+    toHandle: input`,
   },
 
   {
@@ -474,18 +484,17 @@ edges:
     yaml: `name: RAG Agentic Loop
 nodes:
   - id: user_input
-    type: promptTemplate
-    label: User Query
+    type: trigger
+    label: User Message
     config:
-      template: "{{question}}"
-      inputVariables: question
+      triggerType: user-message
     position:
       x: 100
       y: 180
   - id: memory
     type: memory
     config:
-      memoryType: buffer
+      memoryType: conversation
       windowSize: 10
     note: "Stores user messages and agent replies across turns"
     position:
@@ -542,12 +551,13 @@ nodes:
       x: 760
       y: 430
   - id: toolcall
-    type: toolCall
-    label: Code Executor
+    type: codeExec
+    label: Code Execution
     config:
-      toolName: run_python
+      language: python
+      sandbox: hosted
       timeout: 30
-    note: "Executes Python code and returns stdout"
+    note: "Runs model-written Python in a sandbox and returns the result"
     position:
       x: 800
       y: 620
@@ -559,9 +569,11 @@ nodes:
     position:
       x: 770
       y: 810
-  - id: parser
-    type: outputParser
+  - id: answer
+    type: output
+    label: Answer
     config:
+      destination: user
       format: markdown
     position:
       x: 1140
@@ -570,12 +582,12 @@ edges:
   # User input enters both the live prompt path and the conversation memory
   - from: user_input
     to: agent
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: prompt
     executionPriority: 1
   - from: user_input
     to: memory
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: input
     executionPriority: 1
   - from: memory
@@ -653,82 +665,269 @@ edges:
     toHandle: input
     executionPriority: 5
   - from: guardrails
-    to: parser
+    to: answer
     fromHandle: passed
-    toHandle: text
+    toHandle: input
     executionPriority: 6`,
   },
 
   {
     id: 'multi-agent',
     name: 'Multi-Agent System',
-    description: 'A router dispatches tasks to specialised agents. Results are aggregated and synthesised by an LLM.',
+    description: 'An orchestrator agent breaks the request into subtasks, delegates them to specialist sub-agents, and synthesises their results.',
     category: 'agent',
     preferredLayoutDirection: 'LR',
     yaml: `name: Multi-Agent System
 nodes:
   - id: user_input
-    type: promptTemplate
+    type: trigger
     label: User Request
-    note: "Entry point — query is routed based on its type"
-  - id: router
-    type: router
     config:
-      conditionType: llm
-      condition: "Route to Research if the query asks for facts or citations. Route to Analysis if the query asks for reasoning or conclusions."
-    note: "Routes to Research or Analysis agent based on the query type"
-  - id: research_agent
+      triggerType: user-message
+  - id: orchestrator
     type: agent
+    label: Orchestrator
+    config:
+      model: claude-opus-5-5
+      instructions: "Break the request into research and analysis subtasks, delegate each to the right specialist, then synthesise one answer from their results."
+      maxIterations: 8
+      allowDelegation: true
+    note: |
+      **Orchestrator–worker:**
+      1. Plan subtasks
+      2. Delegate to specialists (in parallel when independent)
+      3. Read their results
+      4. Synthesise the final answer
+  - id: research_agent
+    type: subAgent
     label: Research Agent
     config:
-      instructions: "You are a research specialist. Gather facts, cite sources, and return structured summaries."
-      maxIterations: 5
+      model: claude-sonnet-5-5
+      role: "Gather facts and cite sources for the assigned subtask. Return a concise, cited summary."
+      returnMode: summary
   - id: analysis_agent
-    type: agent
+    type: subAgent
     label: Analysis Agent
     config:
-      instructions: "You are an analysis specialist. Reason over data, identify patterns, and draw well-supported conclusions."
-      maxIterations: 5
-  - id: aggregator
-    type: aggregator
+      model: claude-sonnet-5-5
+      role: "Reason over the provided data, identify patterns, and return well-supported conclusions."
+      returnMode: structured
+  - id: search
+    type: webSearch
+    label: Web Search
+    note: "The research sub-agent's own tool"
+  - id: answer
+    type: output
+    label: Answer
     config:
-      strategy: concat
-  - id: llm
-    type: llm
-    label: Synthesis LLM
-    config:
-      model: gpt-4o
-  - id: parser
-    type: outputParser
+      destination: user
+      format: markdown
 edges:
   - from: user_input
-    to: router
-    fromHandle: prompt
-    toHandle: input
-  - from: router
+    to: orchestrator
+    fromHandle: payload
+    toHandle: prompt
+  # Delegation: sub-agents are called like tools and report back
+  - from: orchestrator
     to: research_agent
+    fromHandle: toolRequests
+    toHandle: task
+  - from: orchestrator
+    to: analysis_agent
+    fromHandle: toolRequests
+    toHandle: task
+  - from: research_agent
+    to: orchestrator
+    fromHandle: result
+    toHandle: tools
+    kind: loopback
+    lane: top
+  - from: analysis_agent
+    to: orchestrator
+    fromHandle: artifacts
+    toHandle: tools
+    kind: loopback
+    lane: bottom
+  # The research sub-agent runs its own tool loop
+  - from: research_agent
+    to: search
+    fromHandle: toolRequests
+    toHandle: query
+  - from: search
+    to: research_agent
+    fromHandle: results
+    toHandle: tools
+    kind: loopback
+  - from: orchestrator
+    to: answer
+    fromHandle: response
+    toHandle: input`,
+  },
+
+  {
+    id: 'support-triage',
+    name: 'Support Ticket Triage',
+    description: 'A webhook-triggered support flow: route tickets by type, let specialist agents act through MCP servers, require human approval before replying, with checkpointed state and tracing.',
+    category: 'agent',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: Support Ticket Triage
+nodes:
+  - id: ticket
+    type: trigger
+    label: New Ticket
+    config:
+      triggerType: webhook
+      source: helpdesk ticket.created
+  - id: triage
+    type: router
+    label: Triage
+    config:
+      routeCount: 3
+      routeLabels: Billing, Technical, Account
+      conditionType: llm
+      condition: "Classify the ticket as Billing (charges, refunds, invoices), Technical (bugs, errors, outages), or Account (login, access, settings). Use Default if unsure."
+  - id: billing_agent
+    type: agent
+    label: Billing Agent
+    config:
+      model: claude-sonnet-5-5
+      instructions: "Resolve billing tickets. Look up the customer's charges and draft a reply; propose a refund only when policy allows."
+      maxIterations: 6
+  - id: billing_mcp
+    type: mcpServer
+    label: Billing MCP
+    config:
+      serverName: stripe
+      transport: http
+      allowedTools: search_charges, get_invoice, create_refund
+      requireApproval: true
+  - id: tech_agent
+    type: agent
+    label: Technical Agent
+    config:
+      model: claude-sonnet-5-5
+      instructions: "Diagnose technical tickets. Search known issues, link or file a bug, and draft a reply with next steps."
+      maxIterations: 8
+  - id: tracker_mcp
+    type: mcpServer
+    label: Issue Tracker MCP
+    config:
+      serverName: linear
+      transport: http
+      allowedTools: search_issues, create_issue
+  - id: approval
+    type: humanApproval
+    label: Approve Reply
+    config:
+      channel: slack
+      approvers: support-leads
+      allowEdits: true
+      timeoutMinutes: 120
+      onTimeout: escalate
+    note: "Agents draft; a person approves, edits, or rejects before anything reaches the customer"
+  - id: send_reply
+    type: output
+    label: Send Reply
+    config:
+      destination: api
+      format: markdown
+  - id: human_queue
+    type: output
+    label: Human Queue
+    config:
+      destination: notification
+      format: text
+    note: "Account issues, unclear tickets, and rejected drafts go to a human agent"
+  - id: ticket_state
+    type: state
+    label: Ticket State
+    config:
+      scope: run
+      keys: ticket_id, customer_id, category, approval_decision, reviewer_notes
+      backend: postgres
+      checkpointing: pause
+      retentionDays: 90
+    note: "Checkpointed when the run pauses for approval, so it resumes hours later exactly where it stopped"
+  - id: tracing
+    type: tracing
+    label: Tracing
+    config:
+      provider: langfuse
+      scope: flow
+      redactPII: true
+    note: "Traces every step — routing decision, MCP calls, drafts, approval wait — with customer PII redacted"
+edges:
+  - from: ticket
+    to: triage
+    fromHandle: payload
+    toHandle: input
+  - from: triage
+    to: billing_agent
     fromHandle: routeA
     toHandle: prompt
-  - from: router
-    to: analysis_agent
+  - from: triage
+    to: tech_agent
     fromHandle: routeB
     toHandle: prompt
-  - from: research_agent
-    to: aggregator
+  - from: triage
+    to: human_queue
+    fromHandle: routeC
+    toHandle: input
+  - from: triage
+    to: human_queue
+    fromHandle: default
+    toHandle: input
+  # Tool loops through MCP servers
+  - from: billing_agent
+    to: billing_mcp
+    fromHandle: toolRequests
+    toHandle: call
+  - from: billing_mcp
+    to: billing_agent
+    fromHandle: result
+    toHandle: tools
+    kind: loopback
+    lane: top
+  - from: tech_agent
+    to: tracker_mcp
+    fromHandle: toolRequests
+    toHandle: call
+  - from: tracker_mcp
+    to: tech_agent
+    fromHandle: result
+    toHandle: tools
+    kind: loopback
+    lane: bottom
+  # Drafts go through human approval
+  - from: billing_agent
+    to: approval
     fromHandle: response
-    toHandle: inputA
-  - from: analysis_agent
-    to: aggregator
+    toHandle: proposal
+  - from: tech_agent
+    to: approval
     fromHandle: response
-    toHandle: inputB
-  - from: aggregator
-    to: llm
-    fromHandle: merged
-    toHandle: prompt
-  - from: llm
-    to: parser
-    fromHandle: response
-    toHandle: text`,
+    toHandle: proposal
+  - from: approval
+    to: send_reply
+    fromHandle: approved
+    toHandle: input
+  - from: approval
+    to: human_queue
+    fromHandle: rejected
+    toHandle: input
+  # Shared state: ticket facts in, decisions recorded, reviewer sees context
+  - from: ticket
+    to: ticket_state
+    fromHandle: metadata
+    toHandle: write
+  - from: approval
+    to: ticket_state
+    fromHandle: rejected
+    toHandle: write
+  - from: ticket_state
+    to: approval
+    fromHandle: read
+    toHandle: context`,
   },
 
   // ── Evaluation ──────────────────────────────────────────────────────────────
@@ -736,7 +935,7 @@ edges:
   {
     id: 'llm-eval-pipeline',
     name: 'LLM Evaluation Pipeline',
-    description: 'Run LLM outputs through an LLM judge, ground truth comparison, rubric scoring, and a threshold gate.',
+    description: 'Run every test case through the model, score each with an LLM judge, ground truth, and automatic metrics, then gate the aggregate score.',
     category: 'eval',
     preferredLayoutDirection: 'LR',
     yaml: `name: LLM Evaluation Pipeline
@@ -745,16 +944,27 @@ nodes:
     type: dataLoader
     label: Test Dataset
     config:
-      source: local
+      source: file
+      path: data/eval_set.jsonl
     note: "JSONL with {query, reference_answer} pairs"
+  - id: cases
+    type: loop
+    label: For Each Test Case
+    config:
+      mode: parallel
+      maxConcurrency: 10
+    note: "Runs the model and scorers once per case, then collects all scores"
   - id: llm
     type: llm
     label: Model Under Test
     config:
-      model: gpt-4o
+      model: claude-sonnet-5-5
+      effort: medium
   - id: ground_truth
     type: groundTruth
-    note: "Reference answers loaded from test dataset"
+    config:
+      source: dataset
+    note: "Reference answer for the current case"
   - id: rubric
     type: rubric
     config:
@@ -763,10 +973,9 @@ nodes:
   - id: judge
     type: llmJudge
     config:
-      judgeModel: gpt-4o
+      judgeModel: claude-opus-5-5
       scoringScale: "1-5"
       requireReasoning: true
-    note: "Scores correctness, relevance, and helpfulness"
   - id: metrics
     type: evalMetrics
     config:
@@ -777,18 +986,33 @@ nodes:
     type: thresholdGate
     config:
       threshold: 0.7
-    note: "Fails the run if the average score falls below 0.7"
+    note: "Passes only if the average score across all cases is at least 0.7"
+  - id: report
+    type: output
+    label: Eval Report
+    config:
+      destination: file
+      format: json
+  - id: alert
+    type: output
+    label: Regression Alert
+    config:
+      destination: notification
+      format: text
 edges:
-  # Feed test data into the model and ground truth store
   - from: test_data
+    to: cases
+    fromHandle: documents
+    toHandle: items
+  # Per case: model answer + reference
+  - from: cases
     to: llm
-    fromHandle: documents
+    fromHandle: item
     toHandle: prompt
-  - from: test_data
+  - from: cases
     to: ground_truth
-    fromHandle: documents
+    fromHandle: item
     toHandle: query
-  # Model response flows to all evaluators
   - from: llm
     to: judge
     fromHandle: response
@@ -797,7 +1021,6 @@ edges:
     to: metrics
     fromHandle: response
     toHandle: response
-  # Ground truth flows to judge and automated metrics
   - from: ground_truth
     to: judge
     fromHandle: reference
@@ -806,20 +1029,34 @@ edges:
     to: metrics
     fromHandle: reference
     toHandle: reference
-  # Rubric criteria feed into the LLM judge
   - from: rubric
     to: judge
     fromHandle: criteria
     toHandle: criteria
-  # Scores flow into the threshold gate
+  # Per-case scores are collected by the loop
   - from: judge
-    to: threshold
+    to: cases
     fromHandle: score
-    toHandle: score
+    toHandle: itemResult
+    kind: loopback
   - from: metrics
-    to: threshold
+    to: cases
     fromHandle: scores
-    toHandle: score`,
+    toHandle: itemResult
+    kind: loopback
+  # Aggregate scores are gated
+  - from: cases
+    to: threshold
+    fromHandle: results
+    toHandle: score
+  - from: threshold
+    to: report
+    fromHandle: pass
+    toHandle: input
+  - from: threshold
+    to: alert
+    fromHandle: fail
+    toHandle: input`,
   },
 
   {
@@ -831,11 +1068,10 @@ edges:
     yaml: `name: RAG Evaluation Pipeline
 nodes:
   - id: test_query
-    type: promptTemplate
+    type: trigger
     label: Test Query
     config:
-      template: "{{question}}"
-      inputVariables: question
+      triggerType: manual
     note: "Evaluation question from the test set"
   - id: retriever
     type: retriever
@@ -848,7 +1084,7 @@ nodes:
     type: llm
     label: Answer LLM
     config:
-      model: gpt-4o
+      model: claude-sonnet-5-5
   - id: ground_truth
     type: groundTruth
     note: "Reference answers and relevant doc IDs from the test set"
@@ -878,11 +1114,11 @@ edges:
   # Query feeds retriever and is also passed to the evaluator
   - from: test_query
     to: query_embedder
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: text
   - from: test_query
     to: retriever
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: query
   - from: query_embedder
     to: retriever
@@ -890,11 +1126,11 @@ edges:
     toHandle: embedding
   - from: test_query
     to: ground_truth
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: query
   - from: test_query
     to: rag_eval
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: query
   # Retrieved docs feed both the LLM and the evaluator
   - from: retriever
@@ -931,11 +1167,10 @@ edges:
     yaml: `name: Agent Evaluation Suite
 nodes:
   - id: task_input
-    type: promptTemplate
+    type: trigger
     label: Task Definition
     config:
-      template: "{{task}}"
-      inputVariables: task
+      triggerType: manual
     note: "The task description given to the agent under test"
   - id: agent
     type: agent
@@ -972,7 +1207,7 @@ nodes:
       relevance: true
       correctness: true
       helpfulness: true
-      judgeModel: gpt-4o
+      judgeModel: claude-opus-5-5
     note: "Scores the final response on quality"
   - id: tool_eval
     type: toolUseEval
@@ -1007,39 +1242,39 @@ edges:
   # Task definition feeds the agent and all evaluators that need task context
   - from: task_input
     to: agent
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: prompt
   - from: task_input
     to: response_criteria
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: task
   - from: task_input
     to: expected_tools
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: task
   - from: task_input
     to: expected_trajectory
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: task
   - from: task_input
     to: success_criteria
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: task
   - from: task_input
     to: single_turn
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: query
   - from: task_input
     to: tool_eval
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: task
   - from: task_input
     to: trajectory
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: goal
   - from: task_input
     to: completion
-    fromHandle: prompt
+    fromHandle: payload
     toHandle: taskDescription
   # Rubrics provide the structured expectations each evaluator needs
   - from: response_criteria
@@ -1087,7 +1322,7 @@ edges:
   {
     id: 'structured-output',
     name: 'Structured Output',
-    description: 'Extract typed, schema-defined fields from raw documents using an LLM — invoices, contracts, forms, emails. Low-temperature generation + JSON parser + confidence gate.',
+    description: 'Extract typed fields from raw documents (invoices, contracts, forms) with schema-constrained generation, then auto-accept confident results and send the rest to human review.',
     category: 'pipeline',
     preferredLayoutDirection: 'LR',
     yaml: `name: Structured Output Pipeline
@@ -1095,70 +1330,84 @@ nodes:
   - id: loader
     type: dataLoader
     label: Document Loader
+    config:
+      source: file
     note: "Load raw source documents — PDFs, emails, contracts, HTML pages, etc."
   - id: chunker
     type: chunker
     label: Chunker
     config:
-      chunkSize: 2000
-      overlap: 100
-    note: "Split long documents into chunks that fit the LLM context window — larger chunks work well for extraction since you want full sentences"
-  - id: schema
-    type: promptTemplate
-    label: Extraction Schema
-    config:
-      template: "Extract the following fields as JSON:\\n- company_name\\n- invoice_date\\n- total_amount\\n- line_items[]"
-      inputVariables: ""
-    note: "Define exactly which fields to extract and their expected types — the more specific the schema, the more reliable the output"
+      chunkSize: 2048
+      overlap: 128
+    note: "Large chunks work well for extraction — fields often span full sentences"
   - id: prompt
-    type: aggregator
-    label: Prompt Builder
+    type: promptTemplate
+    label: Extraction Prompt
     config:
-      strategy: concat
-    note: "Combines the extraction schema with the document chunk to form the LLM prompt"
+      template: "Extract the invoice fields from this document. Use null for anything not present.\\n\\n{{document}}"
+      inputVariables: document
   - id: llm
     type: llm
+    label: Extractor
     config:
-      model: gpt-4o
-      temperature: 0
-    note: "Temperature 0 gives deterministic, structured output — creativity is the enemy of reliable extraction"
-  - id: parser
-    type: outputParser
-    config:
-      format: json
-    note: "Parses and validates the raw LLM output into typed JSON — rejects responses that don't match the expected schema"
+      model: claude-sonnet-5-5
+      effort: low
+      responseFormat: json-schema
+      outputSchema: '{"type":"object","properties":{"company_name":{"type":"string"},"invoice_date":{"type":"string","format":"date"},"total_amount":{"type":"number"},"line_items":{"type":"array","items":{"type":"object"}},"confidence":{"type":"number"}},"required":["company_name","invoice_date","total_amount","confidence"]}'
+    note: "Structured output constrains the response to the schema — no separate parser needed. Low effort is enough for extraction."
   - id: gate
     type: thresholdGate
     label: Confidence Gate
     config:
+      metric: confidence
       threshold: 0.85
-      metric: parseScore
-    note: "Flag low-confidence extractions for human review — anything below the threshold gets routed to a review queue instead of being written to the database"
+  - id: review
+    type: humanApproval
+    label: Review Extraction
+    config:
+      channel: app
+      allowEdits: true
+      timeoutMinutes: 0
+    note: "Low-confidence extractions are checked and corrected by a person"
+  - id: store
+    type: output
+    label: Write to Database
+    config:
+      destination: database
+      format: json
 edges:
   - from: loader
     to: chunker
     fromHandle: documents
-    toHandle: text
+    toHandle: documents
   - from: chunker
     to: prompt
     fromHandle: chunks
-    toHandle: inputA
-  - from: schema
-    to: prompt
-    fromHandle: prompt
-    toHandle: inputB
+    toHandle: context
   - from: prompt
     to: llm
-    fromHandle: merged
+    fromHandle: prompt
     toHandle: prompt
   - from: llm
-    to: parser
-    fromHandle: response
-    toHandle: text
-  - from: parser
     to: gate
-    fromHandle: parsed
-    toHandle: score`,
+    fromHandle: structured
+    toHandle: score
+  - from: llm
+    to: gate
+    fromHandle: structured
+    toHandle: payload
+  - from: gate
+    to: store
+    fromHandle: pass
+    toHandle: input
+  - from: gate
+    to: review
+    fromHandle: fail
+    toHandle: proposal
+  - from: review
+    to: store
+    fromHandle: approved
+    toHandle: input`,
   },
 ]
 

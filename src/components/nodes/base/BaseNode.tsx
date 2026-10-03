@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import type { NodeProps } from 'reactflow'
 import { useUpdateNodeInternals } from 'reactflow'
 import { useFlowStore, selectTheme } from '../../../hooks/useFlowStore'
-import { getNodeDefinition } from '../../../lib/nodeDefinitions'
+import { getNodeDefinition, resolveNodePorts } from '../../../lib/nodeDefinitions'
 import type { BaseNodeData } from '../../../types/nodes'
 import { sortPortsByOrder } from '../../../lib/portLayout'
 import NodePort from './NodePort'
@@ -88,9 +88,19 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
     return `${ins}|${outs}`
   }, [data.portOrder])
 
+  const ports = useMemo(
+    () => (def ? resolveNodePorts(def, data.config) : { inputs: [], outputs: [] }),
+    [def, data.config],
+  )
+  /** Changes when config-driven ports (router routes, aggregator inputs…) are added or removed. */
+  const portIdsKey = useMemo(
+    () => `${ports.inputs.map((p) => p.id).join(',')}|${ports.outputs.map((p) => p.id).join(',')}`,
+    [ports],
+  )
+
   useLayoutEffect(() => {
     updateNodeInternals(id)
-  }, [id, updateNodeInternals, portOffsetsKey, portOrderKey, layoutDirection, compactMode])
+  }, [id, updateNodeInternals, portOffsetsKey, portOrderKey, portIdsKey, layoutDirection, compactMode])
 
   if (!def) return null
 
@@ -202,7 +212,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
         </div>
 
         {/* Ports */}
-        {sortPortsByOrder(def.inputs, data.portOrder?.inputs).map((port, i, arr) => (
+        {sortPortsByOrder(ports.inputs, data.portOrder?.inputs).map((port, i, arr) => (
           <NodePort
             key={port.id}
             port={port}
@@ -212,7 +222,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
             portOffsets={data.portOffsets}
           />
         ))}
-        {sortPortsByOrder(def.outputs, data.portOrder?.outputs).map((port, i, arr) => (
+        {sortPortsByOrder(ports.outputs, data.portOrder?.outputs).map((port, i, arr) => (
           <NodePort
             key={port.id}
             port={port}
@@ -361,7 +371,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
       </div>
 
       {/* ── Input ports (left side) ──────────────────────────────────────── */}
-      {sortPortsByOrder(def.inputs, data.portOrder?.inputs).map((port, i, arr) => (
+      {sortPortsByOrder(ports.inputs, data.portOrder?.inputs).map((port, i, arr) => (
         <NodePort
           key={port.id}
           port={port}
@@ -373,7 +383,7 @@ export default function BaseNode({ id, data, selected, preview }: BaseNodeProps)
       ))}
 
       {/* ── Output ports (right side) ────────────────────────────────────── */}
-      {sortPortsByOrder(def.outputs, data.portOrder?.outputs).map((port, i, arr) => (
+      {sortPortsByOrder(ports.outputs, data.portOrder?.outputs).map((port, i, arr) => (
         <NodePort
           key={port.id}
           port={port}

@@ -1,6 +1,8 @@
 import type { ConfigField } from '../types/nodes'
-import { buildDefaultConfig, getAllNodeDefinitions, getNodeDefinition } from './nodeDefinitions'
+import { buildDefaultConfig, getAllNodeDefinitions, getNodeDefinition, resolveNodePorts } from './nodeDefinitions'
 import { sanitizeConfigTextValue } from './sanitizeConfigTextValue'
+import { DEFAULT_CHAT_MODEL, resolveLegacySelectValue } from './modelCatalog'
+import { checkConnection } from './connectionRules'
 
 // ── Wire format (API / tool output) ───────────────────────────────────────────
 
@@ -331,18 +333,11 @@ const SELECT_VALUE_ALIASES: Record<string, Record<string, Record<string, string>
   },
   llm: {
     model: {
-      openai: 'gpt-4o',
-      'gpt-4': 'gpt-4o',
-      'gpt-4-turbo': 'gpt-4o',
-      'gpt-4-1106-preview': 'gpt-4o',
-      'text-davinci-003': 'gpt-4o',
-      'gpt-3.5-turbo': 'gpt-4o',
-      anthropic: 'claude-3-5-sonnet-20241022',
-      google: 'gemini-1.5-pro',
-      'example-llm-model': 'gpt-4o',
-      example_llm_model: 'gpt-4o',
-      'placeholder-llm': 'gpt-4o',
-      'llm-model': 'gpt-4o',
+      // Prompt / tutorial placeholders (legacy ids are handled by LEGACY_MODEL_ALIASES)
+      'example-llm-model': DEFAULT_CHAT_MODEL,
+      example_llm_model: DEFAULT_CHAT_MODEL,
+      'placeholder-llm': DEFAULT_CHAT_MODEL,
+      'llm-model': DEFAULT_CHAT_MODEL,
     },
   },
   retriever: {
@@ -412,9 +407,12 @@ function normalizeFullConfigForNodeType(
     const rawAliasesForNode = SELECT_VALUE_ALIASES[nodeType]?.[field.key]
     const valueForField =
       field.type === 'select' && typeof rawVal === 'string'
-        ? (rawAliasesForNode?.[rawVal] ??
-            rawAliasesForNode?.[rawVal.toLowerCase()] ??
-            rawVal)
+        ? resolveLegacySelectValue(
+            rawAliasesForNode?.[rawVal] ??
+              rawAliasesForNode?.[rawVal.toLowerCase()] ??
+              rawVal,
+            field.options,
+          )
         : rawVal
     const coerced = coerceConfigValue(field, valueForField)
     if (!coerced.ok) return { ok: false, error: `config.${field.key}: ${coerced.error}` }
@@ -426,10 +424,11 @@ function normalizeFullConfigForNodeType(
 function portIds(
   nodeType: string,
   kind: 'inputs' | 'outputs',
+  config?: Record<string, unknown>,
 ): string[] {
   const def = getNodeDefinition(nodeType)
   if (!def) return []
-  return def[kind].map((p) => p.id)
+  return resolveNodePorts(def, config)[kind].map((p) => p.id)
 }
 
 /** Prefer these when the model omits handles (multi-port nodes). Order matters. */
@@ -454,6 +453,10 @@ const OUTPUT_HANDLE_PREFS = [
   'embedding',
   'hit',
   'confidence',
+  'payload',
+  'result',
+  'approved',
+  'item',
 ]
 const INPUT_HANDLE_PREFS = [
   'store',
@@ -467,8 +470,12 @@ const INPUT_HANDLE_PREFS = [
   'documents',
   'memory',
   'embedding',
-  'tools',
+  // No 'tools' here: an omitted target handle should never land on an agent's Observations input.
   'response',
+  'call',
+  'task',
+  'proposal',
+  'items',
 ]
 
 const HANDLE_ALIASES_BY_NODE_TYPE: Record<string, { inputs?: Record<string, string>; outputs?: Record<string, string> }> = {
@@ -578,28 +585,33 @@ export function resolveEdgeHandles(
   tgtType: string,
   sourceHandle: string | null,
   targetHandle: string | null,
+  srcConfig?: Record<string, unknown>,
+  tgtConfig?: Record<string, unknown>,
 ): { ok: true; sourceHandle: string; targetHandle: string } | { ok: false; error: string } {
-  const outIds = portIds(srcType, 'outputs')
-  const inIds = portIds(tgtType, 'inputs')
+  const outIds = portIds(srcType, 'outputs', srcConfig)
+  const inIds = portIds(tgtType, 'inputs', tgtConfig)
   if (outIds.length === 0) return { ok: false, error: `source type "${srcType}" has no outputs` }
   if (inIds.length === 0) return { ok: false, error: `target type "${tgtType}" has no inputs` }
 
   let sh: string
+  // A side is "flexible" when we picked its handle (omitted or guessed) rather than the caller.
+  let shFlexible = false
+  let thFlexible = false
   if (sourceHandle !== null) {
     const mapped = applyHandleAlias(srcType, 'outputs', sourceHandle)
     if (outIds.includes(mapped)) {
       sh = mapped
     } else {
+      shFlexible = true
       const guess = guessLlmOutputHandle(srcType, outIds)
       if (guess === null) {
         return { ok: false, error: `invalid sourceHandle "${sourceHandle}" for ${srcType}` }
       }
       sh = guess
     }
-  } else if (outIds.length === 1) {
-    sh = outIds[0]
   } else {
-    sh = OUTPUT_HANDLE_PREFS.find((p) => outIds.includes(p)) ?? outIds[0]
+    shFlexible = outIds.length > 1
+    sh = outIds.length === 1 ? outIds[0] : (OUTPUT_HANDLE_PREFS.find((p) => outIds.includes(p)) ?? outIds[0])
   }
 
   let th: string
@@ -608,19 +620,40 @@ export function resolveEdgeHandles(
     if (inIds.includes(mapped)) {
       th = mapped
     } else {
+      thFlexible = true
       const guess = guessLlmInputHandle(tgtType, inIds)
       if (guess === null) {
         return { ok: false, error: `invalid targetHandle "${targetHandle}" for ${tgtType}` }
       }
       th = guess
     }
-  } else if (inIds.length === 1) {
-    th = inIds[0]
   } else {
-    th = INPUT_HANDLE_PREFS.find((p) => inIds.includes(p)) ?? inIds[0]
+    thFlexible = inIds.length > 1
+    th = inIds.length === 1 ? inIds[0] : (INPUT_HANDLE_PREFS.find((p) => inIds.includes(p)) ?? inIds[0])
   }
 
-  return { ok: true, sourceHandle: sh, targetHandle: th }
+  // Port types must be compatible. If we chose a handle, try the next-best compatible one.
+  const src = { nodeType: srcType, config: srcConfig }
+  const tgt = { nodeType: tgtType, config: tgtConfig }
+  const fits = (s: string, t: string) => checkConnection(src, s, tgt, t).ok
+  if (fits(sh, th)) return { ok: true, sourceHandle: sh, targetHandle: th }
+
+  const outCandidates = shFlexible ? preferenceOrder(outIds, OUTPUT_HANDLE_PREFS) : [sh]
+  const inCandidates = thFlexible ? preferenceOrder(inIds, INPUT_HANDLE_PREFS) : [th]
+  // Keep the caller's (or first-choice) handle on one side when possible.
+  for (const t of thFlexible ? [th, ...inCandidates] : inCandidates) {
+    for (const s of shFlexible ? [sh, ...outCandidates] : outCandidates) {
+      if (fits(s, t)) return { ok: true, sourceHandle: s, targetHandle: t }
+    }
+  }
+  const failure = checkConnection(src, sh, tgt, th)
+  return { ok: false, error: failure.ok ? `no compatible ports from ${srcType} to ${tgtType}` : failure.error }
+}
+
+/** `ids` ordered with preferred ids first (in preference order), then the rest in definition order. */
+function preferenceOrder(ids: string[], prefs: string[]): string[] {
+  const preferred = prefs.filter((p) => ids.includes(p))
+  return [...preferred, ...ids.filter((id) => !preferred.includes(id))]
 }
 
 /** Normalized ref token → canonical nodeType token (normalize()) for fuzzy resolution. */
@@ -781,8 +814,8 @@ function validatePatchAgainstGraph(
     const tgt = nodes.get(p.target)
     if (!src) return `source node "${p.source}" not found`
     if (!tgt) return `target node "${p.target}" not found`
-    const outIds = portIds(src.nodeType, 'outputs')
-    const inIds = portIds(tgt.nodeType, 'inputs')
+    const outIds = portIds(src.nodeType, 'outputs', src.config)
+    const inIds = portIds(tgt.nodeType, 'inputs', tgt.config)
     if (p.sourceHandle === null || !outIds.includes(p.sourceHandle)) {
       return p.sourceHandle === null
         ? `addEdge needs resolved sourceHandle for ${src.nodeType}`
@@ -793,6 +826,8 @@ function validatePatchAgainstGraph(
         ? `addEdge needs resolved targetHandle for ${tgt.nodeType}`
         : `invalid targetHandle "${p.targetHandle}" for ${tgt.nodeType}`
     }
+    const conn = checkConnection(src, p.sourceHandle, tgt, p.targetHandle)
+    if (!conn.ok) return conn.error
     return null
   }
   if (p.op === 'removeEdge') {
@@ -990,6 +1025,8 @@ export function validateWorkflowPatches(
         tgt.nodeType,
         patch.sourceHandle,
         patch.targetHandle,
+        src.config,
+        tgt.config,
       )
       if (!resolved.ok) {
         errors.push(prefix + resolved.error)

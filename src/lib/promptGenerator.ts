@@ -1,7 +1,7 @@
 import type { Node, Edge } from 'reactflow'
-import type { BaseNodeData } from '../types/nodes'
+import type { BaseNodeData, NodeDefinition } from '../types/nodes'
 import type { FlowContext } from '../types/flow'
-import { getNodeDefinition } from './nodeDefinitions'
+import { getNodeDefinition, isConfigFieldVisible, resolveNodePorts } from './nodeDefinitions'
 import { filterGraphForAI } from './aiGraphFilter'
 import { serializeFlowToYAML } from './yamlFlow'
 
@@ -15,10 +15,18 @@ function edgeLabel(e: Edge): string {
   return [from, '→', to].filter(Boolean).join(' ')
 }
 
-function configLines(config: Record<string, string | number | boolean> | undefined): string {
+function configLines(
+  config: Record<string, string | number | boolean> | undefined,
+  def: NodeDefinition | undefined,
+): string {
   if (!config || Object.keys(config).length === 0) return ''
   const lines = Object.entries(config)
     .filter(([, v]) => v !== '' && v !== null && v !== undefined)
+    .filter(([k]) => {
+      // Skip settings that don't apply to this instance (e.g. temperature on a reasoning model)
+      const field = def?.configFields.find((f) => f.key === k)
+      return !field || isConfigFieldVisible(field, config)
+    })
     .map(([k, v]) => `  - ${k}: ${v}`)
   return lines.length ? lines.join('\n') : ''
 }
@@ -220,19 +228,20 @@ export function generateImplementationPrompt(
         lines.push(`**In this diagram:** ${instDesc}`)
       }
 
-      const cfgStr = configLines(node.data.config as Record<string, string | number | boolean> | undefined)
+      const cfgStr = configLines(node.data.config as Record<string, string | number | boolean> | undefined, def)
       if (cfgStr) {
         lines.push('')
         lines.push('**Configuration:**')
         lines.push(cfgStr)
       }
 
-      if (def?.inputs && def.inputs.length > 0) {
+      const ports = def ? resolveNodePorts(def, node.data.config) : null
+      if (ports && ports.inputs.length > 0) {
         lines.push('')
-        lines.push(`**Inputs:** ${def.inputs.map((p) => p.label).join(', ')}`)
+        lines.push(`**Inputs:** ${ports.inputs.map((p) => p.label).join(', ')}`)
       }
-      if (def?.outputs && def.outputs.length > 0) {
-        lines.push(`**Outputs:** ${def.outputs.map((p) => p.label).join(', ')}`)
+      if (ports && ports.outputs.length > 0) {
+        lines.push(`**Outputs:** ${ports.outputs.map((p) => p.label).join(', ')}`)
       }
 
       if (node.data.note) {

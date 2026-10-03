@@ -1,6 +1,7 @@
 import type { Node, Edge } from 'reactflow'
 import type { FlowDocument, FlowViewport, FlowContext } from '../types/flow'
 import type { BaseNodeData } from '../types/nodes'
+import { upgradeLegacyConfig } from './nodeDefinitions'
 
 const STORAGE_KEY = 'agentflow:document'
 const SCHEMA_VERSION = '1.0.0'
@@ -107,6 +108,11 @@ export function importFlowFromJSON(json: string): FlowDocument | null {
     const doc = JSON.parse(json) as FlowDocument
     if (!Array.isArray(doc.nodes) || !Array.isArray(doc.edges)) {
       throw new Error('Invalid flow document structure')
+    }
+    for (const n of doc.nodes) {
+      if (n.data?.nodeType && n.data.config) {
+        n.data.config = upgradeLegacyConfig(n.data.nodeType, n.data.config)
+      }
     }
     return doc
   } catch (err) {

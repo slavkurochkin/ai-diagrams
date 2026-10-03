@@ -4,7 +4,7 @@ import type { Node, Edge, NodeChange, EdgeChange, Connection, NodePositionChange
 import type { BaseNodeData } from '../types/nodes'
 import type { NotePlacement } from '../types/nodes'
 import type { FlowContext } from '../types/flow'
-import { buildDefaultConfig, getNodeDefinition } from '../lib/nodeDefinitions'
+import { buildDefaultConfig, getNodeDefinition, resolveNodePorts } from '../lib/nodeDefinitions'
 
 type Theme = 'dark' | 'light'
 export type PlaybackPhase = 'idle' | 'before' | 'running' | 'after'
@@ -452,8 +452,9 @@ export const useFlowStore = create<FlowStore>((set) => ({
   },
 
   updateNodeConfig: (nodeId, config, merge = true) => {
-    set((state) => ({
-      nodes: state.nodes.map((node) => {
+    set((state) => {
+      let ports: { inputs: Set<string>; outputs: Set<string> } | null = null
+      const nodes = state.nodes.map((node) => {
         if (node.id !== nodeId) return node
         const nodeType = node.type ?? node.data.nodeType
         const def = getNodeDefinition(nodeType)
@@ -461,6 +462,13 @@ export const useFlowStore = create<FlowStore>((set) => ({
         const nextConfig = merge
           ? ({ ...node.data.config, ...config } as Record<string, string | number | boolean>)
           : ({ ...base, ...config } as Record<string, string | number | boolean>)
+        if (def?.resolvePorts) {
+          const resolved = resolveNodePorts(def, nextConfig)
+          ports = {
+            inputs: new Set(resolved.inputs.map((p) => p.id)),
+            outputs: new Set(resolved.outputs.map((p) => p.id)),
+          }
+        }
         return {
           ...node,
           data: {
@@ -468,8 +476,16 @@ export const useFlowStore = create<FlowStore>((set) => ({
             config: nextConfig,
           },
         }
-      }),
-    }))
+      })
+      if (!ports) return { nodes }
+      // Config-driven ports may have been removed (e.g. fewer router routes) — drop their edges.
+      const live: { inputs: Set<string>; outputs: Set<string> } = ports
+      const edges = state.edges.filter((e) =>
+        !(e.source === nodeId && e.sourceHandle && !live.outputs.has(e.sourceHandle)) &&
+        !(e.target === nodeId && e.targetHandle && !live.inputs.has(e.targetHandle)),
+      )
+      return edges.length === state.edges.length ? { nodes } : { nodes, edges }
+    })
   },
 
   updateNodeNote: (nodeId, note) => {

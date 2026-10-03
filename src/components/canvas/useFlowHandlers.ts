@@ -2,8 +2,9 @@ import { useCallback } from 'react'
 import { useReactFlow } from 'reactflow'
 import type { NodeChange, EdgeChange, Connection } from 'reactflow'
 import { useFlowStore } from '../../hooks/useFlowStore'
-import { getNodeDefinition } from '../../lib/nodeDefinitions'
-import type { PortDefinition, PortType } from '../../types/nodes'
+import { getNodeDefinition, resolveNodePorts } from '../../lib/nodeDefinitions'
+import { portsCompatible } from '../../lib/connectionRules'
+import type { PortDefinition } from '../../types/nodes'
 import { portAxisPercentToPixelOffset, resolvePortAxisPercent, sortPortsByOrder } from '../../lib/portLayout'
 
 const FULL_NODE_WIDTH = 220
@@ -11,12 +12,6 @@ const FULL_NODE_HEIGHT = 110
 const COMPACT_NODE_SIZE = 80
 const MIN_VERTICAL_GAP = 170
 const MIN_HORIZONTAL_GAP = 280
-
-/** Returns true when a source port type can connect to a target port type. */
-function portsCompatible(src: PortType, tgt: PortType): boolean {
-  if (src === 'any' || tgt === 'any') return true
-  return src === tgt
-}
 
 function getPortOffsetPixels(
   port: PortDefinition | undefined,
@@ -79,8 +74,8 @@ export function useFlowHandlers() {
         const tgtDef = getNodeDefinition(tgtNode.data.nodeType)
 
         if (srcDef && tgtDef) {
-          const srcPort = srcDef.outputs.find((p) => p.id === connection.sourceHandle)
-          const tgtPort = tgtDef.inputs.find((p) => p.id === connection.targetHandle)
+          const srcPort = resolveNodePorts(srcDef, srcNode.data.config).outputs.find((p) => p.id === connection.sourceHandle)
+          const tgtPort = resolveNodePorts(tgtDef, tgtNode.data.config).inputs.find((p) => p.id === connection.targetHandle)
 
           if (srcPort && tgtPort && !portsCompatible(srcPort.type, tgtPort.type)) {
             console.warn(
@@ -90,8 +85,8 @@ export function useFlowHandlers() {
           }
         }
 
-        const srcPortsSorted = srcDef ? sortPortsByOrder(srcDef.outputs, srcNode.data.portOrder?.outputs) : []
-        const tgtPortsSorted = tgtDef ? sortPortsByOrder(tgtDef.inputs, tgtNode.data.portOrder?.inputs) : []
+        const srcPortsSorted = srcDef ? sortPortsByOrder(resolveNodePorts(srcDef, srcNode.data.config).outputs, srcNode.data.portOrder?.outputs) : []
+        const tgtPortsSorted = tgtDef ? sortPortsByOrder(resolveNodePorts(tgtDef, tgtNode.data.config).inputs, tgtNode.data.portOrder?.inputs) : []
         const srcVisualIdx = connection.sourceHandle
           ? srcPortsSorted.findIndex((p) => p.id === connection.sourceHandle)
           : -1

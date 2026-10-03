@@ -1,5 +1,6 @@
 import type { NodeProps } from 'reactflow'
 import BaseNode from './base/BaseNode'
+import { DEFAULT_JUDGE_MODEL } from '../../lib/modelCatalog'
 import type { BaseNodeData } from '../../types/nodes'
 
 export default function SingleTurnEvalNode(props: NodeProps<BaseNodeData>) {
@@ -14,6 +15,6 @@ export default function SingleTurnEvalNode(props: NodeProps<BaseNodeData>) {
   return <BaseNode {...props} preview={[
     { label: 'metrics', value: metrics },
     { label: 'scale',   value: c.scale ?? '1-5' },
-    { label: 'judge',   value: String(c.judgeModel ?? 'gpt-4o').split('/').pop()! },
+    { label: 'judge',   value: String(c.judgeModel ?? DEFAULT_JUDGE_MODEL).split('/').pop()! },
   ]} />
 }

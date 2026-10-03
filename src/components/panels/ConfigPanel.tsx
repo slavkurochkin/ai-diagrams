@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState, type FocusEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Trash2, StickyNote, BarChart2, ChevronDown } from 'lucide-react'
 import { useFlowStore } from '../../hooks/useFlowStore'
-import { getNodeDefinition } from '../../lib/nodeDefinitions'
+import { getNodeDefinition, isConfigFieldVisible, resolveNodePorts } from '../../lib/nodeDefinitions'
 import { sanitizeConfigTextValue } from '../../lib/sanitizeConfigTextValue'
 import { resolvePortAxisPercent } from '../../lib/portLayout'
 import { portHandleFill } from '../../lib/portVisual'
@@ -121,6 +121,9 @@ function SelectField({ field, value, onChange }: FieldProps) {
           : 'bg-white border border-indigo-200/80 text-slate-800 focus:border-indigo-400/60'}
       `}
     >
+      {value !== undefined && value !== '' && !field.options?.some((o) => o.value === String(value)) && (
+        <option value={String(value)}>{String(value)} (legacy)</option>
+      )}
       {field.options?.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}
@@ -261,6 +264,7 @@ export default function ConfigPanel() {
     : null
 
   const def = selectedNode ? getNodeDefinition(selectedNode.data.nodeType) : null
+  const ports = def && selectedNode ? resolveNodePorts(def, selectedNode.data.config) : { inputs: [], outputs: [] }
   const isFrameNode = selectedNode?.data.nodeType === 'frame'
   const isTextNode = selectedNode?.data.nodeType === 'text'
   const descriptionFieldValue = (() => {
@@ -427,10 +431,7 @@ export default function ConfigPanel() {
             </div>
 
             {def.configFields
-              .filter((field) => {
-                if (!field.visibleWhen) return true
-                return selectedNode.data.config[field.visibleWhen.key] === field.visibleWhen.value
-              })
+              .filter((field) => isConfigFieldVisible(field, selectedNode.data.config))
               .map((field) => {
                 if (
                   selectedNode.data.nodeType === 'character' &&
@@ -773,7 +774,7 @@ export default function ConfigPanel() {
           )}
 
           {/* ── Port position (sliders) — same order as canvas ───────────── */}
-          {!isFrameNode && !isTextNode && selectedNode && def && (def.inputs.length > 0 || def.outputs.length > 0) && (
+          {!isFrameNode && !isTextNode && selectedNode && def && (ports.inputs.length > 0 || ports.outputs.length > 0) && (
             <div
               className="px-4 py-2.5 border-t"
               style={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(99,102,241,0.16)' }}
@@ -790,7 +791,7 @@ export default function ConfigPanel() {
                   </span>
                   {!portsSectionOpen && (
                     <span className={`truncate text-[10px] font-normal normal-case ${isDark ? 'text-white/30' : 'text-slate-500'}`}>
-                      {def.inputs.length} in · {def.outputs.length} out · sliders
+                      {ports.inputs.length} in · {ports.outputs.length} out · sliders
                     </span>
                   )}
                 </div>
@@ -814,7 +815,7 @@ export default function ConfigPanel() {
                 Hold Option/Alt and drag a port on the canvas to match, or use Auto to clear the override.
               </p>
               <div className="space-y-2 pt-1">
-                {applyPortOrder(def.inputs, selectedNode.data.portOrder?.inputs).map((port, i, arr) => {
+                {applyPortOrder(ports.inputs, selectedNode.data.portOrder?.inputs).map((port, i, arr) => {
                   const value = resolvePortAxisPercent(port, i, arr.length, selectedNode.data.portOffsets)
                   const hasOverride = selectedNode.data.portOffsets?.[port.id] !== undefined
                   const dot = portHandleFill(port.type, 'input')
@@ -865,7 +866,7 @@ export default function ConfigPanel() {
                     </div>
                   )
                 })}
-                {applyPortOrder(def.outputs, selectedNode.data.portOrder?.outputs).map((port, i, arr) => {
+                {applyPortOrder(ports.outputs, selectedNode.data.portOrder?.outputs).map((port, i, arr) => {
                   const value = resolvePortAxisPercent(port, i, arr.length, selectedNode.data.portOffsets)
                   const hasOverride = selectedNode.data.portOffsets?.[port.id] !== undefined
                   const dot = portHandleFill(port.type, 'output')

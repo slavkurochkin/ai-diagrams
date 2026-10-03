@@ -38,6 +38,10 @@ export interface SelectOption {
   value: string
 }
 
+export type VisibleWhen =
+  | { key: string; value: string | number | boolean }
+  | { key: string; oneOf: (string | number | boolean)[] }
+
 export interface ConfigField {
   key: string
   label: string
@@ -49,8 +53,8 @@ export interface ConfigField {
   max?: number
   step?: number
   description?: string
-  /** Hide this field unless another config key equals the given value */
-  visibleWhen?: { key: string; value: string | number | boolean }
+  /** Hide this field unless another config key equals `value` (or is one of `oneOf`). */
+  visibleWhen?: VisibleWhen
   /**
    * For `text` / `textarea`: if the trimmed value equals any entry (case-insensitive),
    * the value is coerced to `''` (e.g. block the literal "custom" on custom-kind labels).
@@ -75,6 +79,15 @@ export interface NodeDefinition {
   description: string
   /** Sidebar category for grouping */
   category: 'core' | 'data' | 'flow' | 'tool' | 'output' | 'eval' | 'character' | 'integration'
+  /**
+   * Optional config-driven ports (e.g. a router whose branch count is configurable).
+   * When present, it overrides `inputs` / `outputs`, which remain the defaults shown to the AI.
+   * Always go through `resolveNodePorts()` rather than reading `inputs` / `outputs` directly.
+   */
+  resolvePorts?: (config: Record<string, string | number | boolean>) => {
+    inputs: PortDefinition[]
+    outputs: PortDefinition[]
+  }
 }
 
 // ── Per-node config data (stored in React Flow node.data) ────────────────────
@@ -113,10 +126,14 @@ export interface BaseNodeData {
 
 export interface LLMNodeConfig {
   model: string
+  effort: 'default' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  thinking: 'hidden' | 'summarized' | 'updates'
   temperature: number
   maxTokens: number
   systemPrompt: string
   streaming: boolean
+  responseFormat: 'text' | 'json-schema'
+  outputSchema: string
 }
 
 export interface PromptTemplateNodeConfig {

@@ -71,6 +71,12 @@ import {
   ShieldQuestion,
   FlaskConical,
   Radar,
+  Mic,
+  Volume2,
+  AudioWaveform,
+  AudioLines,
+  SpellCheck,
+  Timer,
 } from 'lucide-react'
 
 export interface IconProps {
@@ -112,6 +118,13 @@ export const RedTeamIcon = createIcon(ShieldAlert)
 export const SafetyEvalIcon = createIcon(ShieldQuestion)
 export const ExperimentCompareIcon = createIcon(FlaskConical)
 export const TraceSamplerIcon = createIcon(Radar)
+export const SpeechToTextIcon = createIcon(Mic)
+export const TextToSpeechIcon = createIcon(Volume2)
+export const TurnDetectionIcon = createIcon(AudioWaveform)
+export const RealtimeVoiceIcon = createIcon(AudioLines)
+export const ASREvalIcon = createIcon(SpellCheck)
+export const VoiceLatencyEvalIcon = createIcon(Timer)
+export const TTSQualityEvalIcon = createIcon(Volume2)
 export const AgentIcon = createIcon(Bot)
 export const PromptIcon = createIcon(MessageSquareText)
 export const PromptTemplateIcon = createIcon(FileCode2)

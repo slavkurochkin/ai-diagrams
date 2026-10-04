@@ -17,6 +17,13 @@ import {
   SafetyEvalIcon,
   ExperimentCompareIcon,
   TraceSamplerIcon,
+  SpeechToTextIcon,
+  TextToSpeechIcon,
+  TurnDetectionIcon,
+  RealtimeVoiceIcon,
+  ASREvalIcon,
+  VoiceLatencyEvalIcon,
+  TTSQualityEvalIcon,
   AgentIcon,
   PromptIcon,
   PromptTemplateIcon,
@@ -83,6 +90,12 @@ import {
   DEFAULT_EMBEDDING_MODEL,
   DEFAULT_JUDGE_MODEL,
   DEFAULT_RERANK_MODEL,
+  DEFAULT_REALTIME_MODEL,
+  DEFAULT_STT_MODEL,
+  DEFAULT_TTS_MODEL,
+  REALTIME_MODEL_OPTIONS,
+  STT_MODEL_OPTIONS,
+  TTS_MODEL_OPTIONS,
   CLAUDE_EFFORT_MODELS,
   CLAUDE_EFFORT_OPTIONS,
   GEMINI_THINKING_LEVEL_MODELS,
@@ -1254,13 +1267,26 @@ const TriggerNodeDefinition: CoreNodeDefinition = {
   type: 'trigger',
   label: 'Trigger',
   icon: TriggerIcon,
-  description: 'Entry point that starts the workflow: user message, webhook, schedule, event, or API call.',
+  description: 'Entry point that starts the workflow: user message, webhook, schedule, event, API call, or a phone call / voice session (which outputs an audio stream).',
   category: 'core',
   inputs: [],
   outputs: [
     { id: 'payload', label: 'Payload', type: 'text' },
     { id: 'metadata', label: 'Metadata', type: 'structured' },
   ],
+  resolvePorts: (config) => ({
+    inputs: [],
+    outputs:
+      config.triggerType === 'phone-call' || config.triggerType === 'voice-session'
+        ? [
+            { id: 'audio', label: 'Audio Stream', type: 'audio' },
+            { id: 'metadata', label: 'Call Metadata', type: 'structured' },
+          ]
+        : [
+            { id: 'payload', label: 'Payload', type: 'text' },
+            { id: 'metadata', label: 'Metadata', type: 'structured' },
+          ],
+  }),
   configFields: [
     {
       key: 'triggerType',
@@ -1275,6 +1301,8 @@ const TriggerNodeDefinition: CoreNodeDefinition = {
         { label: 'API request', value: 'api' },
         { label: 'File upload', value: 'file-upload' },
         { label: 'Manual run', value: 'manual' },
+        { label: 'Phone call (audio)', value: 'phone-call' },
+        { label: 'Voice session — web / app mic (audio)', value: 'voice-session' },
       ],
     },
     {
@@ -1314,6 +1342,7 @@ const OutputNodeDefinition: CoreNodeDefinition = {
       defaultValue: 'user',
       options: [
         { label: 'User (chat reply)', value: 'user' },
+        { label: 'Caller (spoken audio)', value: 'caller' },
         { label: 'API response', value: 'api' },
         { label: 'File / artifact', value: 'file' },
         { label: 'Webhook / callback', value: 'webhook' },
@@ -1330,6 +1359,7 @@ const OutputNodeDefinition: CoreNodeDefinition = {
         { label: 'Plain text', value: 'text' },
         { label: 'Markdown', value: 'markdown' },
         { label: 'JSON', value: 'json' },
+        { label: 'Audio stream', value: 'audio' },
       ],
     },
     {
@@ -2286,6 +2316,405 @@ const TraceSamplerNodeDefinition: CoreNodeDefinition = {
         { label: 'Hourly batch', value: 'hourly' },
         { label: 'Daily batch', value: 'daily' },
       ],
+    },
+  ],
+}
+
+// ── Voice ─────────────────────────────────────────────────────────────────────
+
+const SpeechToTextNodeDefinition: CoreNodeDefinition = {
+  type: 'speechToText',
+  label: 'Speech-to-Text',
+  icon: SpeechToTextIcon,
+  description: 'Transcribes audio to text (ASR) for a cascaded voice pipeline; streaming models emit partial transcripts as the user speaks.',
+  category: 'voice',
+  inputs: [
+    { id: 'audio', label: 'Audio', type: 'audio' },
+  ],
+  outputs: [
+    { id: 'transcript', label: 'Transcript', type: 'text' },
+    { id: 'details', label: 'Timings & Confidence', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'model',
+      label: 'Model',
+      type: 'select',
+      defaultValue: DEFAULT_STT_MODEL,
+      options: STT_MODEL_OPTIONS,
+    },
+    {
+      key: 'streaming',
+      label: 'Streaming',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Required for live conversations; off for recorded files.',
+    },
+    {
+      key: 'language',
+      label: 'Language',
+      type: 'text',
+      defaultValue: 'auto',
+      placeholder: 'auto, en, es…',
+    },
+    {
+      key: 'keyterms',
+      label: 'Key Terms',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'product names, people, account terms…',
+      description: 'Biases recognition toward words that matter and are often misheard.',
+    },
+    {
+      key: 'diarization',
+      label: 'Speaker Diarization',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Label who spoke when (calls with several speakers).',
+    },
+  ],
+}
+
+const TextToSpeechNodeDefinition: CoreNodeDefinition = {
+  type: 'textToSpeech',
+  label: 'Text-to-Speech',
+  icon: TextToSpeechIcon,
+  description: 'Turns the reply text into speech for a cascaded voice pipeline; streaming starts audio before the full reply is generated.',
+  category: 'voice',
+  inputs: [
+    { id: 'text', label: 'Text', type: 'text' },
+  ],
+  outputs: [
+    { id: 'audio', label: 'Audio', type: 'audio' },
+  ],
+  configFields: [
+    {
+      key: 'model',
+      label: 'Model',
+      type: 'select',
+      defaultValue: DEFAULT_TTS_MODEL,
+      options: TTS_MODEL_OPTIONS,
+    },
+    {
+      key: 'voice',
+      label: 'Voice',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'voice id or name',
+    },
+    {
+      key: 'streaming',
+      label: 'Streaming',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Speak sentence by sentence as text arrives — the biggest lever on time to first audio.',
+    },
+    {
+      key: 'format',
+      label: 'Output Format',
+      type: 'select',
+      defaultValue: 'pcm16',
+      options: [
+        { label: 'PCM 16-bit (web / app)', value: 'pcm16' },
+        { label: 'μ-law 8 kHz (phone calls)', value: 'mulaw' },
+        { label: 'Opus', value: 'opus' },
+        { label: 'MP3 (files)', value: 'mp3' },
+      ],
+    },
+  ],
+}
+
+const TurnDetectionNodeDefinition: CoreNodeDefinition = {
+  type: 'turnDetection',
+  label: 'Turn Detection',
+  icon: TurnDetectionIcon,
+  description: 'Decides when the user has finished speaking (and when they interrupt), using voice-activity detection or a semantic end-of-turn model.',
+  category: 'voice',
+  inputs: [
+    { id: 'audio', label: 'Audio', type: 'audio' },
+  ],
+  outputs: [
+    { id: 'speech', label: 'Speech', type: 'audio' },
+    { id: 'endOfTurn', label: 'End of Turn', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'mode',
+      label: 'Mode',
+      type: 'select',
+      defaultValue: 'semantic',
+      options: [
+        { label: 'Semantic (understands when a thought is finished)', value: 'semantic' },
+        { label: 'Silence-based VAD', value: 'vad' },
+        { label: 'Push-to-talk / manual', value: 'manual' },
+      ],
+    },
+    {
+      key: 'silenceMs',
+      label: 'Silence Threshold (ms)',
+      type: 'number',
+      defaultValue: 500,
+      min: 100,
+      max: 3000,
+      step: 50,
+      visibleWhen: { key: 'mode', value: 'vad' },
+      description: 'Shorter feels snappier but cuts off people who pause mid-sentence.',
+    },
+    {
+      key: 'eagerness',
+      label: 'Eagerness',
+      type: 'select',
+      defaultValue: 'medium',
+      options: [
+        { label: 'Low (waits longer)', value: 'low' },
+        { label: 'Medium', value: 'medium' },
+        { label: 'High (responds sooner)', value: 'high' },
+      ],
+      visibleWhen: { key: 'mode', value: 'semantic' },
+    },
+    {
+      key: 'bargeIn',
+      label: 'Allow Barge-In',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Stop the agent speaking when the user interrupts.',
+    },
+  ],
+}
+
+const RealtimeVoiceNodeDefinition: CoreNodeDefinition = {
+  type: 'realtimeVoice',
+  label: 'Realtime Voice Model',
+  icon: RealtimeVoiceIcon,
+  description: 'Speech-to-speech model that listens, reasons, calls tools, and speaks in one streaming session — replaces the STT → LLM → TTS cascade with lower latency and natural interruptions.',
+  category: 'voice',
+  inputs: [
+    { id: 'audio', label: 'Audio In', type: 'audio' },
+    { id: 'tools', label: 'Observations', type: 'any' },
+    { id: 'memory', label: 'Memory', type: 'memory' },
+  ],
+  outputs: [
+    { id: 'audio', label: 'Audio Out', type: 'audio' },
+    { id: 'transcript', label: 'Transcript', type: 'text' },
+    { id: 'toolRequests', label: 'Tool Requests', type: 'any' },
+  ],
+  configFields: [
+    {
+      key: 'model',
+      label: 'Model',
+      type: 'select',
+      defaultValue: DEFAULT_REALTIME_MODEL,
+      options: REALTIME_MODEL_OPTIONS,
+    },
+    {
+      key: 'instructions',
+      label: 'Instructions',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: 'You are a friendly phone agent for… Keep answers short — this is spoken.',
+    },
+    {
+      key: 'voice',
+      label: 'Voice',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'voice name',
+    },
+    {
+      key: 'turnDetection',
+      label: 'Turn Detection',
+      type: 'select',
+      defaultValue: 'semantic',
+      options: [
+        { label: 'Semantic (built in)', value: 'semantic' },
+        { label: 'Silence-based VAD (built in)', value: 'vad' },
+        { label: 'Manual / external', value: 'manual' },
+      ],
+    },
+    {
+      key: 'bargeIn',
+      label: 'Allow Barge-In',
+      type: 'boolean',
+      defaultValue: true,
+    },
+  ],
+}
+
+const ASREvalNodeDefinition: CoreNodeDefinition = {
+  type: 'asrEval',
+  label: 'ASR Eval',
+  icon: ASREvalIcon,
+  description: 'Scores transcription accuracy: word error rate (WER), character error rate (CER), and entity / key-term error rate — where WER hides the costly mistakes (names, numbers, addresses).',
+  category: 'eval',
+  inputs: [
+    { id: 'transcript', label: 'Transcript', type: 'text' },
+    { id: 'reference', label: 'Reference', type: 'text' },
+  ],
+  outputs: [
+    { id: 'scores', label: 'Scores', type: 'structured' },
+    { id: 'errors', label: 'Error Details', type: 'text' },
+  ],
+  configFields: [
+    {
+      key: 'wer',
+      label: 'WER',
+      type: 'boolean',
+      defaultValue: true,
+      description: '(substitutions + deletions + insertions) / reference words',
+    },
+    {
+      key: 'cer',
+      label: 'CER',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Character-level — better for languages without spaces and for spelled-out codes',
+    },
+    {
+      key: 'entityErrorRate',
+      label: 'Entity / Key-Term Error Rate',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'keyterms',
+      label: 'Tracked Entities',
+      type: 'text',
+      defaultValue: 'names, numbers, dates, addresses, account ids',
+      visibleWhen: { key: 'entityErrorRate', value: true },
+    },
+    {
+      key: 'normalization',
+      label: 'Text Normalisation',
+      type: 'select',
+      defaultValue: 'standard',
+      options: [
+        { label: 'Standard (case, punctuation, numbers, fillers)', value: 'standard' },
+        { label: 'Basic (case and punctuation only)', value: 'basic' },
+        { label: 'None (exact)', value: 'none' },
+      ],
+      description: 'Normalise both sides before scoring, or formatting differences count as errors.',
+    },
+    {
+      key: 'perSpeaker',
+      label: 'Per-Speaker Breakdown',
+      type: 'boolean',
+      defaultValue: false,
+    },
+  ],
+}
+
+const VoiceLatencyEvalNodeDefinition: CoreNodeDefinition = {
+  type: 'voiceLatencyEval',
+  label: 'Voice Latency & Turn-Taking',
+  icon: VoiceLatencyEvalIcon,
+  description: 'Measures how a voice agent feels to talk to: time to first audio, end-to-end turn latency, cutting users off, missed interruptions, and recovery after barge-in.',
+  category: 'eval',
+  inputs: [
+    { id: 'trace', label: 'Call Trace', type: 'any' },
+  ],
+  outputs: [
+    { id: 'metrics', label: 'Metrics', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'timeToFirstAudio',
+      label: 'Time to First Audio',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'From the user finishing to the first agent audio.',
+    },
+    {
+      key: 'turnLatency',
+      label: 'End-to-End Turn Latency',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'percentile',
+      label: 'Report Percentile',
+      type: 'select',
+      defaultValue: 'p95',
+      options: [
+        { label: 'p50', value: 'p50' },
+        { label: 'p95', value: 'p95' },
+        { label: 'p99', value: 'p99' },
+      ],
+    },
+    {
+      key: 'latencyBudgetMs',
+      label: 'Latency Budget (ms)',
+      type: 'number',
+      defaultValue: 800,
+      min: 100,
+      max: 5000,
+      step: 50,
+      description: 'Turns slower than this are flagged.',
+    },
+    {
+      key: 'earlyCutoffs',
+      label: 'Early Cut-Offs',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Agent started talking while the user was still mid-thought.',
+    },
+    {
+      key: 'missedBargeIns',
+      label: 'Missed Interruptions',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'User interrupted but the agent kept talking.',
+    },
+    {
+      key: 'interruptionRecovery',
+      label: 'Interruption Recovery',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Did the agent pick up correctly from where it was cut off?',
+    },
+  ],
+}
+
+const TTSQualityEvalNodeDefinition: CoreNodeDefinition = {
+  type: 'ttsQualityEval',
+  label: 'TTS Quality',
+  icon: TTSQualityEvalIcon,
+  description: 'Scores generated speech: predicted MOS (naturalness), intelligibility via round-trip transcription WER, and pronunciation of key entities.',
+  category: 'eval',
+  inputs: [
+    { id: 'audio', label: 'Audio', type: 'audio' },
+    { id: 'text', label: 'Source Text', type: 'text' },
+  ],
+  outputs: [
+    { id: 'scores', label: 'Scores', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'mos',
+      label: 'Predicted MOS (naturalness)',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'intelligibility',
+      label: 'Intelligibility (round-trip WER)',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Transcribe the generated audio and compare with the source text.',
+    },
+    {
+      key: 'asrModel',
+      label: 'Transcriber for Round-Trip',
+      type: 'select',
+      defaultValue: 'nova-3-general',
+      options: STT_MODEL_OPTIONS,
+      visibleWhen: { key: 'intelligibility', value: true },
+    },
+    {
+      key: 'entityPronunciation',
+      label: 'Entity Pronunciation',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Are names, numbers, and brand terms pronounced correctly?',
     },
   ],
 }
@@ -4083,6 +4512,11 @@ const NODE_DEFINITIONS: NodeDefinition[] = ([
   WebSearchNodeDefinition,
   MCPServerNodeDefinition,
   CodeExecNodeDefinition,
+  // Voice
+  SpeechToTextNodeDefinition,
+  TurnDetectionNodeDefinition,
+  RealtimeVoiceNodeDefinition,
+  TextToSpeechNodeDefinition,
   // Output
   OutputParserNodeDefinition,
   EvaluatorNodeDefinition,
@@ -4105,6 +4539,9 @@ const NODE_DEFINITIONS: NodeDefinition[] = ([
   RAGEvaluatorNodeDefinition,
   SafetyEvalNodeDefinition,
   ExperimentCompareNodeDefinition,
+  ASREvalNodeDefinition,
+  VoiceLatencyEvalNodeDefinition,
+  TTSQualityEvalNodeDefinition,
   // Agent evaluation
   SingleTurnEvalNodeDefinition,
   MultiTurnEvalNodeDefinition,

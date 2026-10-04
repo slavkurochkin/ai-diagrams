@@ -69,6 +69,20 @@ describe('observability nodes', () => {
   })
 })
 
+describe('voice', () => {
+  it('trigger outputs audio only for voice trigger types', () => {
+    expect(ids(ports('trigger').outputs)).toEqual(['payload', 'metadata'])
+    expect(ids(ports('trigger', { triggerType: 'phone-call' }).outputs)).toEqual(['audio', 'metadata'])
+    expect(ids(ports('trigger', { triggerType: 'voice-session' }).outputs)).toEqual(['audio', 'metadata'])
+  })
+
+  it('upgrades retired voice model ids', () => {
+    expect(upgradeLegacyConfig('speechToText', { model: 'whisper-1' }).model).toBe('gpt-transcribe')
+    expect(upgradeLegacyConfig('textToSpeech', { model: 'tts-1-hd' }).model).toBe('gpt-4o-mini-tts')
+    expect(upgradeLegacyConfig('realtimeVoice', { model: 'gpt-4o-realtime-preview' }).model).toBe('gpt-realtime-2.1')
+  })
+})
+
 describe('RAG evaluator', () => {
   it('offers F1@k (on by default) plus answer F1 and exact match', () => {
     const config = buildDefaultConfig('ragEvaluator')

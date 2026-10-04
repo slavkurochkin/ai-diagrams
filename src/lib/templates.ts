@@ -935,18 +935,22 @@ edges:
   {
     id: 'llm-eval-pipeline',
     name: 'LLM Evaluation Pipeline',
-    description: 'Run every test case through the model, score each with an LLM judge, ground truth, and automatic metrics, then gate the aggregate score.',
+    description: 'Run every case in a pinned test set through the model, score each with an assertion, an LLM judge, and automatic metrics, then gate the aggregate score.',
     category: 'eval',
     preferredLayoutDirection: 'LR',
     yaml: `name: LLM Evaluation Pipeline
 nodes:
   - id: test_data
-    type: dataLoader
+    type: evalDataset
     label: Test Dataset
     config:
       source: file
       path: data/eval_set.jsonl
-    note: "JSONL with {query, reference_answer} pairs"
+      version: v1
+      inputField: query
+      expectedField: reference_answer
+      split: test
+    note: "Pinned, held-out test split — results stay comparable across runs"
   - id: cases
     type: loop
     label: For Each Test Case
@@ -982,6 +986,13 @@ nodes:
       bleu: true
       rouge: true
       bertScore: true
+  - id: cites_source
+    type: assertion
+    label: Cites a Source
+    config:
+      checkType: regex
+      spec: '\\[\\d+\\]'
+    note: "Deterministic check — free and exact, so it runs before any judgement call"
   - id: threshold
     type: thresholdGate
     config:
@@ -1002,7 +1013,7 @@ nodes:
 edges:
   - from: test_data
     to: cases
-    fromHandle: documents
+    fromHandle: cases
     toHandle: items
   # Per case: model answer + reference
   - from: cases
@@ -1042,6 +1053,15 @@ edges:
   - from: metrics
     to: cases
     fromHandle: scores
+    toHandle: itemResult
+    kind: loopback
+  - from: llm
+    to: cites_source
+    fromHandle: response
+    toHandle: output
+  - from: cites_source
+    to: cases
+    fromHandle: score
     toHandle: itemResult
     kind: loopback
   # Aggregate scores are gated
@@ -1315,6 +1335,156 @@ edges:
     to: efficiency
     fromHandle: actions
     toHandle: trajectory`,
+  },
+
+  {
+    id: 'multi-turn-agent-eval',
+    name: 'Multi-Turn Agent Eval',
+    description: 'Simulated users with per-case personas and goals converse with the agent; score the conversations and check the resulting system state.',
+    category: 'eval',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: Multi-Turn Agent Eval
+nodes:
+  - id: scenarios
+    type: evalDataset
+    label: Support Scenarios
+    config:
+      source: file
+      path: data/support_scenarios.jsonl
+      version: v1
+      inputField: persona_and_goal
+      expectedField: expected_end_state
+      split: test
+    note: "Each case: a persona, a goal, and the system state a correct agent should leave behind"
+  - id: cases
+    type: loop
+    label: For Each Scenario
+    config:
+      mode: parallel
+      maxConcurrency: 5
+  - id: sim
+    type: userSimulator
+    label: Simulated Customer
+    config:
+      model: claude-sonnet-5-5
+      maxTurns: 10
+      stopWhen: goal-or-max
+    note: "Plays the scenario's persona and pursues its goal until done or out of turns"
+  - id: agent
+    type: agent
+    label: Support Agent (under test)
+    config:
+      model: claude-sonnet-5-5
+      instructions: "Resolve billing issues. Verify the charge before issuing any refund."
+      maxIterations: 8
+  - id: billing
+    type: mcpServer
+    label: Billing MCP (sandbox)
+    config:
+      serverName: stripe-sandbox
+      transport: http
+      allowedTools: search_charges, create_refund
+  - id: conversation_eval
+    type: multiTurnEval
+    label: Conversation Quality
+    config:
+      judgeModel: claude-opus-5-5
+      coherence: true
+      goalProgress: true
+      consistency: true
+  - id: end_state
+    type: assertion
+    label: Correct End State
+    config:
+      checkType: state-check
+      spec: "SELECT status, amount FROM refunds WHERE charge_id = :charge_id"
+      timeout: 30
+    note: "Checks what the agent actually did in the sandbox, not what it said it did"
+  - id: gate
+    type: thresholdGate
+    config:
+      threshold: 0.9
+  - id: report
+    type: output
+    label: Eval Report
+    config:
+      destination: file
+      format: json
+  - id: alert
+    type: output
+    label: Regression Alert
+    config:
+      destination: notification
+      format: text
+edges:
+  - from: scenarios
+    to: cases
+    fromHandle: cases
+    toHandle: items
+  - from: cases
+    to: sim
+    fromHandle: item
+    toHandle: scenario
+  # Simulated conversation
+  - from: sim
+    to: agent
+    fromHandle: message
+    toHandle: prompt
+  - from: agent
+    to: sim
+    fromHandle: response
+    toHandle: agentReply
+    kind: loopback
+  # Agent's tool loop against the sandbox
+  - from: agent
+    to: billing
+    fromHandle: toolRequests
+    toHandle: call
+  - from: billing
+    to: agent
+    fromHandle: result
+    toHandle: tools
+    kind: loopback
+  # Scoring
+  - from: sim
+    to: conversation_eval
+    fromHandle: conversation
+    toHandle: conversation
+  - from: cases
+    to: conversation_eval
+    fromHandle: item
+    toHandle: goal
+  - from: agent
+    to: end_state
+    fromHandle: actions
+    toHandle: output
+  - from: cases
+    to: end_state
+    fromHandle: item
+    toHandle: expected
+  - from: conversation_eval
+    to: cases
+    fromHandle: scores
+    toHandle: itemResult
+    kind: loopback
+  - from: end_state
+    to: cases
+    fromHandle: score
+    toHandle: itemResult
+    kind: loopback
+  # Aggregate
+  - from: cases
+    to: gate
+    fromHandle: results
+    toHandle: score
+  - from: gate
+    to: report
+    fromHandle: pass
+    toHandle: input
+  - from: gate
+    to: alert
+    fromHandle: fail
+    toHandle: input`,
   },
 
   // ── Pipeline ─────────────────────────────────────────────────────────────────

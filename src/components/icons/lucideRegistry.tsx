@@ -64,6 +64,9 @@ import {
   Layers,
   Activity,
   BellRing,
+  ListChecks,
+  FileSpreadsheet,
+  UserCog,
 } from 'lucide-react'
 
 export interface IconProps {
@@ -98,6 +101,9 @@ export const CodeExecIcon = createIcon(SquareTerminal)
 export const StateIcon = createIcon(Layers)
 export const TracingIcon = createIcon(Activity)
 export const MonitorIcon = createIcon(BellRing)
+export const AssertionIcon = createIcon(ListChecks)
+export const EvalDatasetIcon = createIcon(FileSpreadsheet)
+export const UserSimulatorIcon = createIcon(UserCog)
 export const AgentIcon = createIcon(Bot)
 export const PromptIcon = createIcon(MessageSquareText)
 export const PromptTemplateIcon = createIcon(FileCode2)

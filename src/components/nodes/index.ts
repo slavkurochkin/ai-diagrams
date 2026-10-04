@@ -39,6 +39,9 @@ import AgentEfficiencyNode from './AgentEfficiencyNode'
 import CharacterNode from './CharacterNode'
 import GenericIntegrationNode from './GenericIntegrationNode'
 import TriggerNode from './TriggerNode'
+import EvalDatasetNode from './EvalDatasetNode'
+import AssertionNode from './AssertionNode'
+import UserSimulatorNode from './UserSimulatorNode'
 import StateNode from './StateNode'
 import TracingNode from './TracingNode'
 import MonitorNode from './MonitorNode'
@@ -97,6 +100,8 @@ export const nodeTypes: NodeTypes = {
   tracing: TracingNode,
   monitor: MonitorNode,
   // Evaluation strategies
+  evalDataset: EvalDatasetNode,
+  assertion: AssertionNode,
   llmJudge: LLMJudgeNode,
   rubric: RubricNode,
   comparator: ComparatorNode,
@@ -111,6 +116,7 @@ export const nodeTypes: NodeTypes = {
   multiTurnEval: MultiTurnEvalNode,
   toolUseEval: ToolUseEvalNode,
   trajectoryEval: TrajectoryEvalNode,
+  userSimulator: UserSimulatorNode,
   taskCompletion: TaskCompletionNode,
   agentEfficiency: AgentEfficiencyNode,
   // Characters

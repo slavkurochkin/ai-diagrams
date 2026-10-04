@@ -543,6 +543,17 @@ const HANDLE_ALIASES_BY_NODE_TYPE: Record<string, { inputs?: Record<string, stri
 }
 
 /**
+ * Default handles for specific source → target pairs, used when the caller omits them and
+ * the generic preference lists would pick the wrong port (e.g. agent → user simulator is
+ * the agent's reply, not its tool requests).
+ */
+const DEFAULT_HANDLES_BY_PAIR: Record<string, { source: string; target: string }> = {
+  'agent->userSimulator': { source: 'response', target: 'agentReply' },
+  'subAgent->userSimulator': { source: 'result', target: 'agentReply' },
+  'llm->userSimulator': { source: 'response', target: 'agentReply' },
+}
+
+/**
  * For these types, an invalid explicit handle must not be swapped to another port
  * (would pick the wrong branch).
  */
@@ -592,6 +603,12 @@ export function resolveEdgeHandles(
   const inIds = portIds(tgtType, 'inputs', tgtConfig)
   if (outIds.length === 0) return { ok: false, error: `source type "${srcType}" has no outputs` }
   if (inIds.length === 0) return { ok: false, error: `target type "${tgtType}" has no inputs` }
+
+  const pair = DEFAULT_HANDLES_BY_PAIR[`${srcType}->${tgtType}`]
+  if (pair) {
+    sourceHandle ??= pair.source
+    targetHandle ??= pair.target
+  }
 
   let sh: string
   // A side is "flexible" when we picked its handle (omitted or guessed) rather than the caller.

@@ -35,6 +35,16 @@ describe('resolveEdgeHandles', () => {
     expect(resolveEdgeHandles('tracing', 'llm', null, null)).toEqual({ ok: false, error: 'source type "tracing" has no outputs' })
   })
 
+  it('wires eval nodes by default: dataset → loop, case → simulator, simulator ⇄ agent', () => {
+    expect(resolveEdgeHandles('evalDataset', 'loop', null, null)).toEqual({ ok: true, sourceHandle: 'cases', targetHandle: 'items' })
+    expect(resolveEdgeHandles('loop', 'userSimulator', null, null)).toEqual({ ok: true, sourceHandle: 'item', targetHandle: 'scenario' })
+    expect(resolveEdgeHandles('userSimulator', 'agent', null, null)).toEqual({ ok: true, sourceHandle: 'message', targetHandle: 'prompt' })
+    // The agent's reply — not its tool requests — goes back to the simulator.
+    expect(resolveEdgeHandles('agent', 'userSimulator', null, null)).toEqual({ ok: true, sourceHandle: 'response', targetHandle: 'agentReply' })
+    expect(resolveEdgeHandles('userSimulator', 'multiTurnEval', null, null)).toEqual({ ok: true, sourceHandle: 'conversation', targetHandle: 'conversation' })
+    expect(resolveEdgeHandles('assertion', 'thresholdGate', null, null)).toEqual({ ok: true, sourceHandle: 'score', targetHandle: 'score' })
+  })
+
   it('uses node config for dynamic ports', () => {
     expect(resolveEdgeHandles('router', 'llm', 'routeC', null, { routeCount: 2 }).ok).toBe(false)
     expect(resolveEdgeHandles('router', 'llm', 'routeC', null, { routeCount: 3 })).toEqual({ ok: true, sourceHandle: 'routeC', targetHandle: 'prompt' })

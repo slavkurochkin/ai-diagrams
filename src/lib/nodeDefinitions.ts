@@ -10,6 +10,9 @@ import {
   StateIcon,
   TracingIcon,
   MonitorIcon,
+  AssertionIcon,
+  EvalDatasetIcon,
+  UserSimulatorIcon,
   AgentIcon,
   PromptIcon,
   PromptTemplateIcon,
@@ -1801,6 +1804,203 @@ const MonitorNodeDefinition: CoreNodeDefinition = {
   ],
 }
 
+const EvalDatasetNodeDefinition: CoreNodeDefinition = {
+  type: 'evalDataset',
+  label: 'Eval Dataset',
+  icon: EvalDatasetIcon,
+  description: 'Versioned set of test cases (input + expected output) that starts an eval run; feed it into a Loop to run each case.',
+  category: 'eval',
+  inputs: [],
+  outputs: [
+    { id: 'cases', label: 'Test Cases', type: 'any' },
+    { id: 'metadata', label: 'Metadata', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'source',
+      label: 'Source',
+      type: 'select',
+      defaultValue: 'file',
+      options: [
+        { label: 'File (JSONL / CSV)', value: 'file' },
+        { label: 'Eval platform dataset (Langfuse, LangSmith, Braintrust…)', value: 'platform' },
+        { label: 'Hugging Face dataset', value: 'huggingface' },
+        { label: 'Sampled production traces', value: 'traces' },
+        { label: 'Synthetic (LLM-generated)', value: 'synthetic' },
+      ],
+    },
+    {
+      key: 'path',
+      label: 'Path / Dataset Name',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'data/eval_set.jsonl',
+    },
+    {
+      key: 'version',
+      label: 'Version',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'v3 or a commit hash',
+      description: 'Pin the dataset so results stay comparable across runs.',
+    },
+    {
+      key: 'inputField',
+      label: 'Input Field',
+      type: 'text',
+      defaultValue: 'input',
+    },
+    {
+      key: 'expectedField',
+      label: 'Expected Field',
+      type: 'text',
+      defaultValue: 'expected',
+      description: 'Leave blank for reference-free evals.',
+    },
+    {
+      key: 'split',
+      label: 'Split',
+      type: 'select',
+      defaultValue: 'test',
+      options: [
+        { label: 'All', value: 'all' },
+        { label: 'Train / dev', value: 'train' },
+        { label: 'Validation', value: 'validation' },
+        { label: 'Test (held out)', value: 'test' },
+      ],
+    },
+    {
+      key: 'sampleSize',
+      label: 'Sample Size',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      max: 100000,
+      step: 10,
+      description: '0 = every case.',
+    },
+  ],
+}
+
+const AssertionNodeDefinition: CoreNodeDefinition = {
+  type: 'assertion',
+  label: 'Assertion',
+  icon: AssertionIcon,
+  description: 'Deterministic, rule-based check (JSON schema, contains, regex, exact match, code tests, end-state check). Cheaper and more reliable than an LLM judge when the property is checkable; use one node per check.',
+  category: 'eval',
+  inputs: [
+    { id: 'output', label: 'Output', type: 'any' },
+    { id: 'expected', label: 'Expected', type: 'any' },
+  ],
+  outputs: [
+    { id: 'score', label: 'Pass / Fail', type: 'structured' },
+    { id: 'failures', label: 'Failure Details', type: 'text' },
+  ],
+  configFields: [
+    {
+      key: 'checkType',
+      label: 'Check',
+      type: 'select',
+      defaultValue: 'json-schema',
+      options: [
+        { label: 'Matches JSON schema', value: 'json-schema' },
+        { label: 'Contains', value: 'contains' },
+        { label: 'Does not contain', value: 'not-contains' },
+        { label: 'Matches regex', value: 'regex' },
+        { label: 'Equals expected', value: 'equals' },
+        { label: 'Code runs & tests pass', value: 'code-tests' },
+        { label: 'End state matches (DB / files / API)', value: 'state-check' },
+        { label: 'Custom function', value: 'custom' },
+      ],
+    },
+    {
+      key: 'spec',
+      label: 'Specification',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: 'Schema, text, pattern, test command, or state query — depending on the check',
+      description: 'For "equals", leave blank to compare against the Expected input.',
+    },
+    {
+      key: 'caseSensitive',
+      label: 'Case Sensitive',
+      type: 'boolean',
+      defaultValue: false,
+      visibleWhen: { key: 'checkType', oneOf: ['contains', 'not-contains', 'regex', 'equals'] },
+    },
+    {
+      key: 'timeout',
+      label: 'Timeout (s)',
+      type: 'number',
+      defaultValue: 60,
+      min: 1,
+      max: 3600,
+      step: 1,
+      visibleWhen: { key: 'checkType', oneOf: ['code-tests', 'state-check', 'custom'] },
+    },
+  ],
+}
+
+const UserSimulatorNodeDefinition: CoreNodeDefinition = {
+  type: 'userSimulator',
+  label: 'User Simulator',
+  icon: UserSimulatorIcon,
+  description: 'LLM that plays a user with a persona and goal, conversing with the agent for several turns to produce conversations for multi-turn evals.',
+  category: 'eval',
+  inputs: [
+    { id: 'scenario', label: 'Scenario', type: 'structured' },
+    { id: 'agentReply', label: 'Agent Reply', type: 'text' },
+  ],
+  outputs: [
+    { id: 'message', label: 'User Message', type: 'text' },
+    { id: 'conversation', label: 'Conversation', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'model',
+      label: 'Model',
+      type: 'select',
+      defaultValue: DEFAULT_CHAT_MODEL,
+      options: CHAT_MODEL_OPTIONS,
+    },
+    {
+      key: 'persona',
+      label: 'Persona',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: 'Impatient small-business owner, not technical, double-charged last month…',
+      description: 'Overridden per case when a Scenario is connected.',
+    },
+    {
+      key: 'goal',
+      label: 'Goal',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: 'Get a refund for the duplicate charge',
+    },
+    {
+      key: 'maxTurns',
+      label: 'Max Turns',
+      type: 'number',
+      defaultValue: 8,
+      min: 1,
+      max: 50,
+      step: 1,
+    },
+    {
+      key: 'stopWhen',
+      label: 'Stop When',
+      type: 'select',
+      defaultValue: 'goal-or-max',
+      options: [
+        { label: 'Goal reached or max turns', value: 'goal-or-max' },
+        { label: 'Agent ends the conversation', value: 'agent-ends' },
+        { label: 'Always run max turns', value: 'max-turns' },
+      ],
+    },
+  ],
+}
+
 // ── Evaluation strategy nodes ─────────────────────────────────────────────────
 
 const LLMJudgeNodeDefinition: CoreNodeDefinition = {
@@ -3580,6 +3780,8 @@ const NODE_DEFINITIONS: NodeDefinition[] = ([
   TracingNodeDefinition,
   MonitorNodeDefinition,
   // Evaluation strategies
+  EvalDatasetNodeDefinition,
+  AssertionNodeDefinition,
   LLMJudgeNodeDefinition,
   RubricNodeDefinition,
   ComparatorNodeDefinition,
@@ -3594,6 +3796,7 @@ const NODE_DEFINITIONS: NodeDefinition[] = ([
   MultiTurnEvalNodeDefinition,
   ToolUseEvalNodeDefinition,
   TrajectoryEvalNodeDefinition,
+  UserSimulatorNodeDefinition,
   TaskCompletionNodeDefinition,
   AgentEfficiencyNodeDefinition,
 ] as CoreNodeDefinition[]).map((def) => ({

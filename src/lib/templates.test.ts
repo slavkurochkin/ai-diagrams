@@ -3,7 +3,7 @@ import { FLOW_TEMPLATES } from './templates'
 import { parseFlowYAML, type ParsedFlow } from './yamlFlow'
 import { getNodeDefinition } from './nodeDefinitions'
 
-const ENTRY_TYPES = new Set(['trigger', 'dataLoader'])
+const ENTRY_TYPES = new Set(['trigger', 'dataLoader', 'evalDataset'])
 
 function parse(yaml: string): ParsedFlow {
   const result = parseFlowYAML(yaml)

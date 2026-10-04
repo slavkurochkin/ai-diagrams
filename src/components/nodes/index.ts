@@ -39,6 +39,7 @@ import AgentEfficiencyNode from './AgentEfficiencyNode'
 import CharacterNode from './CharacterNode'
 import GenericIntegrationNode from './GenericIntegrationNode'
 import TriggerNode from './TriggerNode'
+import ResponseLatencyEvalNode from './ResponseLatencyEvalNode'
 import SpeechToTextNode from './SpeechToTextNode'
 import TextToSpeechNode from './TextToSpeechNode'
 import TurnDetectionNode from './TurnDetectionNode'
@@ -134,6 +135,7 @@ export const nodeTypes: NodeTypes = {
   asrEval: ASREvalNode,
   voiceLatencyEval: VoiceLatencyEvalNode,
   ttsQualityEval: TTSQualityEvalNode,
+  responseLatencyEval: ResponseLatencyEvalNode,
   // Agent evaluation
   singleTurnEval: SingleTurnEvalNode,
   multiTurnEval: MultiTurnEvalNode,

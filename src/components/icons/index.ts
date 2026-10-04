@@ -24,6 +24,7 @@ export {
   ASREvalIcon,
   VoiceLatencyEvalIcon,
   TTSQualityEvalIcon,
+  ResponseLatencyEvalIcon,
   AgentIcon,
   PromptIcon,
   PromptTemplateIcon,

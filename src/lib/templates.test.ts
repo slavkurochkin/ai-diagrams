@@ -3,6 +3,7 @@ import { FLOW_TEMPLATES } from './templates'
 import { parseFlowYAML, type ParsedFlow } from './yamlFlow'
 import { getNodeDefinition } from './nodeDefinitions'
 import { computeWer, formatRate, parseEntities } from './wer'
+import { computeLatency, formatMs, parseTimings, DEFAULT_VOICE_TIMINGS } from './latency'
 
 const ENTRY_TYPES = new Set(['trigger', 'dataLoader', 'evalDataset', 'redTeam', 'traceSampler'])
 
@@ -85,5 +86,19 @@ describe('How WER Works template', () => {
     expect(asr.data.note).toContain(`= **${formatRate(r.wer)}**`)
     const verdict = flow.nodes.find((n) => n.data.label === 'What It Means')!
     expect(verdict.data.note).toContain(`= **${formatRate(r.entityErrorRate).replace('.0', '')}**`)
+  })
+})
+
+describe('Where Voice Latency Comes From template', () => {
+  it('annotates each stage with the timings its latency node actually computes', () => {
+    const template = FLOW_TEMPLATES.find((t) => t.id === 'voice-latency-explainer')!
+    const flow = parse(template.yaml)
+    const node = flow.nodes.find((n) => n.data.nodeType === 'voiceLatencyEval')!
+    const timings = { ...parseTimings(node.data.config.exampleTimings, DEFAULT_VOICE_TIMINGS), budgetMs: Number(node.data.config.latencyBudgetMs) }
+    const r = computeLatency(timings)
+    const notes = flow.nodes.map((n) => n.data.note ?? '').join('\n')
+    for (const seg of r.segments) expect(notes, seg.label).toContain(`${seg.durationMs} ms`)
+    expect(notes).toContain(`Time to first audio = ${formatMs(r.headlineMs)}`)
+    expect(notes).toContain(`${r.overBudget ? 'over' : 'within'} an ${timings.budgetMs} ms budget`)
   })
 })

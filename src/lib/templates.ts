@@ -1202,6 +1202,116 @@ edges:
   },
 
   {
+    id: 'voice-latency-explainer',
+    name: 'Where Voice Latency Comes From',
+    description: 'Time to first audio is the sum of every stage’s time to first byte. Each stage is annotated with its share; press play to watch the waterfall fill in, or open the latency visualizer on the latency node.',
+    category: 'voice',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: Where Voice Latency Comes From
+nodes:
+  - id: call
+    type: trigger
+    label: Caller Stops Speaking
+    config:
+      triggerType: phone-call
+    note: |
+      **The clock starts** when the caller stops talking.
+      Network in: **60 ms**
+  - id: turns
+    type: turnDetection
+    label: Turn Detection
+    config:
+      mode: semantic
+    note: |
+      **End-of-turn wait: 300 ms**
+      Too short cuts people off; too long adds to every turn.
+  - id: stt
+    type: speechToText
+    label: Speech-to-Text
+    config:
+      model: flux-general-en
+      streaming: true
+    note: |
+      **Final transcript: 100 ms**
+      Streaming STT has most of the words already.
+  - id: llm
+    type: llm
+    label: LLM
+    config:
+      model: claude-haiku-4-5
+    note: |
+      **Time to first token: 350 ms**
+      plus the **first sentence: 150 ms** (12 tokens at 80 tok/s)
+      before TTS can start.
+  - id: tts
+    type: textToSpeech
+    label: Text-to-Speech
+    config:
+      model: sonic-3.6
+      streaming: true
+    note: |
+      **TTS time to first byte: 120 ms**
+      Streaming means it starts on the first sentence, not the whole reply.
+  - id: caller
+    type: output
+    label: Caller Hears the Agent
+    config:
+      destination: caller
+      format: audio
+    note: |
+      Network out: **60 ms**
+      **Time to first audio = 1.14 s**: over an 800 ms budget.
+  - id: latency
+    type: voiceLatencyEval
+    label: Time to First Audio
+    config:
+      latencyBudgetMs: 800
+      stageBreakdown: true
+    note: "Select this node and click *Visualize Time to First Audio* to try fixes: realtime model, shorter end-of-turn, lower LLM effort."
+  - id: formula
+    type: text
+    config:
+      width: 400
+      height: 190
+      fontSize: 14
+      content: |
+        ## Time to first audio (TTFA)
+        **TTFA = network + end-of-turn + STT final + LLM TTFT + first sentence + TTS TTFB + network**
+
+        Each stage's *time to first byte* adds up. Streaming overlaps the rest:
+        the agent keeps speaking while the LLM is still writing.
+edges:
+  - from: call
+    to: turns
+    fromHandle: audio
+    toHandle: audio
+  - from: turns
+    to: stt
+    fromHandle: speech
+    toHandle: audio
+  - from: stt
+    to: llm
+    fromHandle: transcript
+    toHandle: prompt
+  - from: llm
+    to: tts
+    fromHandle: response
+    toHandle: text
+  - from: tts
+    to: caller
+    fromHandle: audio
+    toHandle: input
+  - from: stt
+    to: latency
+    fromHandle: details
+    toHandle: trace
+  - from: tts
+    to: latency
+    fromHandle: audio
+    toHandle: trace`,
+  },
+
+  {
     id: 'voice-agent-eval',
     name: 'Voice Agent Eval',
     description: 'Replay recorded calls through the voice pipeline and score transcription (WER, entity errors), latency and turn-taking, speech quality, and task completion.',

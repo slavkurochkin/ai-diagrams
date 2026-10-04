@@ -24,6 +24,7 @@ import {
   ASREvalIcon,
   VoiceLatencyEvalIcon,
   TTSQualityEvalIcon,
+  ResponseLatencyEvalIcon,
   AgentIcon,
   PromptIcon,
   PromptTemplateIcon,
@@ -84,6 +85,7 @@ import {
   GenericAnalyticsIcon,
 } from '../components/icons'
 import type { ConfigField, NodeDefinition, PortDefinition } from '../types/nodes'
+import { DEFAULT_TEXT_TIMINGS, DEFAULT_VOICE_TIMINGS } from './latency'
 import {
   CHAT_MODEL_OPTIONS,
   DEFAULT_CHAT_MODEL,
@@ -2691,6 +2693,81 @@ const VoiceLatencyEvalNodeDefinition: CoreNodeDefinition = {
       defaultValue: false,
       description: 'Did the agent pick up correctly from where it was cut off?',
     },
+    {
+      key: 'stageBreakdown',
+      label: 'Per-Stage Breakdown (TTFB)',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Split time to first audio into end-of-turn wait, STT final, LLM time to first token, TTS time to first byte, and network.',
+    },
+    { key: 'endOfTurnBudgetMs', label: 'Budget: End-of-Turn (ms)', type: 'number', defaultValue: 400, min: 0, max: 3000, step: 25, visibleWhen: { key: 'stageBreakdown', value: true } },
+    { key: 'sttBudgetMs', label: 'Budget: STT Final (ms)', type: 'number', defaultValue: 150, min: 0, max: 3000, step: 25, visibleWhen: { key: 'stageBreakdown', value: true } },
+    { key: 'llmTtftBudgetMs', label: 'Budget: LLM TTFT (ms)', type: 'number', defaultValue: 500, min: 0, max: 10000, step: 25, visibleWhen: { key: 'stageBreakdown', value: true } },
+    { key: 'ttsTtfbBudgetMs', label: 'Budget: TTS TTFB (ms)', type: 'number', defaultValue: 200, min: 0, max: 3000, step: 25, visibleWhen: { key: 'stageBreakdown', value: true } },
+    { key: 'networkBudgetMs', label: 'Budget: Network, each way (ms)', type: 'number', defaultValue: 100, min: 0, max: 2000, step: 10, visibleWhen: { key: 'stageBreakdown', value: true } },
+    {
+      key: 'exampleTimings',
+      label: 'Example Timings',
+      type: 'textarea',
+      defaultValue: JSON.stringify(DEFAULT_VOICE_TIMINGS),
+      description: 'Example shown in the latency visualizer and during playback — edit it in the visualizer. Not used to score real runs.',
+    },
+  ],
+}
+
+const ResponseLatencyEvalNodeDefinition: CoreNodeDefinition = {
+  type: 'responseLatencyEval',
+  label: 'Response Latency',
+  icon: ResponseLatencyEvalIcon,
+  description: 'Measures how fast a text response feels: time to first token (TTFT — the LLM\'s time to first byte), tokens per second, and total time, against budgets.',
+  category: 'eval',
+  inputs: [
+    { id: 'trace', label: 'Trace', type: 'any' },
+  ],
+  outputs: [
+    { id: 'metrics', label: 'Metrics', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'ttft',
+      label: 'Time to First Token',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'What users feel when responses stream.',
+    },
+    {
+      key: 'tokensPerSecond',
+      label: 'Tokens per Second',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'totalLatency',
+      label: 'Total Response Time',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'What users feel when responses do not stream (or are parsed as a whole).',
+    },
+    {
+      key: 'percentile',
+      label: 'Report Percentile',
+      type: 'select',
+      defaultValue: 'p95',
+      options: [
+        { label: 'p50', value: 'p50' },
+        { label: 'p95', value: 'p95' },
+        { label: 'p99', value: 'p99' },
+      ],
+    },
+    { key: 'ttftBudgetMs', label: 'TTFT Budget (ms)', type: 'number', defaultValue: 800, min: 50, max: 30000, step: 50 },
+    { key: 'totalBudgetMs', label: 'Total Budget (ms)', type: 'number', defaultValue: 8000, min: 100, max: 120000, step: 100 },
+    {
+      key: 'exampleTimings',
+      label: 'Example Timings',
+      type: 'textarea',
+      defaultValue: JSON.stringify(DEFAULT_TEXT_TIMINGS),
+      description: 'Example shown in the latency visualizer and during playback — edit it in the visualizer. Not used to score real runs.',
+    },
   ],
 }
 
@@ -4562,6 +4639,7 @@ const NODE_DEFINITIONS: NodeDefinition[] = ([
   ASREvalNodeDefinition,
   VoiceLatencyEvalNodeDefinition,
   TTSQualityEvalNodeDefinition,
+  ResponseLatencyEvalNodeDefinition,
   // Agent evaluation
   SingleTurnEvalNodeDefinition,
   MultiTurnEvalNodeDefinition,

@@ -10,6 +10,9 @@ import type { NotePlacement, PortDefinition } from '../../types/nodes'
 import type { ConfigField } from '../../types/nodes'
 import RAGEvalPanel from './RAGEvalPanel'
 import WERPanel from './WERPanel'
+import LatencyPanel from './LatencyPanel'
+import { exampleTimingsFromConfig } from '../latency/LatencyOverlay'
+import { stageBudgetsFromConfig } from '../latency/LatencyWaterfall'
 import type { Normalization } from '../../lib/wer'
 
 /** Same ordering as canvas `portOrder` (YAML / persisted). */
@@ -328,6 +331,7 @@ export default function ConfigPanel() {
 
   const [ragEvalOpen, setRagEvalOpen] = useState(false)
   const [werOpen, setWerOpen] = useState(false)
+  const [latencyOpen, setLatencyOpen] = useState(false)
   const [portsSectionOpen, setPortsSectionOpen] = useState(false)
 
   return (
@@ -795,6 +799,25 @@ export default function ConfigPanel() {
             </div>
           )}
 
+          {/* ── Latency Visualizer button ─────────────────────────────────── */}
+          {(selectedNode.data.nodeType === 'voiceLatencyEval' || selectedNode.data.nodeType === 'responseLatencyEval') && (
+            <div className="px-4 pb-3">
+              <button
+                type="button"
+                onClick={() => setLatencyOpen(true)}
+                className="
+                  w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
+                  text-[12px] font-medium
+                  bg-violet-900/40 border border-violet-700/40 text-violet-200
+                  hover:bg-violet-800/50 hover:text-white transition-colors
+                "
+              >
+                <BarChart2 size={13} />
+                {selectedNode.data.nodeType === 'voiceLatencyEval' ? 'Visualize Time to First Audio' : 'Visualize Time to First Token'}
+              </button>
+            </div>
+          )}
+
           {/* ── Port position (sliders) — same order as canvas ───────────── */}
           {!isFrameNode && !isTextNode && selectedNode && def && (ports.inputs.length > 0 || ports.outputs.length > 0) && (
             <div
@@ -1142,6 +1165,27 @@ export default function ConfigPanel() {
           </div>
         </motion.aside>
       )}
+
+      {/* Latency Visualizer — edits the selected latency eval node's example */}
+      {selectedNode && (selectedNode.data.nodeType === 'voiceLatencyEval' || selectedNode.data.nodeType === 'responseLatencyEval') && (() => {
+        const kind = selectedNode.data.nodeType === 'voiceLatencyEval' ? 'voice' : 'text'
+        const budgetKey = kind === 'voice' ? 'latencyBudgetMs' : 'ttftBudgetMs'
+        return (
+          <LatencyPanel
+            open={latencyOpen}
+            onClose={() => setLatencyOpen(false)}
+            kind={kind}
+            initial={exampleTimingsFromConfig(selectedNode.data.config, kind)}
+            stageBudgets={kind === 'voice' ? stageBudgetsFromConfig(selectedNode.data.config) : {}}
+            onSave={(timings) =>
+              updateNodeConfig(selectedNode.id, {
+                exampleTimings: JSON.stringify(timings),
+                [budgetKey]: timings.budgetMs,
+              })
+            }
+          />
+        )
+      })()}
 
       {/* WER Visualizer — edits the selected ASR Eval node's example */}
       <WERPanel

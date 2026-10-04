@@ -250,18 +250,20 @@ const CATEGORY_LABELS: Record<string, string> = {
   data:   'Data',
   flow:   'Flow Control',
   tool:   'Tools',
+  voice: 'Voice',
   output: 'Output',
   eval:   'Evaluation',
   integration: 'Integrations',
 }
 
-const CATEGORY_ORDER = ['core', 'data', 'flow', 'tool', 'output', 'eval', 'integration']
+const CATEGORY_ORDER = ['core', 'data', 'flow', 'tool', 'voice', 'output', 'eval', 'integration']
 const SIDEBAR_STORAGE_KEY = 'agentflow.sidebar.sections'
 const DEFAULT_EXPANDED: Record<string, boolean> = {
   core: true,
   data: false,
   flow: false,
   tool: false,
+  voice: false,
   output: false,
   eval: false,
   integration: false,

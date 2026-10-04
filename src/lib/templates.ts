@@ -2,7 +2,7 @@ export interface FlowTemplate {
   id: string
   name: string
   description: string
-  category: 'rag' | 'agent' | 'eval' | 'pipeline'
+  category: 'rag' | 'agent' | 'voice' | 'eval' | 'pipeline'
   yaml: string
   preferredLayoutDirection?: 'TB' | 'LR'
 }
@@ -928,6 +928,345 @@ edges:
     to: approval
     fromHandle: read
     toHandle: context`,
+  },
+
+  // ── Voice ───────────────────────────────────────────────────────────────────
+
+  {
+    id: 'voice-agent-realtime',
+    name: 'Voice Agent (Realtime)',
+    description: 'Phone agent on a single speech-to-speech model: it listens, calls tools, and speaks in one session, with natural interruptions and the lowest latency.',
+    category: 'voice',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: Voice Agent (Realtime)
+nodes:
+  - id: call
+    type: trigger
+    label: Inbound Call
+    config:
+      triggerType: phone-call
+      source: telephony provider inbound number
+  - id: voice
+    type: realtimeVoice
+    label: Booking Agent
+    config:
+      model: gpt-realtime-2.1
+      instructions: "You book and change appointments for a dental clinic. Keep every reply to one or two short sentences — this is a phone call. Confirm dates and times back to the caller."
+      turnDetection: semantic
+      bargeIn: true
+    note: "Listening, reasoning, tool calls, and speech in one streaming session — no STT/TTS hand-offs"
+  - id: calendar
+    type: mcpServer
+    label: Scheduling MCP
+    config:
+      serverName: clinic-calendar
+      transport: http
+      allowedTools: find_slots, book_appointment, reschedule
+  - id: caller
+    type: output
+    label: Caller
+    config:
+      destination: caller
+      format: audio
+      streaming: true
+  - id: call_log
+    type: output
+    label: Call Log
+    config:
+      destination: database
+      format: json
+  - id: tracing
+    type: tracing
+    label: Call Tracing
+    config:
+      redactPII: true
+    note: "Per-turn timings feed latency monitoring"
+edges:
+  - from: call
+    to: voice
+    fromHandle: audio
+    toHandle: audio
+  - from: voice
+    to: calendar
+    fromHandle: toolRequests
+    toHandle: call
+  - from: calendar
+    to: voice
+    fromHandle: result
+    toHandle: tools
+    kind: loopback
+  - from: voice
+    to: caller
+    fromHandle: audio
+    toHandle: input
+  - from: voice
+    to: call_log
+    fromHandle: transcript
+    toHandle: input`,
+  },
+
+  {
+    id: 'voice-agent-cascade',
+    name: 'Voice Agent (Cascade)',
+    description: 'Phone agent built from separate stages — turn detection, speech-to-text, a text agent with tools, and text-to-speech — for full control over each step.',
+    category: 'voice',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: Voice Agent (Cascade)
+nodes:
+  - id: call
+    type: trigger
+    label: Inbound Call
+    config:
+      triggerType: phone-call
+  - id: turns
+    type: turnDetection
+    label: Turn Detection
+    config:
+      mode: semantic
+      eagerness: medium
+      bargeIn: true
+    note: "Decides when the caller has finished — and stops playback when they interrupt"
+  - id: stt
+    type: speechToText
+    label: Speech-to-Text
+    config:
+      model: nova-3-general
+      streaming: true
+      keyterms: clinic name, dentist names, insurance providers
+    note: "With Deepgram Flux, turn detection is built in and the separate node can go"
+  - id: agent
+    type: agent
+    label: Booking Agent
+    config:
+      model: claude-haiku-4-5
+      instructions: "You book and change appointments for a dental clinic. Keep replies to one or two short sentences — they will be spoken."
+      maxIterations: 5
+    note: "A fast model keeps turn latency down; any text LLM fits here"
+  - id: calendar
+    type: mcpServer
+    label: Scheduling MCP
+    config:
+      serverName: clinic-calendar
+      transport: http
+      allowedTools: find_slots, book_appointment, reschedule
+  - id: guard
+    type: guardrails
+    label: Reply Guard
+    config:
+      checks: pii, medical advice
+    note: "Text between stages is where the cascade earns its keep: check before speaking"
+  - id: tts
+    type: textToSpeech
+    label: Text-to-Speech
+    config:
+      model: sonic-3.6
+      streaming: true
+      format: mulaw
+  - id: caller
+    type: output
+    label: Caller
+    config:
+      destination: caller
+      format: audio
+      streaming: true
+edges:
+  - from: call
+    to: turns
+    fromHandle: audio
+    toHandle: audio
+  - from: turns
+    to: stt
+    fromHandle: speech
+    toHandle: audio
+  - from: stt
+    to: agent
+    fromHandle: transcript
+    toHandle: prompt
+  - from: agent
+    to: calendar
+    fromHandle: toolRequests
+    toHandle: call
+  - from: calendar
+    to: agent
+    fromHandle: result
+    toHandle: tools
+    kind: loopback
+  - from: agent
+    to: guard
+    fromHandle: response
+    toHandle: input
+  - from: guard
+    to: tts
+    fromHandle: passed
+    toHandle: text
+  - from: tts
+    to: caller
+    fromHandle: audio
+    toHandle: input`,
+  },
+
+  {
+    id: 'voice-agent-eval',
+    name: 'Voice Agent Eval',
+    description: 'Replay recorded calls through the voice pipeline and score transcription (WER, entity errors), latency and turn-taking, speech quality, and task completion.',
+    category: 'voice',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: Voice Agent Eval
+nodes:
+  - id: calls
+    type: evalDataset
+    label: Recorded Calls
+    config:
+      source: file
+      path: data/call_recordings.jsonl
+      version: v2
+      inputField: audio_path
+      expectedField: reference_transcript
+      split: test
+    note: "Each case: caller audio, a human reference transcript, and the expected outcome. A User Simulator + Text-to-Speech can generate cases instead."
+  - id: cases
+    type: loop
+    label: For Each Call
+    config:
+      mode: parallel
+      maxConcurrency: 8
+  - id: stt
+    type: speechToText
+    label: Speech-to-Text (under test)
+    config:
+      model: flux-general-en
+      keyterms: clinic name, dentist names
+  - id: agent
+    type: agent
+    label: Booking Agent (under test)
+    config:
+      model: claude-haiku-4-5
+  - id: tts
+    type: textToSpeech
+    label: Text-to-Speech (under test)
+    config:
+      model: sonic-3.6
+  - id: asr
+    type: asrEval
+    label: Transcription Accuracy
+    config:
+      keyterms: names, dates, times, phone numbers
+    note: "Entity error rate catches a misheard appointment time that barely moves WER"
+  - id: latency
+    type: voiceLatencyEval
+    label: Latency & Turn-Taking
+    config:
+      percentile: p95
+      latencyBudgetMs: 800
+  - id: speech
+    type: ttsQualityEval
+    label: Speech Quality
+    config:
+      entityPronunciation: true
+  - id: outcome
+    type: taskCompletion
+    label: Booked Correctly
+  - id: gate
+    type: thresholdGate
+    label: Release Gate
+    config:
+      threshold: 0.9
+  - id: report
+    type: output
+    label: Eval Report
+    config:
+      destination: file
+      format: json
+  - id: alert
+    type: output
+    label: Regression Alert
+    config:
+      destination: notification
+      format: text
+edges:
+  - from: calls
+    to: cases
+    fromHandle: cases
+    toHandle: items
+  # Pipeline under test
+  - from: cases
+    to: stt
+    fromHandle: item
+    toHandle: audio
+  - from: stt
+    to: agent
+    fromHandle: transcript
+    toHandle: prompt
+  - from: agent
+    to: tts
+    fromHandle: response
+    toHandle: text
+  # Scoring
+  - from: stt
+    to: asr
+    fromHandle: transcript
+    toHandle: transcript
+  - from: cases
+    to: asr
+    fromHandle: item
+    toHandle: reference
+  - from: stt
+    to: latency
+    fromHandle: details
+    toHandle: trace
+  - from: tts
+    to: latency
+    fromHandle: audio
+    toHandle: trace
+  - from: tts
+    to: speech
+    fromHandle: audio
+    toHandle: audio
+  - from: agent
+    to: speech
+    fromHandle: response
+    toHandle: text
+  - from: agent
+    to: outcome
+    fromHandle: response
+    toHandle: result
+  - from: cases
+    to: outcome
+    fromHandle: item
+    toHandle: taskDescription
+  - from: asr
+    to: cases
+    fromHandle: scores
+    toHandle: itemResult
+    kind: loopback
+  - from: latency
+    to: cases
+    fromHandle: metrics
+    toHandle: itemResult
+    kind: loopback
+  - from: speech
+    to: cases
+    fromHandle: scores
+    toHandle: itemResult
+    kind: loopback
+  - from: outcome
+    to: cases
+    fromHandle: score
+    toHandle: itemResult
+    kind: loopback
+  # Aggregate
+  - from: cases
+    to: gate
+    fromHandle: results
+    toHandle: score
+  - from: gate
+    to: report
+    fromHandle: pass
+    toHandle: input
+  - from: gate
+    to: alert
+    fromHandle: fail
+    toHandle: input`,
   },
 
   // ── Evaluation ──────────────────────────────────────────────────────────────
@@ -1916,6 +2255,7 @@ edges:
 export const CATEGORY_LABELS: Record<FlowTemplate['category'], string> = {
   rag: 'RAG Pipelines',
   agent: 'Agents',
+  voice: 'Voice',
   eval: 'Evaluation',
   pipeline: 'Pipelines',
 }

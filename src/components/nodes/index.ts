@@ -39,6 +39,13 @@ import AgentEfficiencyNode from './AgentEfficiencyNode'
 import CharacterNode from './CharacterNode'
 import GenericIntegrationNode from './GenericIntegrationNode'
 import TriggerNode from './TriggerNode'
+import SpeechToTextNode from './SpeechToTextNode'
+import TextToSpeechNode from './TextToSpeechNode'
+import TurnDetectionNode from './TurnDetectionNode'
+import RealtimeVoiceNode from './RealtimeVoiceNode'
+import ASREvalNode from './ASREvalNode'
+import VoiceLatencyEvalNode from './VoiceLatencyEvalNode'
+import TTSQualityEvalNode from './TTSQualityEvalNode'
 import RedTeamNode from './RedTeamNode'
 import SafetyEvalNode from './SafetyEvalNode'
 import ExperimentCompareNode from './ExperimentCompareNode'
@@ -97,6 +104,11 @@ export const nodeTypes: NodeTypes = {
   webSearch: WebSearchNode,
   mcpServer: MCPServerNode,
   codeExec: CodeExecNode,
+  // Voice
+  speechToText: SpeechToTextNode,
+  turnDetection: TurnDetectionNode,
+  realtimeVoice: RealtimeVoiceNode,
+  textToSpeech: TextToSpeechNode,
   // Output
   outputParser: OutputParserNode,
   evaluator: EvaluatorNode,
@@ -119,6 +131,9 @@ export const nodeTypes: NodeTypes = {
   ragEvaluator: RAGEvaluatorNode,
   safetyEval: SafetyEvalNode,
   experimentCompare: ExperimentCompareNode,
+  asrEval: ASREvalNode,
+  voiceLatencyEval: VoiceLatencyEvalNode,
+  ttsQualityEval: TTSQualityEvalNode,
   // Agent evaluation
   singleTurnEval: SingleTurnEvalNode,
   multiTurnEval: MultiTurnEvalNode,

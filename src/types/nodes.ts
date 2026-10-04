@@ -9,6 +9,7 @@ export type PortType =
   | 'tool-call'
   | 'memory'
   | 'structured'
+  | 'audio'
   | 'any'
 
 export interface PortDefinition {
@@ -78,7 +79,7 @@ export interface NodeDefinition {
   /** Short description shown in the sidebar palette */
   description: string
   /** Sidebar category for grouping */
-  category: 'core' | 'data' | 'flow' | 'tool' | 'output' | 'eval' | 'character' | 'integration'
+  category: 'core' | 'data' | 'flow' | 'tool' | 'voice' | 'output' | 'eval' | 'character' | 'integration'
   /**
    * Optional config-driven ports (e.g. a router whose branch count is configurable).
    * When present, it overrides `inputs` / `outputs`, which remain the defaults shown to the AI.

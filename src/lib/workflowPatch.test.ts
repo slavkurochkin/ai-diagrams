@@ -68,6 +68,24 @@ describe('resolveEdgeHandles', () => {
     expect(resolveEdgeHandles('agent', 'safetyEval', null, null)).toEqual({ ok: true, sourceHandle: 'response', targetHandle: 'response' })
   })
 
+  it('wires a cascaded voice pipeline and a realtime voice model by default', () => {
+    const phone = { triggerType: 'phone-call' }
+    expect(resolveEdgeHandles('trigger', 'turnDetection', null, null, phone)).toEqual({ ok: true, sourceHandle: 'audio', targetHandle: 'audio' })
+    expect(resolveEdgeHandles('turnDetection', 'speechToText', null, null)).toEqual({ ok: true, sourceHandle: 'speech', targetHandle: 'audio' })
+    expect(resolveEdgeHandles('speechToText', 'agent', null, null)).toEqual({ ok: true, sourceHandle: 'transcript', targetHandle: 'prompt' })
+    expect(resolveEdgeHandles('agent', 'textToSpeech', null, null)).toEqual({ ok: true, sourceHandle: 'response', targetHandle: 'text' })
+    expect(resolveEdgeHandles('textToSpeech', 'output', null, null)).toEqual({ ok: true, sourceHandle: 'audio', targetHandle: 'input' })
+    expect(resolveEdgeHandles('trigger', 'realtimeVoice', null, null, phone)).toEqual({ ok: true, sourceHandle: 'audio', targetHandle: 'audio' })
+    expect(resolveEdgeHandles('realtimeVoice', 'mcpServer', null, null)).toEqual({ ok: true, sourceHandle: 'toolRequests', targetHandle: 'call' })
+    expect(resolveEdgeHandles('realtimeVoice', 'output', null, null)).toEqual({ ok: true, sourceHandle: 'audio', targetHandle: 'input' })
+  })
+
+  it('wires voice evals by default', () => {
+    expect(resolveEdgeHandles('speechToText', 'asrEval', null, null)).toEqual({ ok: true, sourceHandle: 'transcript', targetHandle: 'transcript' })
+    expect(resolveEdgeHandles('textToSpeech', 'ttsQualityEval', null, null)).toEqual({ ok: true, sourceHandle: 'audio', targetHandle: 'audio' })
+    expect(resolveEdgeHandles('asrEval', 'loop', null, null)).toEqual({ ok: true, sourceHandle: 'scores', targetHandle: 'itemResult' })
+  })
+
   it('uses node config for dynamic ports', () => {
     expect(resolveEdgeHandles('router', 'llm', 'routeC', null, { routeCount: 2 }).ok).toBe(false)
     expect(resolveEdgeHandles('router', 'llm', 'routeC', null, { routeCount: 3 })).toEqual({ ok: true, sourceHandle: 'routeC', targetHandle: 'prompt' })

@@ -76,6 +76,41 @@ export const MODELS_WITH_TEMPERATURE: string[] = [
   'custom',
 ]
 
+// ── Voice models ─────────────────────────────────────────────────────────────
+// Checked against vendor docs, Oct 2026 (OpenAI, Deepgram, ElevenLabs, Cartesia, Google).
+
+export const DEFAULT_STT_MODEL = 'flux-general-en'
+
+export const STT_MODEL_OPTIONS: SelectOption[] = [
+  { label: 'Deepgram Flux (voice agents, built-in turn detection)', value: 'flux-general-en' },
+  { label: 'Deepgram Nova-3', value: 'nova-3-general' },
+  { label: 'OpenAI GPT Transcribe', value: 'gpt-transcribe' },
+  { label: 'ElevenLabs Scribe v2 Realtime', value: 'scribe_v2_realtime' },
+  { label: 'Whisper large-v3 (self-hosted)', value: 'whisper-large-v3' },
+  { label: 'Custom', value: 'custom' },
+]
+
+/** STT models that detect end-of-turn themselves (a separate Turn Detection node is optional). */
+export const STT_MODELS_WITH_TURN_DETECTION: string[] = ['flux-general-en']
+
+export const DEFAULT_TTS_MODEL = 'sonic-3.6'
+
+export const TTS_MODEL_OPTIONS: SelectOption[] = [
+  { label: 'Cartesia Sonic 3.6', value: 'sonic-3.6' },
+  { label: 'ElevenLabs Flash v2.5 (lowest latency)', value: 'eleven_flash_v2_5' },
+  { label: 'OpenAI GPT-4o Mini TTS', value: 'gpt-4o-mini-tts' },
+  { label: 'Custom', value: 'custom' },
+]
+
+export const DEFAULT_REALTIME_MODEL = 'gpt-realtime-2.1'
+
+export const REALTIME_MODEL_OPTIONS: SelectOption[] = [
+  { label: 'OpenAI GPT-Realtime 2.1', value: 'gpt-realtime-2.1' },
+  { label: 'Gemini 3.8 Live', value: 'gemini-3.8-live' },
+  { label: 'Gemini 3.8 Live Extended Thinking', value: 'gemini-3.8-live-extended-thinking' },
+  { label: 'Custom', value: 'custom' },
+]
+
 /** Models used as evaluators — same list; judges should usually be the strongest tier. */
 export const JUDGE_MODEL_OPTIONS: SelectOption[] = CHAT_MODEL_OPTIONS
 
@@ -162,6 +197,20 @@ export const LEGACY_MODEL_ALIASES: Record<string, string> = {
   'cohere-rerank-3': 'cohere-rerank-3.5',
   'cohere-rerank-3-nimble': 'cohere-rerank-3.5',
   'bge-reranker-large': 'bge-reranker-v2-m3',
+  // Voice
+  'whisper-1': 'gpt-transcribe',
+  'gpt-4o-transcribe': 'gpt-transcribe',
+  'gpt-4o-mini-transcribe': 'gpt-transcribe',
+  'nova-3': 'nova-3-general',
+  'nova-2': 'nova-3-general',
+  scribe_v2: 'scribe_v2_realtime',
+  'tts-1': 'gpt-4o-mini-tts',
+  'tts-1-hd': 'gpt-4o-mini-tts',
+  'gpt-realtime': 'gpt-realtime-2.1',
+  'gpt-realtime-2': 'gpt-realtime-2.1',
+  'gpt-4o-realtime-preview': 'gpt-realtime-2.1',
+  'gemini-2.5-flash-native-audio-preview-12-2025': 'gemini-3.8-live',
+  'gemini-3.1-flash-live-preview': 'gemini-3.8-live',
   // Web search engines
   bing: 'brave',
 }

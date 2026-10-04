@@ -542,15 +542,12 @@ const HANDLE_ALIASES_BY_NODE_TYPE: Record<string, { inputs?: Record<string, stri
   },
 }
 
-/**
- * Default handles for specific source → target pairs, used when the caller omits them and
- * the generic preference lists would pick the wrong port (e.g. agent → user simulator is
- * the agent's reply, not its tool requests).
- */
-const DEFAULT_HANDLES_BY_PAIR: Record<string, { source: string; target: string }> = {
-  'agent->userSimulator': { source: 'response', target: 'agentReply' },
-  'subAgent->userSimulator': { source: 'result', target: 'agentReply' },
-  'llm->userSimulator': { source: 'response', target: 'agentReply' },
+/** Nodes that consume a whole run (a loop's collected `results`), not one item. */
+const RUN_LEVEL_TARGETS = new Set(['thresholdGate', 'experimentCompare', 'monitor', 'output', 'humanApproval'])
+
+/** Targets that receive an agent's tool requests by default (tools, and sub-agents called like tools). */
+function isToolTarget(nodeType: string): boolean {
+  return nodeType === 'subAgent' || getNodeDefinition(nodeType)?.category === 'tool'
 }
 
 /**
@@ -604,16 +601,26 @@ export function resolveEdgeHandles(
   if (outIds.length === 0) return { ok: false, error: `source type "${srcType}" has no outputs` }
   if (inIds.length === 0) return { ok: false, error: `target type "${tgtType}" has no inputs` }
 
-  const pair = DEFAULT_HANDLES_BY_PAIR[`${srcType}->${tgtType}`]
-  if (pair) {
-    sourceHandle ??= pair.source
-    targetHandle ??= pair.target
+  // Loops: run-level consumers take the collected results; evaluators report back per item.
+  // (Sources with no inputs — datasets, samplers, red-team generators — still feed `items`.)
+  if (srcType === 'loop' && sourceHandle === null && RUN_LEVEL_TARGETS.has(tgtType)) sourceHandle = 'results'
+  if (tgtType === 'loop' && targetHandle === null) {
+    const srcDef = getNodeDefinition(srcType)
+    if (srcDef?.category === 'eval' && srcDef.inputs.length > 0) targetHandle = 'itemResult'
   }
+
+  // When we pick the source handle, an agent's tool requests only go to tools; anything else
+  // (outputs, guardrails, evaluators, simulators) gets its reply.
+  const nonToolOutIds = outIds.filter((id) => id !== 'toolRequests')
+  const defaultOutIds = isToolTarget(tgtType) || nonToolOutIds.length === 0 ? outIds : nonToolOutIds
 
   let sh: string
   // A side is "flexible" when we picked its handle (omitted or guessed) rather than the caller.
   let shFlexible = false
   let thFlexible = false
+  // Whether our pick came from a preference (or was the only port) rather than "first port" fallback.
+  let shPreferred = true
+  let thPreferred = true
   if (sourceHandle !== null) {
     const mapped = applyHandleAlias(srcType, 'outputs', sourceHandle)
     if (outIds.includes(mapped)) {
@@ -627,8 +634,10 @@ export function resolveEdgeHandles(
       sh = guess
     }
   } else {
-    shFlexible = outIds.length > 1
-    sh = outIds.length === 1 ? outIds[0] : (OUTPUT_HANDLE_PREFS.find((p) => outIds.includes(p)) ?? outIds[0])
+    shFlexible = defaultOutIds.length > 1
+    const preferred = OUTPUT_HANDLE_PREFS.find((p) => defaultOutIds.includes(p))
+    shPreferred = defaultOutIds.length === 1 || preferred !== undefined
+    sh = defaultOutIds.length === 1 ? defaultOutIds[0] : (preferred ?? defaultOutIds[0])
   }
 
   let th: string
@@ -646,7 +655,16 @@ export function resolveEdgeHandles(
     }
   } else {
     thFlexible = inIds.length > 1
-    th = inIds.length === 1 ? inIds[0] : (INPUT_HANDLE_PREFS.find((p) => inIds.includes(p)) ?? inIds[0])
+    const preferred = INPUT_HANDLE_PREFS.find((p) => inIds.includes(p))
+    thPreferred = inIds.length === 1 || preferred !== undefined
+    th = inIds.length === 1 ? inIds[0] : (preferred ?? inIds[0])
+  }
+
+  // Same-named ports are the strongest signal when we're choosing the input
+  // (agent.response → singleTurnEval.response, not .query).
+  if (targetHandle === null && inIds.includes(sh) && th !== sh) {
+    th = sh
+    thPreferred = true
   }
 
   // Port types must be compatible. If we chose a handle, try the next-best compatible one.
@@ -655,14 +673,26 @@ export function resolveEdgeHandles(
   const fits = (s: string, t: string) => checkConnection(src, s, tgt, t).ok
   if (fits(sh, th)) return { ok: true, sourceHandle: sh, targetHandle: th }
 
-  const outCandidates = shFlexible ? preferenceOrder(outIds, OUTPUT_HANDLE_PREFS) : [sh]
+  const outCandidates = shFlexible ? preferenceOrder(defaultOutIds, OUTPUT_HANDLE_PREFS) : [sh]
   const inCandidates = thFlexible ? preferenceOrder(inIds, INPUT_HANDLE_PREFS) : [th]
-  // Keep the caller's (or first-choice) handle on one side when possible.
-  for (const t of thFlexible ? [th, ...inCandidates] : inCandidates) {
-    for (const s of shFlexible ? [sh, ...outCandidates] : outCandidates) {
-      if (fits(s, t)) return { ok: true, sourceHandle: s, targetHandle: t }
+  // Pick the best compatible pair: an exact type match beats an `any` port; keeping the source's
+  // preferred output (its main result) matters more than keeping the preferred input; matching
+  // port names (conversation → conversation) break remaining ties.
+  let best: { s: string; t: string; score: number } | null = null
+  for (const s of outCandidates) {
+    for (const t of inCandidates) {
+      const conn = checkConnection(src, s, tgt, t)
+      if (!conn.ok) continue
+      const exact = conn.sourcePort.type !== 'any' && conn.sourcePort.type === conn.targetPort.type
+      const score =
+        (exact ? 2 : 0) +
+        (s === sh && shPreferred ? 1.5 : 0) +
+        (t === th && thPreferred ? 1 : 0) +
+        (s === t ? 0.5 : 0)
+      if (!best || score > best.score) best = { s, t, score }
     }
   }
+  if (best) return { ok: true, sourceHandle: best.s, targetHandle: best.t }
   const failure = checkConnection(src, sh, tgt, th)
   return { ok: false, error: failure.ok ? `no compatible ports from ${srcType} to ${tgtType}` : failure.error }
 }

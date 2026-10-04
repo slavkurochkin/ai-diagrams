@@ -13,6 +13,10 @@ import {
   AssertionIcon,
   EvalDatasetIcon,
   UserSimulatorIcon,
+  RedTeamIcon,
+  SafetyEvalIcon,
+  ExperimentCompareIcon,
+  TraceSamplerIcon,
   AgentIcon,
   PromptIcon,
   PromptTemplateIcon,
@@ -79,9 +83,14 @@ import {
   DEFAULT_EMBEDDING_MODEL,
   DEFAULT_JUDGE_MODEL,
   DEFAULT_RERANK_MODEL,
-  EFFORT_OPTIONS,
-  MODELS_WITH_EFFORT,
+  CLAUDE_EFFORT_MODELS,
+  CLAUDE_EFFORT_OPTIONS,
+  GEMINI_THINKING_LEVEL_MODELS,
+  GEMINI_THINKING_LEVEL_OPTIONS,
   MODELS_WITH_TEMPERATURE,
+  OPENAI_REASONING_MODELS,
+  OPENAI_REASONING_OPTIONS,
+  THINKING_BUDGET_MODELS,
   EMBEDDING_MODEL_OPTIONS,
   JUDGE_MODEL_OPTIONS,
   RERANK_MODEL_OPTIONS,
@@ -146,12 +155,41 @@ const LLMNodeDefinition: CoreNodeDefinition = {
     },
     {
       key: 'effort',
+      label: 'Effort',
+      type: 'select',
+      defaultValue: 'default',
+      options: CLAUDE_EFFORT_OPTIONS,
+      visibleWhen: { key: 'model', oneOf: CLAUDE_EFFORT_MODELS },
+      description: 'Thinking depth vs. cost/latency. Low for chat and classification; high or xhigh for coding and agentic work. Thinking cannot be turned off on these models.',
+    },
+    {
+      key: 'reasoningEffort',
       label: 'Reasoning Effort',
       type: 'select',
       defaultValue: 'default',
-      options: EFFORT_OPTIONS,
-      visibleWhen: { key: 'model', oneOf: MODELS_WITH_EFFORT },
-      description: 'Thinking depth vs. cost/latency. Low for chat and classification; high or xhigh for coding and agentic work.',
+      options: OPENAI_REASONING_OPTIONS,
+      visibleWhen: { key: 'model', oneOf: OPENAI_REASONING_MODELS },
+      description: 'OpenAI reasoning.effort. Defaults: medium on GPT-5.5 / 5.6 Terra, none on GPT-5.4 Mini. Temperature is only accepted with "none".',
+    },
+    {
+      key: 'thinkingLevel',
+      label: 'Thinking Level',
+      type: 'select',
+      defaultValue: 'default',
+      options: GEMINI_THINKING_LEVEL_OPTIONS,
+      visibleWhen: { key: 'model', oneOf: GEMINI_THINKING_LEVEL_MODELS },
+      description: 'Gemini thinkingLevel. Defaults: high on 3.1 Pro, medium on 3.8 Flash. Thinking cannot be turned off.',
+    },
+    {
+      key: 'thinkingBudget',
+      label: 'Thinking Budget (tokens)',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      max: 32768,
+      step: 256,
+      visibleWhen: { key: 'model', oneOf: THINKING_BUDGET_MODELS },
+      description: '0 = thinking off. Claude Haiku 4.5 needs at least 1024 when on; Gemini 2.5 Flash allows up to 24576.',
     },
     {
       key: 'thinking',
@@ -163,7 +201,7 @@ const LLMNodeDefinition: CoreNodeDefinition = {
         { label: 'Summarized', value: 'summarized' },
         { label: 'Progress updates', value: 'updates' },
       ],
-      visibleWhen: { key: 'model', oneOf: MODELS_WITH_EFFORT },
+      visibleWhen: { key: 'model', oneOf: CLAUDE_EFFORT_MODELS },
       description: 'Whether the reasoning is surfaced to the caller. It runs either way.',
     },
     {
@@ -2001,6 +2039,257 @@ const UserSimulatorNodeDefinition: CoreNodeDefinition = {
   ],
 }
 
+const RedTeamNodeDefinition: CoreNodeDefinition = {
+  type: 'redTeam',
+  label: 'Red Team',
+  icon: RedTeamIcon,
+  description: 'Generates adversarial test cases (jailbreaks, prompt injection, PII extraction, harmful requests, over-refusal probes) that start a safety eval run.',
+  category: 'eval',
+  inputs: [],
+  outputs: [
+    { id: 'attacks', label: 'Attack Cases', type: 'any' },
+  ],
+  configFields: [
+    {
+      key: 'generatorModel',
+      label: 'Generator Model',
+      type: 'select',
+      defaultValue: DEFAULT_JUDGE_MODEL,
+      options: CHAT_MODEL_OPTIONS,
+    },
+    {
+      key: 'jailbreaks',
+      label: 'Jailbreaks',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Role-play, encoding, and instruction-override attempts.',
+    },
+    {
+      key: 'promptInjection',
+      label: 'Prompt Injection',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Instructions hidden in documents, web pages, or tool results.',
+    },
+    {
+      key: 'piiExtraction',
+      label: 'PII / Data Extraction',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'harmfulRequests',
+      label: 'Harmful Requests',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'overRefusalProbes',
+      label: 'Over-Refusal Probes',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Benign requests that look risky — the system should help, not refuse.',
+    },
+    {
+      key: 'multiTurn',
+      label: 'Multi-Turn Escalation',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Attacks that build up over several turns.',
+    },
+    {
+      key: 'casesPerCategory',
+      label: 'Cases per Category',
+      type: 'number',
+      defaultValue: 25,
+      min: 1,
+      max: 1000,
+      step: 5,
+    },
+  ],
+}
+
+const SafetyEvalNodeDefinition: CoreNodeDefinition = {
+  type: 'safetyEval',
+  label: 'Safety Eval',
+  icon: SafetyEvalIcon,
+  description: 'Scores whether the system handled an adversarial or sensitive input correctly: refused harmful requests, ignored injected instructions, leaked no PII, and did not over-refuse benign ones.',
+  category: 'eval',
+  inputs: [
+    { id: 'input', label: 'Attack / Prompt', type: 'any' },
+    { id: 'response', label: 'Response', type: 'text' },
+  ],
+  outputs: [
+    { id: 'scores', label: 'Scores', type: 'structured' },
+    { id: 'violations', label: 'Violations', type: 'text' },
+  ],
+  configFields: [
+    {
+      key: 'judgeModel',
+      label: 'Judge Model',
+      type: 'select',
+      defaultValue: DEFAULT_JUDGE_MODEL,
+      options: JUDGE_MODEL_OPTIONS,
+    },
+    {
+      key: 'harmfulCompliance',
+      label: 'Harmful Compliance',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Did it help with something it should have declined?',
+    },
+    {
+      key: 'injectionFollowed',
+      label: 'Injection Followed',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Did it act on instructions embedded in content or tool results?',
+    },
+    {
+      key: 'piiLeak',
+      label: 'PII Leak',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'overRefusal',
+      label: 'Over-Refusal',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Did it refuse a request it should have helped with?',
+    },
+    {
+      key: 'policy',
+      label: 'Policy',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: 'What the system must never do, and what it must always help with…',
+    },
+  ],
+}
+
+const ExperimentCompareNodeDefinition: CoreNodeDefinition = {
+  type: 'experimentCompare',
+  label: 'Experiment Compare',
+  icon: ExperimentCompareIcon,
+  description: 'Compares a baseline run with a candidate run over the same dataset and tests whether the difference is statistically significant — the regression check before shipping a prompt or model change.',
+  category: 'eval',
+  inputs: [
+    { id: 'baseline', label: 'Baseline Results', type: 'structured' },
+    { id: 'candidate', label: 'Candidate Results', type: 'structured' },
+  ],
+  outputs: [
+    { id: 'verdict', label: 'Verdict', type: 'structured' },
+    { id: 'report', label: 'Report', type: 'text' },
+  ],
+  configFields: [
+    {
+      key: 'primaryMetric',
+      label: 'Primary Metric',
+      type: 'text',
+      defaultValue: 'score',
+      placeholder: 'score, faithfulness, pass_rate…',
+    },
+    {
+      key: 'guardrailMetrics',
+      label: 'Must Not Regress',
+      type: 'text',
+      defaultValue: 'cost_per_run, latency_p95',
+      description: 'Comma-separated metrics the candidate may not make worse.',
+    },
+    {
+      key: 'test',
+      label: 'Statistical Test',
+      type: 'select',
+      defaultValue: 'bootstrap',
+      options: [
+        { label: 'Paired bootstrap', value: 'bootstrap' },
+        { label: 'Paired t-test', value: 't-test' },
+        { label: 'Wilcoxon signed-rank', value: 'wilcoxon' },
+        { label: 'McNemar (pass / fail)', value: 'mcnemar' },
+      ],
+    },
+    {
+      key: 'confidence',
+      label: 'Confidence',
+      type: 'select',
+      defaultValue: '0.95',
+      options: [
+        { label: '90%', value: '0.9' },
+        { label: '95%', value: '0.95' },
+        { label: '99%', value: '0.99' },
+      ],
+    },
+    {
+      key: 'minEffect',
+      label: 'Minimum Improvement',
+      type: 'number',
+      defaultValue: 0.02,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      description: 'Smallest gain on the primary metric worth shipping.',
+    },
+  ],
+}
+
+const TraceSamplerNodeDefinition: CoreNodeDefinition = {
+  type: 'traceSampler',
+  label: 'Trace Sampler',
+  icon: TraceSamplerIcon,
+  description: 'Pulls a sample of production traces from the tracing provider to run online evals on live traffic; pairs with Monitor for alerting.',
+  category: 'eval',
+  inputs: [],
+  outputs: [
+    { id: 'traces', label: 'Sampled Traces', type: 'any' },
+    { id: 'metadata', label: 'Metadata', type: 'structured' },
+  ],
+  configFields: [
+    {
+      key: 'provider',
+      label: 'Source',
+      type: 'select',
+      defaultValue: 'flow',
+      options: [
+        { label: "This flow's Tracing node", value: 'flow' },
+        { label: 'OpenTelemetry backend', value: 'opentelemetry' },
+        { label: 'Langfuse', value: 'langfuse' },
+        { label: 'LangSmith', value: 'langsmith' },
+        { label: 'Arize Phoenix', value: 'phoenix' },
+        { label: 'Datadog', value: 'datadog' },
+      ],
+    },
+    {
+      key: 'sampleRate',
+      label: 'Sample Rate',
+      type: 'slider',
+      defaultValue: 0.05,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      description: 'Fraction of traces evaluated. Cheap checks can run on all; LLM judges usually need sampling.',
+    },
+    {
+      key: 'filter',
+      label: 'Filter',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'route = billing AND user_feedback = negative',
+    },
+    {
+      key: 'schedule',
+      label: 'Schedule',
+      type: 'select',
+      defaultValue: 'continuous',
+      options: [
+        { label: 'Continuous (as traces arrive)', value: 'continuous' },
+        { label: 'Hourly batch', value: 'hourly' },
+        { label: 'Daily batch', value: 'daily' },
+      ],
+    },
+  ],
+}
+
 // ── Evaluation strategy nodes ─────────────────────────────────────────────────
 
 const LLMJudgeNodeDefinition: CoreNodeDefinition = {
@@ -2373,7 +2662,7 @@ const RAGEvaluatorNodeDefinition: CoreNodeDefinition = {
   type: 'ragEvaluator',
   label: 'RAG Evaluator',
   icon: RAGEvalIcon,
-  description: 'Measures retrieval and generation quality: Recall@k, Precision@k, MRR, NDCG@k, Faithfulness, Context Precision/Recall.',
+  description: 'Measures retrieval and generation quality: Recall@k, Precision@k, F1@k, MRR, NDCG@k, Faithfulness, Answer Relevancy, Answer F1 / Exact Match, Context Precision/Recall.',
   category: 'eval',
   inputs: [
     { id: 'query',     label: 'Query',     type: 'text' },
@@ -2407,6 +2696,13 @@ const RAGEvaluatorNodeDefinition: CoreNodeDefinition = {
       type: 'boolean',
       defaultValue: true,
       description: 'Fraction of top-k results that are relevant',
+    },
+    {
+      key: 'f1AtK',
+      label: 'F1@k',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Harmonic mean of Precision@k and Recall@k',
     },
     {
       key: 'mrr',
@@ -2449,6 +2745,20 @@ const RAGEvaluatorNodeDefinition: CoreNodeDefinition = {
       type: 'boolean',
       defaultValue: false,
       description: 'Did retrieval surface all information needed to answer?',
+    },
+    {
+      key: 'answerF1',
+      label: 'Answer F1',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Token-overlap F1 between the answer and the reference (SQuAD-style, needs Reference)',
+    },
+    {
+      key: 'exactMatch',
+      label: 'Exact Match',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Normalised answer equals the reference (best for short factual answers)',
     },
     {
       key: 'judgeModel',
@@ -3781,6 +4091,8 @@ const NODE_DEFINITIONS: NodeDefinition[] = ([
   MonitorNodeDefinition,
   // Evaluation strategies
   EvalDatasetNodeDefinition,
+  TraceSamplerNodeDefinition,
+  RedTeamNodeDefinition,
   AssertionNodeDefinition,
   LLMJudgeNodeDefinition,
   RubricNodeDefinition,
@@ -3791,6 +4103,8 @@ const NODE_DEFINITIONS: NodeDefinition[] = ([
   ThresholdGateNodeDefinition,
   HumanRaterNodeDefinition,
   RAGEvaluatorNodeDefinition,
+  SafetyEvalNodeDefinition,
+  ExperimentCompareNodeDefinition,
   // Agent evaluation
   SingleTurnEvalNodeDefinition,
   MultiTurnEvalNodeDefinition,
@@ -3864,7 +4178,25 @@ export function upgradeLegacyConfig<T extends Record<string, unknown>>(type: str
     const next = resolveLegacySelectValue(v, field.options)
     if (next !== v) (out ??= { ...config })[field.key] = next
   }
-  return (out ?? config) as T
+  const upgraded = (out ?? config) as T
+  return type === 'llm' ? migrateLlmReasoning(upgraded) : upgraded
+}
+
+/**
+ * Earlier versions had one Claude-scale `effort` field for every model. Move a value set on a
+ * GPT or Gemini model into that provider's own field, mapped to the nearest level it supports.
+ */
+function migrateLlmReasoning<T extends Record<string, unknown>>(config: T): T {
+  const model = String(config.model ?? '')
+  const effort = config.effort
+  if (typeof effort !== 'string' || effort === 'default' || CLAUDE_EFFORT_MODELS.includes(model)) return config
+  const out: Record<string, unknown> = { ...config, effort: 'default' }
+  if (OPENAI_REASONING_MODELS.includes(model) && (config.reasoningEffort ?? 'default') === 'default') {
+    out.reasoningEffort = effort === 'max' && model !== 'gpt-5.6-terra' ? 'xhigh' : effort
+  } else if (GEMINI_THINKING_LEVEL_MODELS.includes(model) && (config.thinkingLevel ?? 'default') === 'default') {
+    out.thinkingLevel = effort === 'xhigh' || effort === 'max' ? 'high' : effort
+  }
+  return out as T
 }
 
 export {

@@ -10,6 +10,7 @@ function computeMetrics(retrieved: boolean[], totalRelevant: number) {
 
   const precision = k === 0 ? 0 : tp / k
   const recall = totalRelevant === 0 ? 0 : Math.min(tp / totalRelevant, 1)
+  const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall)
 
   // MRR — reciprocal rank of FIRST relevant result
   const firstIdx = retrieved.indexOf(true)
@@ -24,7 +25,7 @@ function computeMetrics(retrieved: boolean[], totalRelevant: number) {
   )
   const ndcg = idcg === 0 ? 0 : dcg / idcg
 
-  return { precision, recall, mrr, ndcg, tp }
+  return { precision, recall, f1, mrr, ndcg, tp }
 }
 
 // ── Progress bar ───────────────────────────────────────────────────────────────
@@ -275,6 +276,13 @@ export default function RAGEvalPanel({ open, onClose, initialK = 5 }: RAGEvalPan
                       fraction: `${metrics.tp} / ${totalRelevant}`,
                       color: '#3B82F6',
                       explain: `Found ${metrics.tp} of ${totalRelevant} relevant docs in corpus`,
+                    },
+                    {
+                      name: `F1@${k}`,
+                      value: metrics.f1,
+                      fraction: metrics.f1.toFixed(3),
+                      color: '#06B6D4',
+                      explain: 'Harmonic mean of precision and recall — high only when both are',
                     },
                     {
                       name: 'MRR',

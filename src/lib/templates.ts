@@ -2,7 +2,7 @@ export interface FlowTemplate {
   id: string
   name: string
   description: string
-  category: 'rag' | 'agent' | 'voice' | 'eval' | 'pipeline'
+  category: 'rag' | 'agent' | 'voice' | 'mcp' | 'eval' | 'pipeline'
   yaml: string
   preferredLayoutDirection?: 'TB' | 'LR'
 }
@@ -1475,6 +1475,429 @@ edges:
     toHandle: input`,
   },
 
+  // ── MCP servers ─────────────────────────────────────────────────────────────
+
+  {
+    id: 'multi-tenant-mcp-server',
+    name: 'Multi-Tenant MCP Server',
+    description: 'An MCP server many clients share: OAuth per tenant, rate limits, tools routed by name with scopes and safety hints, tenant-isolated data, an audit log for writes, tracing, and alerting.',
+    category: 'mcp',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: Multi-Tenant MCP Server
+nodes:
+  - id: clients
+    type: trigger
+    label: MCP Clients
+    config:
+      triggerType: api
+      source: Claude, ChatGPT, IDEs, and in-house agents
+  - id: endpoint
+    type: mcpEndpoint
+    label: CRM MCP Server
+    config:
+      serverName: acme-crm
+      transport: http
+      sessions: stateless
+      exposeTools: true
+      exposeResources: true
+    note: "Stateless Streamable HTTP so any instance can serve any request"
+  - id: auth
+    type: auth
+    label: OAuth
+    config:
+      method: oauth
+      authorizationServer: https://auth.acme.example
+      tenantFrom: "token claim: org_id"
+      scopes: "crm:read\\ncrm:write"
+    note: "Every call carries a tenant from here on — tools never trust a tenant id from the arguments"
+  - id: limiter
+    type: rateLimiter
+    label: Per-Tenant Limits
+    config:
+      scope: tenant
+      limit: 120
+      window: minute
+      burst: 20
+  - id: router
+    type: router
+    label: Tool Router
+    config:
+      routeCount: 3
+      routeLabels: search_contacts, create_contact, delete_contact
+      conditionType: equality
+      condition: tool name
+    note: "Unknown tools fall through to Default"
+  - id: search
+    type: exposedTool
+    label: search_contacts
+    config:
+      toolName: search_contacts
+      toolDescription: "Find contacts by name, email, or company. Call this before create_contact to avoid duplicates."
+      inputSchema: '{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}'
+      requiredScope: crm:read
+      readOnly: true
+  - id: create
+    type: exposedTool
+    label: create_contact
+    config:
+      toolName: create_contact
+      toolDescription: "Create a contact. Search first; this does not merge duplicates."
+      inputSchema: '{"type":"object","properties":{"name":{"type":"string"},"email":{"type":"string"}},"required":["name"]}'
+      requiredScope: crm:write
+      readOnly: false
+  - id: delete
+    type: exposedTool
+    label: delete_contact
+    config:
+      toolName: delete_contact
+      toolDescription: "Permanently delete a contact by id. Confirm with the user first."
+      inputSchema: '{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}'
+      requiredScope: crm:write
+      readOnly: false
+      destructive: true
+    note: "Marked destructive so clients ask the user before calling"
+  - id: db
+    type: genericDatabase
+    label: CRM Database
+    description: "Postgres with row-level security on tenant_id — a tool cannot read another tenant's rows even if it tries"
+  - id: responses
+    type: output
+    label: Tool Results
+    config:
+      destination: api
+      format: json
+  - id: errors
+    type: output
+    label: Errors (401 / 403 / 429 / unknown tool)
+    config:
+      destination: api
+      format: json
+  - id: audit
+    type: output
+    label: Audit Log
+    config:
+      destination: database
+      format: json
+    note: "Every write: tenant, client, tool, arguments, result"
+  - id: tracing
+    type: tracing
+    label: Tracing
+    config:
+      redactPII: true
+  - id: monitor
+    type: monitor
+    label: Error-Rate Monitor
+    config:
+      metric: errorRate
+      operator: ">"
+      threshold: 2
+      window: 5m
+  - id: page
+    type: output
+    label: Page On-Call
+    config:
+      destination: notification
+      format: text
+edges:
+  - from: clients
+    to: endpoint
+    fromHandle: payload
+    toHandle: requests
+  - from: endpoint
+    to: auth
+    fromHandle: calls
+    toHandle: request
+  - from: auth
+    to: limiter
+    fromHandle: authorized
+    toHandle: request
+  - from: auth
+    to: errors
+    fromHandle: rejected
+    toHandle: input
+  - from: limiter
+    to: router
+    fromHandle: allowed
+    toHandle: input
+  - from: limiter
+    to: errors
+    fromHandle: throttled
+    toHandle: input
+  - from: router
+    to: search
+    fromHandle: routeA
+    toHandle: call
+  - from: router
+    to: create
+    fromHandle: routeB
+    toHandle: call
+  - from: router
+    to: delete
+    fromHandle: routeC
+    toHandle: call
+  - from: router
+    to: errors
+    fromHandle: default
+    toHandle: input
+  # Tenant-scoped backend calls
+  - from: search
+    to: db
+    fromHandle: backend
+    toHandle: data
+  - from: create
+    to: db
+    fromHandle: backend
+    toHandle: data
+  - from: delete
+    to: db
+    fromHandle: backend
+    toHandle: data
+  - from: db
+    to: search
+    fromHandle: data
+    toHandle: backendResult
+    kind: loopback
+  - from: db
+    to: create
+    fromHandle: data
+    toHandle: backendResult
+    kind: loopback
+  - from: db
+    to: delete
+    fromHandle: data
+    toHandle: backendResult
+    kind: loopback
+  # Results back to the client
+  - from: search
+    to: endpoint
+    fromHandle: result
+    toHandle: results
+    kind: loopback
+  - from: create
+    to: endpoint
+    fromHandle: result
+    toHandle: results
+    kind: loopback
+  - from: delete
+    to: endpoint
+    fromHandle: result
+    toHandle: results
+    kind: loopback
+  - from: endpoint
+    to: responses
+    fromHandle: responses
+    toHandle: input
+  # Writes are audited
+  - from: create
+    to: audit
+    fromHandle: result
+    toHandle: input
+  - from: delete
+    to: audit
+    fromHandle: result
+    toHandle: input
+  # Operations
+  - from: endpoint
+    to: monitor
+    fromHandle: responses
+    toHandle: metrics
+  - from: monitor
+    to: page
+    fromHandle: alert
+    toHandle: input`,
+  },
+
+  {
+    id: 'mcp-server-eval',
+    name: 'MCP Server Eval',
+    description: 'Run the same tasks through several client models against your MCP server and score, per model, whether they pick the right tools with the right arguments — the main quality risk for a shared server.',
+    category: 'mcp',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: MCP Server Eval
+nodes:
+  - id: tasks
+    type: evalDataset
+    label: Tool-Use Tasks
+    config:
+      source: file
+      path: data/mcp_tasks.jsonl
+      version: v1
+      inputField: task
+      expectedField: expected_tool_calls
+      split: test
+    note: "Each case: a user request and the tool calls a correct client should make"
+  - id: cases
+    type: loop
+    label: For Each Task
+    config:
+      mode: parallel
+      maxConcurrency: 10
+  - id: claude
+    type: agent
+    label: Client — Claude
+    config:
+      model: claude-sonnet-5-5
+  - id: gpt
+    type: agent
+    label: Client — GPT
+    config:
+      model: gpt-5.5
+  - id: gemini
+    type: agent
+    label: Client — Gemini
+    config:
+      model: gemini-3.1-pro
+  - id: mcp_claude
+    type: mcpServer
+    label: Your MCP Server (via Claude)
+    config:
+      serverName: acme-crm
+      transport: http
+  - id: mcp_gpt
+    type: mcpServer
+    label: Your MCP Server (via GPT)
+    config:
+      serverName: acme-crm
+      transport: http
+  - id: mcp_gemini
+    type: mcpServer
+    label: Your MCP Server (via Gemini)
+    config:
+      serverName: acme-crm
+      transport: http
+  - id: eval_claude
+    type: toolUseEval
+    label: Tool Use — Claude
+    config:
+      matchStrategy: semantic
+  - id: eval_gpt
+    type: toolUseEval
+    label: Tool Use — GPT
+    config:
+      matchStrategy: semantic
+  - id: eval_gemini
+    type: toolUseEval
+    label: Tool Use — Gemini
+    config:
+      matchStrategy: semantic
+  - id: gate
+    type: thresholdGate
+    label: Release Gate
+    config:
+      threshold: 0.9
+    note: "One weak client model blocks the release — rewrite the tool descriptions it misreads"
+  - id: report
+    type: output
+    label: Per-Model Report
+    config:
+      destination: file
+      format: json
+  - id: alert
+    type: output
+    label: Regression Alert
+    config:
+      destination: notification
+      format: text
+edges:
+  - from: tasks
+    to: cases
+    fromHandle: cases
+    toHandle: items
+  # Same task to every client model
+  - from: cases
+    to: claude
+    fromHandle: item
+    toHandle: prompt
+  - from: cases
+    to: gpt
+    fromHandle: item
+    toHandle: prompt
+  - from: cases
+    to: gemini
+    fromHandle: item
+    toHandle: prompt
+  # Each client's tool loop against your server
+  - from: claude
+    to: mcp_claude
+    fromHandle: toolRequests
+    toHandle: call
+  - from: mcp_claude
+    to: claude
+    fromHandle: result
+    toHandle: tools
+    kind: loopback
+  - from: gpt
+    to: mcp_gpt
+    fromHandle: toolRequests
+    toHandle: call
+  - from: mcp_gpt
+    to: gpt
+    fromHandle: result
+    toHandle: tools
+    kind: loopback
+  - from: gemini
+    to: mcp_gemini
+    fromHandle: toolRequests
+    toHandle: call
+  - from: mcp_gemini
+    to: gemini
+    fromHandle: result
+    toHandle: tools
+    kind: loopback
+  # Score each client's calls against the expected ones
+  - from: claude
+    to: eval_claude
+    fromHandle: actions
+    toHandle: toolCalls
+  - from: gpt
+    to: eval_gpt
+    fromHandle: actions
+    toHandle: toolCalls
+  - from: gemini
+    to: eval_gemini
+    fromHandle: actions
+    toHandle: toolCalls
+  - from: cases
+    to: eval_claude
+    fromHandle: item
+    toHandle: expectedTools
+  - from: cases
+    to: eval_gpt
+    fromHandle: item
+    toHandle: expectedTools
+  - from: cases
+    to: eval_gemini
+    fromHandle: item
+    toHandle: expectedTools
+  - from: eval_claude
+    to: cases
+    fromHandle: scores
+    toHandle: itemResult
+    kind: loopback
+  - from: eval_gpt
+    to: cases
+    fromHandle: scores
+    toHandle: itemResult
+    kind: loopback
+  - from: eval_gemini
+    to: cases
+    fromHandle: scores
+    toHandle: itemResult
+    kind: loopback
+  - from: cases
+    to: gate
+    fromHandle: results
+    toHandle: score
+  - from: gate
+    to: report
+    fromHandle: pass
+    toHandle: input
+  - from: gate
+    to: alert
+    fromHandle: fail
+    toHandle: input`,
+  },
+
   // ── Evaluation ──────────────────────────────────────────────────────────────
 
   {
@@ -2462,6 +2885,7 @@ export const CATEGORY_LABELS: Record<FlowTemplate['category'], string> = {
   rag: 'RAG Pipelines',
   agent: 'Agents',
   voice: 'Voice',
+  mcp: 'MCP Servers',
   eval: 'Evaluation',
   pipeline: 'Pipelines',
 }

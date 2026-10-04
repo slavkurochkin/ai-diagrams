@@ -102,3 +102,23 @@ describe('Where Voice Latency Comes From template', () => {
     expect(notes).toContain(`${r.overBudget ? 'over' : 'within'} an ${timings.budgetMs} ms budget`)
   })
 })
+
+describe('Multi-Tenant MCP Server template', () => {
+  it('routes every tool, returns every result to the endpoint, and audits every write', () => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'multi-tenant-mcp-server')!.yaml)
+    const tools = flow.nodes.filter((n) => n.data.nodeType === 'exposedTool')
+    const router = flow.nodes.find((n) => n.data.nodeType === 'router')!
+    const endpoint = flow.nodes.find((n) => n.data.nodeType === 'mcpEndpoint')!
+    const audit = flow.nodes.find((n) => n.data.label === 'Audit Log')!
+    const edge = (from: string, to: string) => flow.edges.some((e) => e.source === from && e.target === to)
+
+    expect(router.data.config.routeCount).toBe(tools.length)
+    for (const tool of tools) {
+      expect(edge(router.id, tool.id), `${tool.data.label} is routed`).toBe(true)
+      expect(edge(tool.id, endpoint.id), `${tool.data.label} returns to the endpoint`).toBe(true)
+      if (tool.data.config.readOnly === false) expect(edge(tool.id, audit.id), `${tool.data.label} is audited`).toBe(true)
+      expect(tool.data.config.requiredScope, `${tool.data.label} has a scope`).toBeTruthy()
+    }
+    expect(tools.find((n) => n.data.config.toolName === 'delete_contact')!.data.config.destructive).toBe(true)
+  })
+})

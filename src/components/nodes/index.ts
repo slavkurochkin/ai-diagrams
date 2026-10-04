@@ -39,6 +39,10 @@ import AgentEfficiencyNode from './AgentEfficiencyNode'
 import CharacterNode from './CharacterNode'
 import GenericIntegrationNode from './GenericIntegrationNode'
 import TriggerNode from './TriggerNode'
+import MCPEndpointNode from './MCPEndpointNode'
+import AuthNode from './AuthNode'
+import RateLimiterNode from './RateLimiterNode'
+import ExposedToolNode from './ExposedToolNode'
 import ResponseLatencyEvalNode from './ResponseLatencyEvalNode'
 import SpeechToTextNode from './SpeechToTextNode'
 import TextToSpeechNode from './TextToSpeechNode'
@@ -105,6 +109,11 @@ export const nodeTypes: NodeTypes = {
   webSearch: WebSearchNode,
   mcpServer: MCPServerNode,
   codeExec: CodeExecNode,
+  // Serving
+  mcpEndpoint: MCPEndpointNode,
+  auth: AuthNode,
+  rateLimiter: RateLimiterNode,
+  exposedTool: ExposedToolNode,
   // Voice
   speechToText: SpeechToTextNode,
   turnDetection: TurnDetectionNode,

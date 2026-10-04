@@ -25,6 +25,10 @@ import {
   VoiceLatencyEvalIcon,
   TTSQualityEvalIcon,
   ResponseLatencyEvalIcon,
+  MCPEndpointIcon,
+  AuthIcon,
+  RateLimiterIcon,
+  ExposedToolIcon,
   AgentIcon,
   PromptIcon,
   PromptTemplateIcon,
@@ -1553,7 +1557,7 @@ const MCPServerNodeDefinition: CoreNodeDefinition = {
   type: 'mcpServer',
   label: 'MCP Server',
   icon: MCPServerIcon,
-  description: 'Model Context Protocol server exposing a set of tools (and resources) to an agent through one connection.',
+  description: 'Connects an agent to an MCP server (client side): many tools and resources through one connection. To design the server itself, use MCP Endpoint and Exposed Tool.',
   category: 'tool',
   inputs: [
     { id: 'call', label: 'Call', type: 'tool-call' },
@@ -2812,6 +2816,234 @@ const TTSQualityEvalNodeDefinition: CoreNodeDefinition = {
       type: 'boolean',
       defaultValue: false,
       description: 'Are names, numbers, and brand terms pronounced correctly?',
+    },
+  ],
+}
+
+// ── Serving (building an MCP server that many clients call) ──────────────────
+
+const MCPEndpointNodeDefinition: CoreNodeDefinition = {
+  type: 'mcpEndpoint',
+  label: 'MCP Endpoint',
+  icon: MCPEndpointIcon,
+  description: 'The MCP server you run: accepts client connections, negotiates capabilities, and dispatches tool / resource / prompt requests. Results flow back into it and out to the client.',
+  category: 'server',
+  inputs: [
+    { id: 'requests', label: 'Client Requests', type: 'any' },
+    { id: 'results', label: 'Tool Results', type: 'any' },
+  ],
+  outputs: [
+    { id: 'calls', label: 'Calls', type: 'any' },
+    { id: 'responses', label: 'Responses', type: 'any' },
+  ],
+  configFields: [
+    {
+      key: 'serverName',
+      label: 'Server Name',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'acme-crm',
+    },
+    {
+      key: 'transport',
+      label: 'Transport',
+      type: 'select',
+      defaultValue: 'http',
+      options: [
+        { label: 'Streamable HTTP (remote, many clients)', value: 'http' },
+        { label: 'stdio (local, one client)', value: 'stdio' },
+      ],
+    },
+    {
+      key: 'sessions',
+      label: 'Sessions',
+      type: 'select',
+      defaultValue: 'stateless',
+      options: [
+        { label: 'Stateless (scales horizontally)', value: 'stateless' },
+        { label: 'Stateful (session id, sticky routing)', value: 'stateful' },
+      ],
+      visibleWhen: { key: 'transport', value: 'http' },
+    },
+    { key: 'exposeTools', label: 'Exposes Tools', type: 'boolean', defaultValue: true },
+    { key: 'exposeResources', label: 'Exposes Resources', type: 'boolean', defaultValue: false },
+    { key: 'exposePrompts', label: 'Exposes Prompts', type: 'boolean', defaultValue: false },
+  ],
+}
+
+const AuthNodeDefinition: CoreNodeDefinition = {
+  type: 'auth',
+  label: 'Auth',
+  icon: AuthIcon,
+  description: 'Authenticates each client and resolves its tenant and scopes; rejected requests never reach a tool. OAuth 2.1 is the standard for remote MCP servers.',
+  category: 'server',
+  inputs: [
+    { id: 'request', label: 'Request', type: 'any' },
+  ],
+  outputs: [
+    { id: 'authorized', label: 'Authorized', type: 'any', color: '#16A34A' },
+    { id: 'rejected', label: 'Rejected', type: 'structured', color: '#DC2626' },
+  ],
+  configFields: [
+    {
+      key: 'method',
+      label: 'Method',
+      type: 'select',
+      defaultValue: 'oauth',
+      options: [
+        { label: 'OAuth 2.1 (remote MCP standard)', value: 'oauth' },
+        { label: 'API key', value: 'apiKey' },
+        { label: 'mTLS', value: 'mtls' },
+        { label: 'None (local / trusted only)', value: 'none' },
+      ],
+    },
+    {
+      key: 'authorizationServer',
+      label: 'Authorization Server',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'https://auth.example.com',
+      visibleWhen: { key: 'method', value: 'oauth' },
+    },
+    {
+      key: 'tenantFrom',
+      label: 'Tenant From',
+      type: 'text',
+      defaultValue: 'token claim: org_id',
+      description: 'Where the tenant comes from — every downstream call is scoped to it.',
+    },
+    {
+      key: 'scopes',
+      label: 'Scopes',
+      type: 'textarea',
+      defaultValue: 'crm:read\ncrm:write',
+      placeholder: 'one scope per line',
+    },
+  ],
+}
+
+const RateLimiterNodeDefinition: CoreNodeDefinition = {
+  type: 'rateLimiter',
+  label: 'Rate Limiter',
+  icon: RateLimiterIcon,
+  description: 'Per-client, per-tenant, or per-tool quotas so one heavy caller cannot starve everyone else.',
+  category: 'server',
+  inputs: [
+    { id: 'request', label: 'Request', type: 'any' },
+  ],
+  outputs: [
+    { id: 'allowed', label: 'Allowed', type: 'any', color: '#16A34A' },
+    { id: 'throttled', label: 'Throttled', type: 'structured', color: '#DC2626' },
+  ],
+  configFields: [
+    {
+      key: 'scope',
+      label: 'Limit Per',
+      type: 'select',
+      defaultValue: 'tenant',
+      options: [
+        { label: 'Client (token)', value: 'client' },
+        { label: 'Tenant', value: 'tenant' },
+        { label: 'Tool', value: 'tool' },
+        { label: 'Global', value: 'global' },
+      ],
+    },
+    { key: 'limit', label: 'Requests', type: 'number', defaultValue: 120, min: 1, max: 1000000, step: 10 },
+    {
+      key: 'window',
+      label: 'Per',
+      type: 'select',
+      defaultValue: 'minute',
+      options: [
+        { label: 'Second', value: 'second' },
+        { label: 'Minute', value: 'minute' },
+        { label: 'Hour', value: 'hour' },
+        { label: 'Day', value: 'day' },
+      ],
+    },
+    { key: 'burst', label: 'Burst Allowance', type: 'number', defaultValue: 20, min: 0, max: 100000, step: 5 },
+    {
+      key: 'onLimit',
+      label: 'When Exceeded',
+      type: 'select',
+      defaultValue: 'reject',
+      options: [
+        { label: 'Reject (429 with retry-after)', value: 'reject' },
+        { label: 'Queue', value: 'queue' },
+      ],
+    },
+  ],
+}
+
+const ExposedToolNodeDefinition: CoreNodeDefinition = {
+  type: 'exposedTool',
+  label: 'Exposed Tool',
+  icon: ExposedToolIcon,
+  description: 'A tool your MCP server offers to clients: name, description (what models read to decide when to call it), input schema, required scope, and version. Calls its backend scoped to the caller\'s tenant.',
+  category: 'server',
+  inputs: [
+    { id: 'call', label: 'Call', type: 'any' },
+    { id: 'backendResult', label: 'Backend Result', type: 'any' },
+  ],
+  outputs: [
+    { id: 'result', label: 'Result', type: 'structured' },
+    { id: 'backend', label: 'Backend Call', type: 'any' },
+  ],
+  configFields: [
+    {
+      key: 'toolName',
+      label: 'Tool Name',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'search_contacts',
+    },
+    {
+      key: 'toolDescription',
+      label: 'Description',
+      type: 'textarea',
+      defaultValue: '',
+      placeholder: 'Search contacts by name or email. Use before create_contact to avoid duplicates.',
+      description: 'Client models choose tools from this text — say when to use it, not just what it does.',
+    },
+    {
+      key: 'inputSchema',
+      label: 'Input Schema (JSON)',
+      type: 'textarea',
+      defaultValue: '{"type":"object","properties":{},"required":[]}',
+    },
+    {
+      key: 'requiredScope',
+      label: 'Required Scope',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'crm:read',
+    },
+    {
+      key: 'readOnly',
+      label: 'Read-Only',
+      type: 'boolean',
+      defaultValue: true,
+      description: 'Advertised to clients as a hint; clients may skip confirmation for read-only tools.',
+    },
+    {
+      key: 'destructive',
+      label: 'Destructive',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Advertised so clients can ask the user before calling.',
+    },
+    {
+      key: 'version',
+      label: 'Version',
+      type: 'text',
+      defaultValue: '1',
+    },
+    {
+      key: 'deprecated',
+      label: 'Deprecated',
+      type: 'boolean',
+      defaultValue: false,
+      description: 'Still served, but marked for removal — announce a replacement in the description.',
     },
   ],
 }
@@ -4609,6 +4841,11 @@ const NODE_DEFINITIONS: NodeDefinition[] = ([
   WebSearchNodeDefinition,
   MCPServerNodeDefinition,
   CodeExecNodeDefinition,
+  // Serving
+  MCPEndpointNodeDefinition,
+  AuthNodeDefinition,
+  RateLimiterNodeDefinition,
+  ExposedToolNodeDefinition,
   // Voice
   SpeechToTextNodeDefinition,
   TurnDetectionNodeDefinition,

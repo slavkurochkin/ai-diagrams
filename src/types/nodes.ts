@@ -126,7 +126,14 @@ export interface BaseNodeData {
 
 export interface LLMNodeConfig {
   model: string
+  /** Claude 5.x / Fable */
   effort: 'default' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  /** OpenAI GPT-5.x */
+  reasoningEffort: 'default' | 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  /** Gemini 3.x */
+  thinkingLevel: 'default' | 'low' | 'medium' | 'high'
+  /** Claude Haiku 4.5, Gemini 2.5 Flash; 0 = off */
+  thinkingBudget: number
   thinking: 'hidden' | 'summarized' | 'updates'
   temperature: number
   maxTokens: number

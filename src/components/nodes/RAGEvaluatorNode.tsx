@@ -24,6 +24,7 @@ function EvalOverlay({ animState, k, layoutDirection }: OverlayProps) {
   const totalRelevant = Math.max(tp + 2, Math.round(k * 0.8))
   const precision = displayK === 0 ? 0 : tp / displayK
   const recall = Math.min(tp / totalRelevant, 1)
+  const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall)
   const firstIdx = retrieved.indexOf(true)
   const mrr = firstIdx === -1 ? 0 : 1 / (firstIdx + 1)
   const isDone = animState === 'done'
@@ -101,6 +102,7 @@ function EvalOverlay({ animState, k, layoutDirection }: OverlayProps) {
                 {[
                   { label: `P@${k}`, value: precision, color: '#10B981' },
                   { label: `R@${k}`, value: recall,    color: '#3B82F6' },
+                  { label: `F1@${k}`, value: f1,       color: '#06B6D4' },
                   { label: 'MRR',    value: mrr,        color: '#F59E0B' },
                 ].map(({ label, value, color }, idx) => (
                   <div key={label} className="flex items-center gap-2">
@@ -143,6 +145,7 @@ export default function RAGEvaluatorNode(props: NodeProps<BaseNodeData>) {
   const retrieval = [
     c.recallAtK    && `Recall@${c.k ?? 5}`,
     c.precisionAtK && `Precision@${c.k ?? 5}`,
+    c.f1AtK        && `F1@${c.k ?? 5}`,
     c.mrr          && 'MRR',
     c.ndcgAtK      && `NDCG@${c.k ?? 5}`,
   ].filter(Boolean).join(', ') || '—'
@@ -152,6 +155,8 @@ export default function RAGEvaluatorNode(props: NodeProps<BaseNodeData>) {
     c.answerRelevancy  && 'Answer Rel.',
     c.contextPrecision && 'Ctx Precision',
     c.contextRecall    && 'Ctx Recall',
+    c.answerF1         && 'Answer F1',
+    c.exactMatch       && 'EM',
   ].filter(Boolean).join(', ') || '—'
 
   return (

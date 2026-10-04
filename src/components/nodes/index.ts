@@ -39,6 +39,10 @@ import AgentEfficiencyNode from './AgentEfficiencyNode'
 import CharacterNode from './CharacterNode'
 import GenericIntegrationNode from './GenericIntegrationNode'
 import TriggerNode from './TriggerNode'
+import RedTeamNode from './RedTeamNode'
+import SafetyEvalNode from './SafetyEvalNode'
+import ExperimentCompareNode from './ExperimentCompareNode'
+import TraceSamplerNode from './TraceSamplerNode'
 import EvalDatasetNode from './EvalDatasetNode'
 import AssertionNode from './AssertionNode'
 import UserSimulatorNode from './UserSimulatorNode'
@@ -101,6 +105,8 @@ export const nodeTypes: NodeTypes = {
   monitor: MonitorNode,
   // Evaluation strategies
   evalDataset: EvalDatasetNode,
+  traceSampler: TraceSamplerNode,
+  redTeam: RedTeamNode,
   assertion: AssertionNode,
   llmJudge: LLMJudgeNode,
   rubric: RubricNode,
@@ -111,6 +117,8 @@ export const nodeTypes: NodeTypes = {
   thresholdGate: ThresholdGateNode,
   humanRater: HumanRaterNode,
   ragEvaluator: RAGEvaluatorNode,
+  safetyEval: SafetyEvalNode,
+  experimentCompare: ExperimentCompareNode,
   // Agent evaluation
   singleTurnEval: SingleTurnEvalNode,
   multiTurnEval: MultiTurnEvalNode,

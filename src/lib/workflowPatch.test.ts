@@ -35,6 +35,14 @@ describe('resolveEdgeHandles', () => {
     expect(resolveEdgeHandles('tracing', 'llm', null, null)).toEqual({ ok: false, error: 'source type "tracing" has no outputs' })
   })
 
+  it("sends an agent's reply, not its tool requests, to anything that is not a tool", () => {
+    expect(resolveEdgeHandles('agent', 'output', null, null)).toEqual({ ok: true, sourceHandle: 'response', targetHandle: 'input' })
+    expect(resolveEdgeHandles('agent', 'guardrails', null, null)).toEqual({ ok: true, sourceHandle: 'response', targetHandle: 'input' })
+    expect(resolveEdgeHandles('agent', 'singleTurnEval', null, null)).toEqual({ ok: true, sourceHandle: 'response', targetHandle: 'response' })
+    expect(resolveEdgeHandles('agent', 'webSearch', null, null)).toEqual({ ok: true, sourceHandle: 'toolRequests', targetHandle: 'query' })
+    expect(resolveEdgeHandles('agent', 'subAgent', null, null)).toEqual({ ok: true, sourceHandle: 'toolRequests', targetHandle: 'task' })
+  })
+
   it('wires eval nodes by default: dataset → loop, case → simulator, simulator ⇄ agent', () => {
     expect(resolveEdgeHandles('evalDataset', 'loop', null, null)).toEqual({ ok: true, sourceHandle: 'cases', targetHandle: 'items' })
     expect(resolveEdgeHandles('loop', 'userSimulator', null, null)).toEqual({ ok: true, sourceHandle: 'item', targetHandle: 'scenario' })
@@ -43,6 +51,21 @@ describe('resolveEdgeHandles', () => {
     expect(resolveEdgeHandles('agent', 'userSimulator', null, null)).toEqual({ ok: true, sourceHandle: 'response', targetHandle: 'agentReply' })
     expect(resolveEdgeHandles('userSimulator', 'multiTurnEval', null, null)).toEqual({ ok: true, sourceHandle: 'conversation', targetHandle: 'conversation' })
     expect(resolveEdgeHandles('assertion', 'thresholdGate', null, null)).toEqual({ ok: true, sourceHandle: 'score', targetHandle: 'score' })
+  })
+
+  it('wires loops: sources feed items, evaluators report per item, run-level nodes take results', () => {
+    expect(resolveEdgeHandles('redTeam', 'loop', null, null)).toEqual({ ok: true, sourceHandle: 'attacks', targetHandle: 'items' })
+    expect(resolveEdgeHandles('traceSampler', 'loop', null, null)).toEqual({ ok: true, sourceHandle: 'traces', targetHandle: 'items' })
+    expect(resolveEdgeHandles('safetyEval', 'loop', null, null)).toEqual({ ok: true, sourceHandle: 'scores', targetHandle: 'itemResult' })
+    expect(resolveEdgeHandles('llmJudge', 'loop', null, null)).toEqual({ ok: true, sourceHandle: 'score', targetHandle: 'itemResult' })
+    expect(resolveEdgeHandles('loop', 'experimentCompare', null, null)).toEqual({ ok: true, sourceHandle: 'results', targetHandle: 'baseline' })
+    expect(resolveEdgeHandles('loop', 'monitor', null, null)).toEqual({ ok: true, sourceHandle: 'results', targetHandle: 'metrics' })
+    expect(resolveEdgeHandles('loop', 'llm', null, null)).toEqual({ ok: true, sourceHandle: 'item', targetHandle: 'prompt' })
+  })
+
+  it('routes a safety case to the input and the reply to the response', () => {
+    expect(resolveEdgeHandles('loop', 'safetyEval', null, null)).toEqual({ ok: true, sourceHandle: 'item', targetHandle: 'input' })
+    expect(resolveEdgeHandles('agent', 'safetyEval', null, null)).toEqual({ ok: true, sourceHandle: 'response', targetHandle: 'response' })
   })
 
   it('uses node config for dynamic ports', () => {

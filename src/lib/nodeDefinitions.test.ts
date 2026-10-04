@@ -69,6 +69,15 @@ describe('observability nodes', () => {
   })
 })
 
+describe('RAG evaluator', () => {
+  it('offers F1@k (on by default) plus answer F1 and exact match', () => {
+    const config = buildDefaultConfig('ragEvaluator')
+    expect(config.f1AtK).toBe(true)
+    expect(config).toHaveProperty('answerF1', false)
+    expect(config).toHaveProperty('exactMatch', false)
+  })
+})
+
 describe('config-driven ports', () => {
   it('router has one output per route plus default', () => {
     expect(ids(ports('router').outputs)).toEqual(['routeA', 'routeB', 'default'])
@@ -96,10 +105,20 @@ describe('config-driven ports', () => {
 
 describe('upgradeLegacyConfig', () => {
   it('maps retired model ids to current options', () => {
-    expect(upgradeLegacyConfig('llm', { model: 'gpt-4o', temperature: 0.2 })).toEqual({ model: 'gpt-5', temperature: 0.2 })
+    expect(upgradeLegacyConfig('llm', { model: 'gpt-4o', temperature: 0.2 })).toEqual({ model: 'gpt-5.5', temperature: 0.2 })
+    expect(upgradeLegacyConfig('llm', { model: 'gemini-2.5-pro' }).model).toBe('gemini-3.1-pro')
     expect(upgradeLegacyConfig('llmJudge', { judgeModel: 'claude-3-5-sonnet-20241022' }).judgeModel).toBe('claude-sonnet-5-5')
     expect(upgradeLegacyConfig('embedding', { model: 'text-embedding-ada-002' }).model).toBe('text-embedding-3-small')
     expect(upgradeLegacyConfig('webSearch', { engine: 'bing' }).engine).toBe('brave')
+  })
+
+  it("moves a Claude-scale effort on GPT / Gemini models into that provider's field", () => {
+    expect(upgradeLegacyConfig('llm', { model: 'gpt-5', effort: 'max' })).toMatchObject({ model: 'gpt-5.5', effort: 'default', reasoningEffort: 'xhigh' })
+    expect(upgradeLegacyConfig('llm', { model: 'gpt-5.6-terra', effort: 'max' })).toMatchObject({ reasoningEffort: 'max' })
+    expect(upgradeLegacyConfig('llm', { model: 'gemini-2.5-pro', effort: 'xhigh' })).toMatchObject({ model: 'gemini-3.1-pro', thinkingLevel: 'high' })
+    // Claude models keep their effort; an explicit provider setting is never overwritten.
+    expect(upgradeLegacyConfig('llm', { model: 'claude-opus-5-5', effort: 'max' })).toMatchObject({ effort: 'max' })
+    expect(upgradeLegacyConfig('llm', { model: 'gpt-5.5', effort: 'low', reasoningEffort: 'high' })).toMatchObject({ reasoningEffort: 'high' })
   })
 
   it('leaves current and unknown values alone and returns the same object when unchanged', () => {
@@ -113,11 +132,31 @@ describe('isConfigFieldVisible', () => {
   const llm = getNodeDefinition('llm')!
   const field = (key: string) => llm.configFields.find((f) => f.key === key)!
 
-  it('shows temperature only for models that accept it, and effort only for models that have it', () => {
+  it("shows exactly one provider's reasoning control per model", () => {
+    const reasoningFields = ['effort', 'reasoningEffort', 'thinkingLevel', 'thinkingBudget']
+    const shown = (model: string) => reasoningFields.filter((k) => isConfigFieldVisible(field(k), { model }))
+    expect(shown('claude-opus-5-5')).toEqual(['effort'])
+    expect(shown('gpt-5.5')).toEqual(['reasoningEffort'])
+    expect(shown('gemini-3.1-pro')).toEqual(['thinkingLevel'])
+    expect(shown('gemini-2.5-flash')).toEqual(['thinkingBudget'])
+    expect(shown('claude-haiku-4-5')).toEqual(['thinkingBudget'])
+    expect(shown('llama-4-maverick')).toEqual([])
+  })
+
+  it('shows temperature only where the model accepts it', () => {
     expect(isConfigFieldVisible(field('temperature'), { model: 'claude-haiku-4-5' })).toBe(true)
+    expect(isConfigFieldVisible(field('temperature'), { model: 'llama-4-maverick' })).toBe(true)
     expect(isConfigFieldVisible(field('temperature'), { model: 'claude-opus-5-5' })).toBe(false)
-    expect(isConfigFieldVisible(field('effort'), { model: 'claude-opus-5-5' })).toBe(true)
-    expect(isConfigFieldVisible(field('effort'), { model: 'llama-4-maverick' })).toBe(false)
+    expect(isConfigFieldVisible(field('temperature'), { model: 'gpt-5.5' })).toBe(false)
+    expect(isConfigFieldVisible(field('temperature'), { model: 'gemini-3.1-pro' })).toBe(false)
+  })
+
+  it('every chat model in the catalog is covered by a reasoning or temperature rule', () => {
+    const covered = (model: string) =>
+      [...['effort', 'reasoningEffort', 'thinkingLevel', 'thinkingBudget', 'temperature']].some((k) =>
+        isConfigFieldVisible(field(k), { model }),
+      )
+    for (const opt of field('model').options ?? []) expect(covered(opt.value), opt.value).toBe(true)
   })
 
   it('shows checkpointing and retention only for durable state backends', () => {

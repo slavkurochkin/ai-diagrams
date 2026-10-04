@@ -67,6 +67,10 @@ import {
   ListChecks,
   FileSpreadsheet,
   UserCog,
+  ShieldAlert,
+  ShieldQuestion,
+  FlaskConical,
+  Radar,
 } from 'lucide-react'
 
 export interface IconProps {
@@ -104,6 +108,10 @@ export const MonitorIcon = createIcon(BellRing)
 export const AssertionIcon = createIcon(ListChecks)
 export const EvalDatasetIcon = createIcon(FileSpreadsheet)
 export const UserSimulatorIcon = createIcon(UserCog)
+export const RedTeamIcon = createIcon(ShieldAlert)
+export const SafetyEvalIcon = createIcon(ShieldQuestion)
+export const ExperimentCompareIcon = createIcon(FlaskConical)
+export const TraceSamplerIcon = createIcon(Radar)
 export const AgentIcon = createIcon(Bot)
 export const PromptIcon = createIcon(MessageSquareText)
 export const PromptTemplateIcon = createIcon(FileCode2)

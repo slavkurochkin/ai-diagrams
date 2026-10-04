@@ -3,7 +3,7 @@ import { FLOW_TEMPLATES } from './templates'
 import { parseFlowYAML, type ParsedFlow } from './yamlFlow'
 import { getNodeDefinition } from './nodeDefinitions'
 
-const ENTRY_TYPES = new Set(['trigger', 'dataLoader', 'evalDataset'])
+const ENTRY_TYPES = new Set(['trigger', 'dataLoader', 'evalDataset', 'redTeam', 'traceSampler'])
 
 function parse(yaml: string): ParsedFlow {
   const result = parseFlowYAML(yaml)
@@ -68,6 +68,6 @@ nodes:
     type: llm
     config:
       model: gpt-4o`)
-    expect(flow.nodes[0].data.config.model).toBe('gpt-5')
+    expect(flow.nodes[0].data.config.model).toBe('gpt-5.5')
   })
 })

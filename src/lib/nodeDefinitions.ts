@@ -2600,6 +2600,26 @@ const ASREvalNodeDefinition: CoreNodeDefinition = {
       type: 'boolean',
       defaultValue: false,
     },
+    {
+      key: 'sampleReference',
+      label: 'Example: Reference',
+      type: 'textarea',
+      defaultValue: 'Book me for three thirty on Tuesday',
+      description: 'Example shown in the WER visualizer and during playback — not used to score real runs.',
+    },
+    {
+      key: 'sampleTranscript',
+      label: 'Example: Transcript',
+      type: 'textarea',
+      defaultValue: 'book me for three thirteen tuesday',
+    },
+    {
+      key: 'sampleEntities',
+      label: 'Example: Entities to Track',
+      type: 'text',
+      defaultValue: 'three thirty, tuesday',
+      placeholder: 'comma-separated phrases from the reference',
+    },
   ],
 }
 

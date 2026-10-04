@@ -9,6 +9,8 @@ import { portHandleFill } from '../../lib/portVisual'
 import type { NotePlacement, PortDefinition } from '../../types/nodes'
 import type { ConfigField } from '../../types/nodes'
 import RAGEvalPanel from './RAGEvalPanel'
+import WERPanel from './WERPanel'
+import type { Normalization } from '../../lib/wer'
 
 /** Same ordering as canvas `portOrder` (YAML / persisted). */
 function applyPortOrder(ports: PortDefinition[], order?: string[]): PortDefinition[] {
@@ -325,6 +327,7 @@ export default function ConfigPanel() {
   }, [selectedNodeId, removeNode, setSelectedNode])
 
   const [ragEvalOpen, setRagEvalOpen] = useState(false)
+  const [werOpen, setWerOpen] = useState(false)
   const [portsSectionOpen, setPortsSectionOpen] = useState(false)
 
   return (
@@ -773,6 +776,25 @@ export default function ConfigPanel() {
             </div>
           )}
 
+          {/* ── WER Visualizer button ─────────────────────────────────────── */}
+          {selectedNode.data.nodeType === 'asrEval' && (
+            <div className="px-4 pb-3">
+              <button
+                type="button"
+                onClick={() => setWerOpen(true)}
+                className="
+                  w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
+                  text-[12px] font-medium
+                  bg-amber-900/40 border border-amber-700/40 text-amber-200
+                  hover:bg-amber-800/50 hover:text-white transition-colors
+                "
+              >
+                <BarChart2 size={13} />
+                Visualize Word Error Rate
+              </button>
+            </div>
+          )}
+
           {/* ── Port position (sliders) — same order as canvas ───────────── */}
           {!isFrameNode && !isTextNode && selectedNode && def && (ports.inputs.length > 0 || ports.outputs.length > 0) && (
             <div
@@ -1120,6 +1142,29 @@ export default function ConfigPanel() {
           </div>
         </motion.aside>
       )}
+
+      {/* WER Visualizer — edits the selected ASR Eval node's example */}
+      <WERPanel
+        open={werOpen}
+        onClose={() => setWerOpen(false)}
+        initial={{
+          reference: String(selectedNode?.data.config.sampleReference ?? ''),
+          transcript: String(selectedNode?.data.config.sampleTranscript ?? ''),
+          entities: String(selectedNode?.data.config.sampleEntities ?? ''),
+          normalization: (selectedNode?.data.config.normalization as Normalization) ?? 'standard',
+        }}
+        onSave={
+          selectedNode?.data.nodeType === 'asrEval'
+            ? (ex) =>
+                updateNodeConfig(selectedNode.id, {
+                  sampleReference: ex.reference,
+                  sampleTranscript: ex.transcript,
+                  sampleEntities: ex.entities,
+                  normalization: ex.normalization,
+                })
+            : undefined
+        }
+      />
 
       {/* RAG Eval Visualizer — mounted outside the aside so it covers full viewport */}
       <RAGEvalPanel

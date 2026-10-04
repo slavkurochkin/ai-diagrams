@@ -1106,6 +1106,102 @@ edges:
   },
 
   {
+    id: 'wer-explainer',
+    name: 'How WER Works',
+    description: 'A walk-through of word error rate: what was said, what was heard, how the words align, and why entity error rate catches what WER misses. Press play, or open the WER visualizer on the WER node.',
+    category: 'voice',
+    preferredLayoutDirection: 'LR',
+    yaml: `name: How WER Works
+nodes:
+  - id: call
+    type: trigger
+    label: Caller Audio
+    config:
+      triggerType: phone-call
+    note: |
+      **1. What was said**
+      "Book me for three thirty on Tuesday"
+  - id: stt
+    type: speechToText
+    label: Speech-to-Text
+    config:
+      model: nova-3-general
+      streaming: false
+    note: |
+      **2. What the model heard**
+      "book me for three thirteen tuesday"
+  - id: reference
+    type: groundTruth
+    label: Reference Transcript
+    config:
+      source: manual
+      answer: "Book me for three thirty on Tuesday"
+    note: |
+      **3. The truth** — a human transcript.
+      Both sides are normalised first (lowercase, no punctuation, numbers as words),
+      or "Tuesday" vs "tuesday" would count as an error.
+  - id: asr
+    type: asrEval
+    label: WER
+    config:
+      wer: true
+      entityErrorRate: true
+      keyterms: times, dates
+      sampleReference: "Book me for three thirty on Tuesday"
+      sampleTranscript: "book me for three thirteen tuesday"
+      sampleEntities: "three thirty, tuesday"
+    note: |
+      **4. Align word by word and count the edits**
+      thirty → thirteen is a **substitution**, the missing "on" a **deletion**.
+      WER = (S + D + I) / N = (1 + 1 + 0) / 7 = **28.6%**
+      Select this node and click *Visualize Word Error Rate* to try your own.
+  - id: verdict
+    type: output
+    label: What It Means
+    config:
+      destination: user
+      format: markdown
+    note: |
+      **5. Why WER isn't enough**
+      Losing "on" is harmless; "thirty → thirteen" books the wrong appointment.
+      WER weighs both the same — **entity error rate** on the time and date
+      catches it: 1 of 2 entities wrong = **50%**.
+  - id: formula
+    type: text
+    config:
+      width: 380
+      height: 210
+      fontSize: 14
+      content: |
+        ## Word Error Rate
+        **WER = (S + D + I) / N**
+
+        - **S** substitutions — wrong word
+        - **D** deletions — word missed
+        - **I** insertions — extra word
+        - **N** words in the reference
+
+        Lower is better. Can exceed 100% when the transcript adds many words.
+edges:
+  - from: call
+    to: stt
+    fromHandle: audio
+    toHandle: audio
+  - from: stt
+    to: asr
+    fromHandle: transcript
+    toHandle: transcript
+  - from: reference
+    to: asr
+    fromHandle: reference
+    toHandle: reference
+  - from: asr
+    to: verdict
+    fromHandle: errors
+    toHandle: input`,
+  },
+
+  {
     id: 'voice-agent-eval',
     name: 'Voice Agent Eval',
     description: 'Replay recorded calls through the voice pipeline and score transcription (WER, entity errors), latency and turn-taking, speech quality, and task completion.',

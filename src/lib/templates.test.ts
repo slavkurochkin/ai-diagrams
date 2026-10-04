@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { FLOW_TEMPLATES } from './templates'
 import { parseFlowYAML, type ParsedFlow } from './yamlFlow'
 import { getNodeDefinition } from './nodeDefinitions'
+import { computeWer, formatRate, parseEntities } from './wer'
 
 const ENTRY_TYPES = new Set(['trigger', 'dataLoader', 'evalDataset', 'redTeam', 'traceSampler'])
 
@@ -69,5 +70,20 @@ nodes:
     config:
       model: gpt-4o`)
     expect(flow.nodes[0].data.config.model).toBe('gpt-5.5')
+  })
+})
+
+describe('How WER Works template', () => {
+  it('states the WER and entity error rate that its own example actually produces', () => {
+    const template = FLOW_TEMPLATES.find((t) => t.id === 'wer-explainer')!
+    const flow = parse(template.yaml)
+    const asr = flow.nodes.find((n) => n.data.nodeType === 'asrEval')!
+    const c = asr.data.config
+    const r = computeWer(String(c.sampleReference), String(c.sampleTranscript), {
+      entities: parseEntities(String(c.sampleEntities)),
+    })
+    expect(asr.data.note).toContain(`= **${formatRate(r.wer)}**`)
+    const verdict = flow.nodes.find((n) => n.data.label === 'What It Means')!
+    expect(verdict.data.note).toContain(`= **${formatRate(r.entityErrorRate).replace('.0', '')}**`)
   })
 })

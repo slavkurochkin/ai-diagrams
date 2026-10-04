@@ -86,6 +86,17 @@ describe('resolveEdgeHandles', () => {
     expect(resolveEdgeHandles('asrEval', 'loop', null, null)).toEqual({ ok: true, sourceHandle: 'scores', targetHandle: 'itemResult' })
   })
 
+  it('wires an MCP server: requests in, tools to backends and back, responses out', () => {
+    expect(resolveEdgeHandles('trigger', 'mcpEndpoint', null, null)).toEqual({ ok: true, sourceHandle: 'payload', targetHandle: 'requests' })
+    expect(resolveEdgeHandles('mcpEndpoint', 'auth', null, null)).toEqual({ ok: true, sourceHandle: 'calls', targetHandle: 'request' })
+    expect(resolveEdgeHandles('auth', 'rateLimiter', null, null)).toEqual({ ok: true, sourceHandle: 'authorized', targetHandle: 'request' })
+    expect(resolveEdgeHandles('exposedTool', 'genericDatabase', null, null)).toEqual({ ok: true, sourceHandle: 'backend', targetHandle: 'data' })
+    expect(resolveEdgeHandles('genericDatabase', 'exposedTool', null, null)).toEqual({ ok: true, sourceHandle: 'data', targetHandle: 'backendResult' })
+    expect(resolveEdgeHandles('vectorDB', 'exposedTool', null, null)).toMatchObject({ ok: true, targetHandle: 'backendResult' })
+    expect(resolveEdgeHandles('exposedTool', 'mcpEndpoint', null, null)).toEqual({ ok: true, sourceHandle: 'result', targetHandle: 'results' })
+    expect(resolveEdgeHandles('mcpEndpoint', 'output', null, null)).toEqual({ ok: true, sourceHandle: 'responses', targetHandle: 'input' })
+  })
+
   it('uses node config for dynamic ports', () => {
     expect(resolveEdgeHandles('router', 'llm', 'routeC', null, { routeCount: 2 }).ok).toBe(false)
     expect(resolveEdgeHandles('router', 'llm', 'routeC', null, { routeCount: 3 })).toEqual({ ok: true, sourceHandle: 'routeC', targetHandle: 'prompt' })

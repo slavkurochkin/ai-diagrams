@@ -609,6 +609,19 @@ export function resolveEdgeHandles(
     if (srcDef?.category === 'eval' && srcDef.inputs.length > 0) targetHandle = 'itemResult'
   }
 
+  // MCP serving: exposed tools reach backends (data stores, integrations) through `backend` and
+  // get `backendResult` back; results from inside the server re-enter the endpoint as `results`
+  // (only entry nodes send `requests`), and the endpoint answers clients with `responses`.
+  const srcCategory = getNodeDefinition(srcType)?.category
+  const tgtCategory = getNodeDefinition(tgtType)?.category
+  const isBackend = (c: string | undefined) => c === 'data' || c === 'integration'
+  if (srcType === 'exposedTool' && sourceHandle === null && isBackend(tgtCategory)) sourceHandle = 'backend'
+  if (tgtType === 'exposedTool' && targetHandle === null && isBackend(srcCategory)) targetHandle = 'backendResult'
+  if (tgtType === 'mcpEndpoint' && targetHandle === null && (getNodeDefinition(srcType)?.inputs.length ?? 0) > 0) {
+    targetHandle = 'results'
+  }
+  if (srcType === 'mcpEndpoint' && sourceHandle === null && tgtType === 'output') sourceHandle = 'responses'
+
   // When we pick the source handle, an agent's tool requests only go to tools; anything else
   // (outputs, guardrails, evaluators, simulators) gets its reply.
   const nonToolOutIds = outIds.filter((id) => id !== 'toolRequests')

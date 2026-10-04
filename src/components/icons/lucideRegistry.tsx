@@ -77,6 +77,10 @@ import {
   AudioLines,
   SpellCheck,
   Timer,
+  Server,
+  KeyRound,
+  Hourglass,
+  Blocks,
 } from 'lucide-react'
 
 export interface IconProps {
@@ -126,6 +130,10 @@ export const ASREvalIcon = createIcon(SpellCheck)
 export const VoiceLatencyEvalIcon = createIcon(Timer)
 export const TTSQualityEvalIcon = createIcon(Volume2)
 export const ResponseLatencyEvalIcon = createIcon(Gauge)
+export const MCPEndpointIcon = createIcon(Server)
+export const AuthIcon = createIcon(KeyRound)
+export const RateLimiterIcon = createIcon(Hourglass)
+export const ExposedToolIcon = createIcon(Blocks)
 export const AgentIcon = createIcon(Bot)
 export const PromptIcon = createIcon(MessageSquareText)
 export const PromptTemplateIcon = createIcon(FileCode2)

@@ -224,55 +224,79 @@ edges:
   {
     id: 'conversational-rag',
     name: 'Conversational RAG',
-    description: 'Multi-turn RAG with conversation memory — the LLM answers questions grounded in retrieved context while retaining the full conversation history.',
+    description: 'Multi-turn RAG: follow-up questions are rewritten into standalone queries using the conversation history, retrieval runs on the rewritten query against a vector store, and the LLM answers only from retrieved context, with citations. History is kept per session.',
     category: 'rag',
     preferredLayoutDirection: 'LR',
     yaml: `name: Conversational RAG
 nodes:
-  # ── Main pipeline (top row, left → right) ──────────────────────────────────
+  # ── Retrieval path (top row, left → right) ─────────────────────────────────
   - id: user_query
     type: trigger
     label: User Question
     config:
       triggerType: user-message
-    note: "The current user turn — feeds the retrieval path, the prompt builder, and memory"
+    note: "The current user turn. Its metadata carries the session id that scopes memory"
     position:
       x: 60
-      y: 160
+      y: 200
+  - id: rewriter
+    type: llm
+    label: Query Rewriter
+    config:
+      model: claude-haiku-4-5
+      temperature: 0
+      systemPrompt: "Rewrite the user's latest message as a standalone search query, resolving pronouns and references from the conversation history. If it is already standalone, return it unchanged. Output only the query."
+    note: "Turns a follow-up like 'what about monthly ones?' into 'refund policy for monthly plans', so retrieval works on every turn, not just the first"
+    position:
+      x: 340
+      y: 40
   - id: embedder
     type: embedding
     label: Query Embedder
-    note: "Encodes the current question into a vector for semantic search"
+    note: "Encodes the rewritten query. Must use the same embedding model the documents were indexed with"
     position:
-      x: 340
+      x: 620
       y: 40
   - id: retriever
     type: retriever
     config:
       topK: 5
       strategy: similarity
-    note: "Fetches the most relevant chunks for the current question — history is not used here, only the current turn"
+    note: "Searches with the standalone query, never the raw follow-up"
     position:
-      x: 620
+      x: 900
       y: 40
+  - id: vector_db
+    type: vectorDB
+    label: Knowledge Base
+    config:
+      provider: qdrant
+      indexName: knowledge-base
+    note: "Filled by a separate indexing pipeline (load → chunk → embed, as in Basic RAG). Chunks keep their source ids for citations"
+    position:
+      x: 900
+      y: 260
+  # ── Generation (right side) ─────────────────────────────────────────────────
   - id: prompt
     type: aggregator
     label: Prompt Builder
     config:
       inputCount: 3
       strategy: concat
-    note: "Assembles three inputs: (A) current question, (B) conversation history, (C) retrieved context"
+    note: "Assembles three inputs: (A) the question as the user asked it, (B) conversation history, (C) retrieved chunks with their source ids"
     position:
-      x: 900
-      y: 160
+      x: 1180
+      y: 200
   - id: llm
     type: llm
+    label: Answer LLM
     config:
       model: claude-sonnet-5-5
-    note: "Generates an answer grounded in retrieved context and aware of prior conversation turns"
+      systemPrompt: "Answer using only the retrieved context. Cite the source of each claim, e.g. [doc 2]. If the context does not contain the answer, say you don't know. Do not guess. Use the conversation history only to understand the question, never as a source of facts."
+    note: "Grounded: no answer without supporting context, and every claim cites its source"
     position:
-      x: 1160
-      y: 160
+      x: 1440
+      y: 200
   - id: answer
     type: output
     label: Answer
@@ -280,33 +304,46 @@ nodes:
       destination: user
       format: markdown
     position:
-      x: 1420
-      y: 160
-  # ── Memory layer (bottom row) ───────────────────────────────────────────────
+      x: 1700
+      y: 200
+  # ── Memory layer (bottom) ───────────────────────────────────────────────────
   - id: memory
     type: memory
     label: Conversation Memory
     config:
       memoryType: conversation
       windowSize: 10
-    note: "Reads: injects prior turns into the prompt\\nWrites: the LLM reply loops back here so next turn has full context"
+    note: "One history per session (keyed by the session id from the trigger metadata), never shared across users\\nReads: feeds the rewriter and the prompt\\nWrites: the user turn and the LLM reply, so the next turn has full context"
     position:
       x: 620
-      y: 380
+      y: 420
 edges:
-  # Retrieval path
+  # Query rewriting — history + latest message → standalone query
   - from: user_query
-    to: embedder
+    to: rewriter
     fromHandle: payload
+    toHandle: prompt
+  - from: memory
+    to: rewriter
+    fromHandle: history
+    toHandle: memory
+  # Retrieval path
+  - from: rewriter
+    to: embedder
+    fromHandle: response
     toHandle: text
+  - from: rewriter
+    to: retriever
+    fromHandle: response
+    toHandle: query
   - from: embedder
     to: retriever
     fromHandle: embedding
     toHandle: embedding
-  - from: user_query
+  - from: vector_db
     to: retriever
-    fromHandle: payload
-    toHandle: query
+    fromHandle: store
+    toHandle: store
   # Prompt assembly
   - from: user_query
     to: prompt
@@ -1480,7 +1517,7 @@ edges:
   {
     id: 'multi-tenant-mcp-server',
     name: 'Multi-Tenant MCP Server',
-    description: 'An MCP server many clients share: OAuth per tenant, rate limits, tools routed by name with scopes and safety hints, tenant-isolated data, an audit log for writes, tracing, and alerting.',
+    description: 'An MCP server many clients share: OAuth per tenant, rate limits, tools routed by name with scopes and safety hints, tenant-isolated data, an audit log for writes, and tracing plus alerting on the error rate across every response, rejections included.',
     category: 'mcp',
     preferredLayoutDirection: 'LR',
     yaml: `name: Multi-Tenant MCP Server
@@ -1499,8 +1536,8 @@ nodes:
       transport: http
       sessions: stateless
       exposeTools: true
-      exposeResources: true
-    note: "Stateless Streamable HTTP so any instance can serve any request"
+      exposeResources: false
+    note: "Stateless Streamable HTTP so any instance can serve any request. Every tool result and error (401 / 403 / 429 / unknown tool) returns here and goes back to the client"
   - id: auth
     type: auth
     label: OAuth
@@ -1509,7 +1546,7 @@ nodes:
       authorizationServer: https://auth.acme.example
       tenantFrom: "token claim: org_id"
       scopes: "crm:read\\ncrm:write"
-    note: "Every call carries a tenant from here on — tools never trust a tenant id from the arguments"
+    note: "Tokens are issued by the authorization server, not this server — here they are only validated (signature, issuer, audience, expiry). Missing or invalid token → 401. Every call carries a tenant from here on — tools never trust a tenant id from the arguments"
   - id: limiter
     type: rateLimiter
     label: Per-Tenant Limits
@@ -1555,30 +1592,18 @@ nodes:
       requiredScope: crm:write
       readOnly: false
       destructive: true
-    note: "Marked destructive so clients ask the user before calling"
+    note: "readOnly / destructive are hints clients may ignore — the crm:write scope is the real guard"
   - id: db
     type: genericDatabase
     label: CRM Database
     description: "Postgres with row-level security on tenant_id — a tool cannot read another tenant's rows even if it tries"
-  - id: responses
-    type: output
-    label: Tool Results
-    config:
-      destination: api
-      format: json
-  - id: errors
-    type: output
-    label: Errors (401 / 403 / 429 / unknown tool)
-    config:
-      destination: api
-      format: json
   - id: audit
     type: output
     label: Audit Log
     config:
       destination: database
       format: json
-    note: "Every write: tenant, client, tool, arguments, result"
+    note: "Every write attempt, including scope denials: tenant, client, tool, arguments, result"
   - id: tracing
     type: tracing
     label: Tracing
@@ -1592,6 +1617,7 @@ nodes:
       operator: ">"
       threshold: 2
       window: 5m
+    note: "Failed ÷ all responses over a rolling 5 min, all tenants. Failures: 401 / 403, 429, unknown tool, tool errors"
   - id: page
     type: output
     label: Page On-Call
@@ -1612,17 +1638,19 @@ edges:
     fromHandle: authorized
     toHandle: request
   - from: auth
-    to: errors
+    to: endpoint
     fromHandle: rejected
-    toHandle: input
+    toHandle: results
+    kind: loopback
   - from: limiter
     to: router
     fromHandle: allowed
     toHandle: input
   - from: limiter
-    to: errors
+    to: endpoint
     fromHandle: throttled
-    toHandle: input
+    toHandle: results
+    kind: loopback
   - from: router
     to: search
     fromHandle: routeA
@@ -1636,9 +1664,10 @@ edges:
     fromHandle: routeC
     toHandle: call
   - from: router
-    to: errors
+    to: endpoint
     fromHandle: default
-    toHandle: input
+    toHandle: results
+    kind: loopback
   # Tenant-scoped backend calls
   - from: search
     to: db
@@ -1683,10 +1712,6 @@ edges:
     fromHandle: result
     toHandle: results
     kind: loopback
-  - from: endpoint
-    to: responses
-    fromHandle: responses
-    toHandle: input
   # Writes are audited
   - from: create
     to: audit
@@ -1696,7 +1721,7 @@ edges:
     to: audit
     fromHandle: result
     toHandle: input
-  # Operations
+  # Operations — the monitor sees successes and rejections alike
   - from: endpoint
     to: monitor
     fromHandle: responses

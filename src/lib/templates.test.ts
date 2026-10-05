@@ -103,6 +103,31 @@ describe('Where Voice Latency Comes From template', () => {
   })
 })
 
+describe('Conversational RAG template', () => {
+  const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag')!.yaml)
+  const node = (label: string) => flow.nodes.find((n) => n.data.label === label)!
+  const handleTo = (from: string, handle: string, to: string, toHandle?: string) =>
+    flow.edges.some((e) => e.source === from && e.sourceHandle === handle && e.target === to && (!toHandle || e.targetHandle === toHandle))
+
+  it('retrieves with a standalone query rewritten from history, not the raw follow-up', () => {
+    const question = node('User Question'), rewriter = node('Query Rewriter'), memory = node('Conversation Memory')
+    const embedder = node('Query Embedder'), retriever = flow.nodes.find((n) => n.data.nodeType === 'retriever')!
+
+    expect(handleTo(question.id, 'payload', rewriter.id, 'prompt')).toBe(true)
+    expect(handleTo(memory.id, 'history', rewriter.id, 'memory')).toBe(true)
+    expect(handleTo(rewriter.id, 'response', embedder.id, 'text')).toBe(true)
+    expect(handleTo(rewriter.id, 'response', retriever.id, 'query')).toBe(true)
+    expect(flow.edges.some((e) => e.source === question.id && (e.target === embedder.id || e.target === retriever.id))).toBe(false)
+  })
+
+  it('retrieves from a vector store and answers only from retrieved context', () => {
+    const retriever = flow.nodes.find((n) => n.data.nodeType === 'retriever')!
+    const store = flow.nodes.find((n) => n.data.nodeType === 'vectorDB')!
+    expect(handleTo(store.id, 'store', retriever.id, 'store')).toBe(true)
+    expect(String(node('Answer LLM').data.config.systemPrompt)).toMatch(/only the retrieved context/)
+  })
+})
+
 describe('Multi-Tenant MCP Server template', () => {
   it('routes every tool, returns every result to the endpoint, and audits every write', () => {
     const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'multi-tenant-mcp-server')!.yaml)
@@ -120,5 +145,19 @@ describe('Multi-Tenant MCP Server template', () => {
       expect(tool.data.config.requiredScope, `${tool.data.label} has a scope`).toBeTruthy()
     }
     expect(tools.find((n) => n.data.config.toolName === 'delete_contact')!.data.config.destructive).toBe(true)
+  })
+
+  it('returns rejections through the endpoint so the error-rate monitor sees them', () => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'multi-tenant-mcp-server')!.yaml)
+    const endpoint = flow.nodes.find((n) => n.data.nodeType === 'mcpEndpoint')!
+    const byType = (type: string) => flow.nodes.find((n) => n.data.nodeType === type)!
+    const handleTo = (from: string, handle: string, to: string) =>
+      flow.edges.some((e) => e.source === from && e.sourceHandle === handle && e.target === to)
+
+    expect(handleTo(byType('auth').id, 'rejected', endpoint.id), 'auth rejections').toBe(true)
+    expect(handleTo(byType('rateLimiter').id, 'throttled', endpoint.id), 'throttled calls').toBe(true)
+    expect(handleTo(byType('router').id, 'default', endpoint.id), 'unknown tools').toBe(true)
+    expect(handleTo(endpoint.id, 'responses', byType('monitor').id), 'monitor watches responses').toBe(true)
+    expect(endpoint.data.config.exposeResources).toBe(false)
   })
 })

@@ -7,6 +7,7 @@ export default function RetrieverNode(props: NodeProps<BaseNodeData>) {
   const preview = [
     { label: 'strategy', value: config.strategy ?? 'similarity' },
     { label: 'top k', value: config.topK ?? 5 },
+    ...(config.metadataFilter ? [{ label: 'filter', value: config.metadataFilter }] : []),
   ]
   return <BaseNode {...props} preview={preview} />
 }

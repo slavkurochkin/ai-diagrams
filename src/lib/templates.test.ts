@@ -110,10 +110,10 @@ describe('Conversational RAG template', () => {
     flow.edges.some((e) => e.source === from && e.sourceHandle === handle && e.target === to && (!toHandle || e.targetHandle === toHandle))
 
   it('retrieves with a standalone query rewritten from history, not the raw follow-up', () => {
-    const question = node('User Question'), rewriter = node('Query Rewriter'), memory = node('Conversation Memory')
+    const question = node('User Question'), guard = node('Input Guard'), rewriter = node('Query Rewriter'), memory = node('Recent Turns')
     const embedder = node('Query Embedder'), retriever = flow.nodes.find((n) => n.data.nodeType === 'retriever')!
 
-    expect(handleTo(question.id, 'payload', rewriter.id, 'prompt')).toBe(true)
+    expect(handleTo(guard.id, 'passed', rewriter.id, 'prompt')).toBe(true)
     expect(handleTo(memory.id, 'history', rewriter.id, 'memory')).toBe(true)
     expect(handleTo(rewriter.id, 'response', embedder.id, 'text')).toBe(true)
     expect(handleTo(rewriter.id, 'response', retriever.id, 'query')).toBe(true)
@@ -125,6 +125,58 @@ describe('Conversational RAG template', () => {
     const store = flow.nodes.find((n) => n.data.nodeType === 'vectorDB')!
     expect(handleTo(store.id, 'store', retriever.id, 'store')).toBe(true)
     expect(String(node('Answer LLM').data.config.systemPrompt)).toMatch(/only the retrieved context/)
+  })
+
+  it('reranks retrieved candidates before they reach the prompt', () => {
+    const retriever = flow.nodes.find((n) => n.data.nodeType === 'retriever')!
+    const reranker = flow.nodes.find((n) => n.data.nodeType === 'reranker')!
+    const prompt = node('Prompt Builder')
+
+    expect(handleTo(retriever.id, 'documents', reranker.id, 'documents')).toBe(true)
+    expect(handleTo(node('Query Rewriter').id, 'response', reranker.id, 'query')).toBe(true)
+    expect(handleTo(reranker.id, 'documents', prompt.id)).toBe(true)
+    expect(flow.edges.some((e) => e.source === retriever.id && e.target === prompt.id)).toBe(false)
+    expect(Number(retriever.data.config.topK)).toBeGreaterThan(Number(reranker.data.config.topN))
+  })
+
+  it('keeps long chats in context with recent turns plus a rolling summary', () => {
+    const summary = node('Conversation Summary')
+    expect(summary.data.config.memoryType).toBe('summary')
+    expect(handleTo(summary.id, 'history', node('Prompt Builder').id)).toBe(true)
+    expect(handleTo(node('Output Guard').id, 'passed', summary.id, 'input')).toBe(true)
+  })
+
+  it('screens the question and the answer, and never follows instructions in documents', () => {
+    const question = node('User Question'), inputGuard = node('Input Guard'), outputGuard = node('Output Guard')
+    const llm = node('Answer LLM'), answer = node('Answer')
+
+    // the raw question goes only to the input guard; blocked messages get a refusal
+    expect(flow.edges.filter((e) => e.source === question.id).map((e) => e.target)).toEqual([inputGuard.id])
+    expect(handleTo(inputGuard.id, 'blocked', node('Polite Refusal').id)).toBe(true)
+
+    // the answer reaches the user and memory only through the output guard
+    expect(handleTo(llm.id, 'response', outputGuard.id, 'input')).toBe(true)
+    expect(handleTo(outputGuard.id, 'passed', answer.id)).toBe(true)
+    expect(handleTo(outputGuard.id, 'blocked', node('Fallback Reply').id)).toBe(true)
+    expect(flow.edges.some((e) => e.source === llm.id && e.target !== outputGuard.id)).toBe(false)
+    expect(handleTo(outputGuard.id, 'passed', node('Recent Turns').id, 'input')).toBe(true)
+    expect(String(outputGuard.data.config.checks)).toMatch(/pii/)
+
+    expect(String(llm.data.config.systemPrompt)).toMatch(/data, not instructions/)
+  })
+
+  it('scores sampled live turns with reference-free metrics and alerts on drops', () => {
+    const sampler = flow.nodes.find((n) => n.data.nodeType === 'traceSampler')!
+    const evaluator = flow.nodes.find((n) => n.data.nodeType === 'ragEvaluator')!
+    const monitor = flow.nodes.find((n) => n.data.nodeType === 'monitor')!
+
+    for (const port of ['query', 'contexts', 'response']) expect(handleTo(sampler.id, 'traces', evaluator.id, port), port).toBe(true)
+    expect(handleTo(evaluator.id, 'scores', monitor.id, 'metrics')).toBe(true)
+    expect(evaluator.data.config.faithfulness).toBe(true)
+    // live traffic has no reference answers, so reference-based metrics must be off
+    for (const key of ['recallAtK', 'precisionAtK', 'f1AtK', 'mrr', 'ndcgAtK', 'contextRecall', 'answerF1', 'exactMatch']) {
+      expect(evaluator.data.config[key], key).toBe(false)
+    }
   })
 })
 

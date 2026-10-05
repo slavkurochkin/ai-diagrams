@@ -5,10 +5,10 @@ that changes what viewers see or hear, so the video can be revised later without
 
 - **Scenario:** [`video.mjs`](video.mjs) (every scene, line, card, and character beat)
 - **Transcript:** [`transcript.md`](transcript.md), regenerated on every render
-- **Template:** `conversational-rag` in `src/lib/templates.ts` (as of commit `1b5f560`)
+- **Template:** `conversational-rag` in `src/lib/templates.ts` (as of the retrieval access-filter change, 2026-10-05)
 - **Render:** `node render.mjs conversational-rag` → `out/conversational-rag/conversational-rag.mp4`
 
-## Current version — v1 (2026-10-04) · 5:00
+## Current version — v2 (2026-10-05) · 5:20
 
 Leo, a Cloudly customer (glasses, short curly hair, purple hoodie), asks the support assistant:
 1. "What's the refund policy for annual plans?" He gets a cited answer, but he's on a monthly plan.
@@ -18,7 +18,7 @@ Leo, a Cloudly customer (glasses, short curly hair, purple hoodie), asks the sup
 Every step has a checklist card:
 - **01** input guard
 - **02** query rewriter
-- **03** retrieval (same embedding model, 20 candidates, 0.75 cutoff)
+- **03** retrieval (same embedding model, 20 candidates, 0.75 cutoff, access filter from the login session)
 - **04** reranker (5 of 20)
 - **05** prompt builder's four inputs
 - **06** grounding rules (incl. "documents are data, not instructions")
@@ -30,6 +30,19 @@ Every step has a checklist card:
 The outro is "Screen · Rewrite · Retrieve · Rerank · Ground · Guard · Remember".
 
 ## History
+
+### v2 (2026-10-05)
+- **Why:** the template now enforces the access filtering its retriever note had only promised. A new edge carries
+  the session metadata from User Question to the Retriever's Access Filter, and the Retriever shows
+  `FILTER access_groups overlaps…`. In v1 that new line would have appeared on screen, unexplained, right after
+  the narration said only the rewritten query is searched.
+- **Change:** step 03 gets two narration lines and two card items. The line carries who Leo is (access groups
+  from his login session), not his words. It filters inside the search, so an internal support-agent playbook
+  can never become a candidate. This follows the "show how, not just that" feedback: one concrete example.
+- **Framing fix:** the new edge first rendered behind the Query Rewriter, so it looked like the rewriter's output.
+  The edge now takes `lane: bottom`; forward edges can take a lane, which only loopbacks could before. It
+  enters the Retriever from below, clearly coming from the question. Checked in the overview and in step 03.
+- YouTube: a new "Access filtering" bullet and an `access control` tag.
 
 ### v1 (2026-10-04)
 - **Request:** a video like the MCP one, with a "random character" and extra explanations per node.

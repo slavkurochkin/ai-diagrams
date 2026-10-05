@@ -125,6 +125,9 @@ describe('Conversational RAG template', () => {
     const question = node('User Question'), retriever = flow.nodes.find((n) => n.data.nodeType === 'retriever')!
     expect(handleTo(question.id, 'metadata', retriever.id, 'filter')).toBe(true)
     expect(String(retriever.data.config.metadataFilter)).toMatch(/access_groups/)
+    // Access must come from the authenticated session, not from anything the client can set
+    expect(String(retriever.data.note)).toMatch(/server-side/)
+    expect(String(retriever.data.note)).toMatch(/never from client-supplied fields/)
     // Identity goes to the access filter only — never into a prompt or a model
     expect(flow.edges.filter((e) => e.source === question.id && e.sourceHandle === 'metadata').map((e) => `${e.target}.${e.targetHandle}`)).toEqual([`${retriever.id}.filter`])
   })
@@ -355,8 +358,21 @@ describe('Conversational RAG Eval template', () => {
     expect(source('No Restricted Docs Retrieved', 'output')).toBe('Retriever') // before reranking
     expect(source('No Canary in Answer', 'output')).toBe('Answer LLM')
     expect(byLabel('No Canary in Answer').data.config.checkType).toBe('not-contains')
+    // Probes include users claiming a role in their message
+    expect(String(byLabel('Scripted Conversations').data.note)).toMatch(/claim a role/)
     // The pipeline is told who is asking, as in production
     expect(source('Retriever', 'filter')).toBe('Conversation: User & Access Groups')
+  })
+
+  it('always writes the report, and lets gates only raise the alert', () => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
+    const byLabel = (label: string) => flow.nodes.find((n) => n.data.label === label)!
+    const report = byLabel('Eval Report'), alert = byLabel('Regression Alert')
+    const intoReport = flow.edges.filter((e) => e.target === report.id)
+    expect(intoReport.map((e) => `${flow.nodes.find((n) => n.id === e.source)!.data.label}.${e.sourceHandle}`)).toEqual(['For Each Conversation.results'])
+    for (const gate of flow.nodes.filter((n) => n.data.nodeType === 'thresholdGate')) {
+      expect(flow.edges.some((e) => e.source === gate.id && e.sourceHandle === 'fail' && e.target === alert.id), gate.data.label).toBe(true)
+    }
   })
 
   it('replays turns in order so memory builds up as it does live', () => {

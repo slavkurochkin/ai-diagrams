@@ -84,6 +84,7 @@ const scenes = [
     edges: [
       ['Query Rewriter', 'Query Embedder', A], ['Query Embedder', 'Retriever', A],
       ['Query Rewriter', 'Retriever', A], ['Knowledge Base', 'Retriever', A],
+      ['User Question', 'Retriever', A],
     ],
     card: {
       title: 'Finding candidates',
@@ -92,12 +93,16 @@ const scenes = [
         { line: 1, text: '<b>Knowledge base:</b> help-center articles, split into chunks, each with a source id' },
         { line: 2, text: '<b>Retriever:</b> the 20 closest chunks' },
         { line: 2, text: 'Below 0.75 similarity → dropped' },
+        { line: 3, text: '<b>Access filter:</b> Leo’s access groups, from his <b>login session</b>, never from what he types' },
+        { line: 4, text: 'Applied <b>inside</b> the search: an internal support playbook is never even a candidate' },
       ],
     },
     lines: [
       'Now retrieval. The embedder turns the query into a vector, using the same model the documents were indexed with. Mix models, and the search breaks.',
       'The knowledge base holds the help-center articles, split into chunks, each with a source ID.',
       'The retriever pulls the 20 closest chunks, and anything below 0.75 similarity is dropped, so weak matches never reach the answer.',
+      'One more line feeds the retriever, straight from Leo’s question. It doesn’t carry his words. It carries who he is: the access groups from his login session.',
+      'They filter inside the search itself. Leo is a customer, so an internal playbook written for support agents can never even become a candidate, however well it matches.',
     ],
   },
   {
@@ -318,10 +323,11 @@ What you'll learn:
 • Input and output guardrails, and why blocked messages should cost nothing
 • Query rewriting: turning follow-ups into standalone search queries
 • Embeddings, vector search, similarity cutoffs, and why you rerank 20 candidates down to 5
+• Access filtering: searching only the documents each user is allowed to read
 • Grounded answers: citations, "I don't know", and treating documents as data, not instructions
 • Conversation memory: recent turns plus a rolling summary, scoped per session
 • Measuring quality in production without reference answers (faithfulness, relevancy, context precision)`,
-    tags: ['RAG', 'retrieval augmented generation', 'conversational AI', 'LLM', 'vector search', 'reranking', 'query rewriting', 'AI guardrails', 'prompt injection', 'AI architecture', 'chatbot'],
+    tags: ['RAG', 'retrieval augmented generation', 'conversational AI', 'LLM', 'vector search', 'reranking', 'query rewriting', 'AI guardrails', 'prompt injection', 'access control', 'AI architecture', 'chatbot'],
   },
   scenes,
 };

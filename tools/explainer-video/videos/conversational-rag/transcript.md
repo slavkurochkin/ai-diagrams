@@ -1,6 +1,6 @@
 # Conversational RAG — transcript
 
-Generated from `video.mjs` on every render. Total 4:59 · voice `af_heart` at 1.0× · template "Conversational RAG".
+Generated from `video.mjs` on every render. Total 5:20 · voice `af_heart` at 1.0× · template "Conversational RAG".
 
 ## 0:00 · Overview
 
@@ -48,18 +48,22 @@ Generated from `video.mjs` on every render. Total 4:59 · voice `af_heart` at 1.
 - **1:22** Now retrieval. The embedder turns the query into a vector, using the same model the documents were indexed with. Mix models, and the search breaks.
 - **1:32** The knowledge base holds the help-center articles, split into chunks, each with a source ID.
 - **1:37** The retriever pulls the 20 closest chunks, and anything below 0.75 similarity is dropped, so weak matches never reach the answer.
+- **1:47** One more line feeds the retriever, straight from Leo’s question. It doesn’t carry his words. It carries who he is: the access groups from his login session.
+- **1:57** They filter inside the search itself. Leo is a customer, so an internal playbook written for support agents can never even become a candidate, however well it matches.
 
 > **Card — Finding candidates**
 > - Embedder: query → vector, with the same model the docs were indexed with
 > - Knowledge base: help-center articles, split into chunks, each with a source id
 > - Retriever: the 20 closest chunks
 > - Below 0.75 similarity → dropped
+> - Access filter: Leo’s access groups, from his login session, never from what he types
+> - Applied inside the search: an internal support playbook is never even a candidate
 
-## 1:48 · 04 · Reranker
+## 2:08 · 04 · Reranker
 
-- **1:49** Vector search is fast, but rough. So a reranker takes a second look.
-- **1:53** It reads the query and each chunk together, scores how well they match, and keeps the best 5 of the 20.
-- **2:00** Fewer, better chunks mean a cheaper prompt, and a more accurate answer.
+- **2:10** Vector search is fast, but rough. So a reranker takes a second look.
+- **2:14** It reads the query and each chunk together, scores how well they match, and keeps the best 5 of the 20.
+- **2:20** Fewer, better chunks mean a cheaper prompt, and a more accurate answer.
 
 > **Card — Reranking**
 > - Vector search: fast, but rough
@@ -67,10 +71,10 @@ Generated from `video.mjs` on every render. Total 4:59 · voice `af_heart` at 1.
 > - Keeps the best 5 of 20
 > - Smaller prompt, more accurate answer
 
-## 2:05 · 05 · Prompt builder
+## 2:25 · 05 · Prompt builder
 
-- **2:06** The prompt builder assembles four inputs.
-- **2:08** Leo’s question exactly as he asked it, the recent turns, the five reranked chunks with their source IDs, and a summary of older conversation.
+- **2:27** The prompt builder assembles four inputs.
+- **2:29** Leo’s question exactly as he asked it, the recent turns, the five reranked chunks with their source IDs, and a summary of older conversation.
 
 > **Card — Four inputs**
 > - A · Leo’s question, exactly as he asked it
@@ -78,12 +82,12 @@ Generated from `video.mjs` on every render. Total 4:59 · voice `af_heart` at 1.
 > - C · the 5 reranked chunks, with source ids
 > - D · a summary of older conversation
 
-## 2:18 · 06 · Grounded answer
+## 2:39 · 06 · Grounded answer
 
-- **2:20** The answer model works under strict rules.
-- **2:23** Answer only from the retrieved context, and cite the source of every claim.
-- **2:27** If the context doesn’t contain the answer, say “I don’t know” instead of guessing.
-- **2:32** And treat documents as data, never as instructions. If a chunk says “ignore your rules”, the model ignores the chunk.
+- **2:40** The answer model works under strict rules.
+- **2:43** Answer only from the retrieved context, and cite the source of every claim.
+- **2:48** If the context doesn’t contain the answer, say “I don’t know” instead of guessing.
+- **2:53** And treat documents as data, never as instructions. If a chunk says “ignore your rules”, the model ignores the chunk.
 
 > **Card — The answer model’s rules**
 > - Answer only from the retrieved context
@@ -91,28 +95,28 @@ Generated from `video.mjs` on every render. Total 4:59 · voice `af_heart` at 1.
 > - Not in the context → “I don’t know”, never a guess
 > - Documents are data, not instructions
 
-## 2:40 · 07 · Output guard
+## 3:01 · 07 · Output guard
 
-- **2:42** Before anything reaches Leo, the output guard checks the answer.
-- **2:46** Grounded answers can quote personal data from the documents, like emails or phone numbers. The guard redacts it.
-- **2:53** Toxic output is blocked, and Leo gets a safe fallback reply instead.
+- **3:02** Before anything reaches Leo, the output guard checks the answer.
+- **3:06** Grounded answers can quote personal data from the documents, like emails or phone numbers. The guard redacts it.
+- **3:14** Toxic output is blocked, and Leo gets a safe fallback reply instead.
 
 > **Card — Checked before Leo sees it**
 > - Redacts personal data the docs may contain: emails, phone numbers, account ids
 > - Toxic output → blocked, safe fallback reply instead
 
-## 2:58 · Back to Leo
+## 3:19 · Back to Leo
 
-- **3:00** Leo gets his answer: annual plans are fully refundable within 30 days, with the source cited.
+- **3:20** Leo gets his answer: annual plans are fully refundable within 30 days, with the source cited.
   - _Assistant:_ Annual plans can be refunded in full within 30 days of purchase. [doc 3]
-- **3:06** Better. But Leo is actually on a monthly plan.
+- **3:27** Better. But Leo is actually on a monthly plan.
   - _Leo:_ Okay, good. But I’m on monthly… 🤔
 
-## 3:10 · 08 · Memory
+## 3:30 · 08 · Memory
 
-- **3:11** Meanwhile, the turn is saved to memory: Leo’s question, and the guarded answer, so the history matches what he actually saw.
-- **3:19** Recent turns keeps the last six exchanges word for word. Older ones are folded into a rolling summary, so long chats stay in context without the prompt growing forever.
-- **3:30** Each conversation has its own history. Nothing leaks between users.
+- **3:32** Meanwhile, the turn is saved to memory: Leo’s question, and the guarded answer, so the history matches what he actually saw.
+- **3:39** Recent turns keeps the last six exchanges word for word. Older ones are folded into a rolling summary, so long chats stay in context without the prompt growing forever.
+- **3:51** Each conversation has its own history. Nothing leaks between users.
 
 > **Card — Memory**
 > - Saved after the answer: the question + the guarded answer
@@ -120,13 +124,13 @@ Generated from `video.mjs` on every render. Total 4:59 · voice `af_heart` at 1.
 > - Summary: everything older, compressed
 > - One history per session, never shared between users
 
-## 3:35 · 09 · The follow-up
+## 3:55 · 09 · The follow-up
 
-- **3:36** Leo asks a follow-up: what about monthly ones?
+- **3:57** Leo asks a follow-up: what about monthly ones?
   - _Leo:_ What about monthly ones?
-- **3:39** On its own, that question is useless for search. Monthly what? There’s nothing to match.
-- **3:45** But the rewriter sees the recent turns, and turns it into: what is the refund policy for monthly plans?
-- **3:51** That standalone query is what gets embedded and retrieved. This one step is what makes RAG conversational.
+- **4:00** On its own, that question is useless for search. Monthly what? There’s nothing to match.
+- **4:05** But the rewriter sees the recent turns, and turns it into: what is the refund policy for monthly plans?
+- **4:12** That standalone query is what gets embedded and retrieved. This one step is what makes RAG conversational.
 
 > **Card — Rewriting a follow-up**
 > - Leo asks: “What about monthly ones?”
@@ -134,19 +138,19 @@ Generated from `video.mjs` on every render. Total 4:59 · voice `af_heart` at 1.
 > - Rewriter + recent turns → “What is the refund policy for monthly plans?”
 > - That query is what gets embedded and retrieved
 
-## 3:59 · Back to Leo
+## 4:20 · Back to Leo
 
-- **4:01** The same path runs again: guard, rewrite, retrieve, rerank, ground, guard. And Leo gets his answer, with a source.
+- **4:21** The same path runs again: guard, rewrite, retrieve, rerank, ground, guard. And Leo gets his answer, with a source.
   - _Assistant:_ Monthly plans can be cancelled anytime, and you won’t be charged again. Partial months aren’t refunded. [doc 5]
-- **4:08** Two questions, two grounded answers, and no more digging through the help center.
+- **4:29** Two questions, two grounded answers, and no more digging through the help center.
   - _Leo:_ Perfect, that’s exactly what I needed! 🎉
 
-## 4:13 · 10 · Quality check
+## 4:34 · 10 · Quality check
 
-- **4:15** Finally, how do you know it keeps working? Tracing records every turn.
-- **4:19** Five percent of live conversations are sampled and scored by a judge model.
-- **4:24** Live traffic has no reference answers, so it measures what it can: is the answer grounded in the chunks, does it address the question, and were the chunks relevant.
-- **4:34** If average faithfulness drops below 0.9 over a day, the RAG owners get an alert. Usually that means stale documents, an index change, or a prompt regression.
+- **4:36** Finally, how do you know it keeps working? Tracing records every turn.
+- **4:40** Five percent of live conversations are sampled and scored by a judge model.
+- **4:45** Live traffic has no reference answers, so it measures what it can: is the answer grounded in the chunks, does it address the question, and were the chunks relevant.
+- **4:54** If average faithfulness drops below 0.9 over a day, the RAG owners get an alert. Usually that means stale documents, an index change, or a prompt regression.
 
 > **Card — Is it still working?**
 > - Tracing records every turn
@@ -155,8 +159,8 @@ Generated from `video.mjs` on every render. Total 4:59 · voice `af_heart` at 1.
 > - Faithfulness below 0.9 over 24h → alert
 > - Usual causes: stale docs, an index change, a prompt regression
 
-## 4:45 · Summary
+## 5:06 · Summary
 
-- **4:46** Screen. Rewrite. Retrieve. Rerank. Ground. Guard. Remember.
-- **4:51** That’s how a conversational RAG assistant answers follow-up questions accurately, from your own documents.
+- **5:07** Screen. Rewrite. Retrieve. Rerank. Ground. Guard. Remember.
+- **5:11** That’s how a conversational RAG assistant answers follow-up questions accurately, from your own documents.
   - _Leo:_ Thanks! 😄

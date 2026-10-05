@@ -207,7 +207,9 @@ export default function CustomEdge({
     loopLane,
   )
 
-  const edgePath = isLoopback
+  // Loopbacks always take a lane; a forward edge does when one is set explicitly (to route around nodes).
+  const laneRouted = isLoopback || edgeData.lane !== undefined
+  const edgePath = laneRouted
     ? loopbackPath
     : axisDelta < 6
       ? `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`
@@ -227,8 +229,8 @@ export default function CustomEdge({
               ],
         )
 
-  const labelX = isLoopback ? loopLabelX : midpointX
-  const labelY = isLoopback ? loopLabelY : midpointY
+  const labelX = laneRouted ? loopLabelX : midpointX
+  const labelY = laneRouted ? loopLabelY : midpointY
 
   const label =
     sourceHandleId && targetHandleId

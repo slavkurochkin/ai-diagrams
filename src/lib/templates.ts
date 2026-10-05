@@ -257,8 +257,8 @@ nodes:
       format: markdown
     note: "A fixed, friendly reply such as 'I can only help with questions about our docs'. Never echoes the blocked message"
     position:
-      x: 340
-      y: 230
+      x: 60
+      y: 420
   - id: rewriter
     type: llm
     label: Query Rewriter
@@ -372,6 +372,7 @@ nodes:
     label: Conversation Summary
     config:
       memoryType: summary
+      windowSize: 6
       maxTokens: 500
     note: "Rolling summary of everything older than the recent window, so long chats keep early facts (names, plans, decisions) without the prompt growing every turn. Same session scoping and write timing as Recent Turns"
     position:

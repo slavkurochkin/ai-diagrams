@@ -262,7 +262,7 @@ nodes:
     config:
       topK: 5
       strategy: similarity
-    note: "Searches with the standalone query, never the raw follow-up"
+    note: "Searches with the standalone query, never the raw follow-up. If documents are private, filter by what the current user may read (e.g. a metadata filter on access groups)"
     position:
       x: 900
       y: 40
@@ -272,7 +272,8 @@ nodes:
     config:
       provider: qdrant
       indexName: knowledge-base
-    note: "Filled by a separate indexing pipeline (load → chunk → embed, as in Basic RAG). Chunks keep their source ids for citations"
+      similarityThreshold: 0.75
+    note: "Filled by a separate indexing pipeline (load → chunk → embed, as in Basic RAG). Chunks keep their source ids for citations. Matches below 0.75 similarity are dropped, so weak chunks never reach the answer — tune per embedding model"
     position:
       x: 900
       y: 260
@@ -313,7 +314,7 @@ nodes:
     config:
       memoryType: conversation
       windowSize: 10
-    note: "One history per session (keyed by the session id from the trigger metadata), never shared across users\\nReads: feeds the rewriter and the prompt\\nWrites: the user turn and the LLM reply, so the next turn has full context"
+    note: "One history per session (keyed by the session id from the trigger metadata), never shared across users\\nReads: feeds the rewriter and the prompt\\nWrites: the user turn and the LLM reply together, after the answer, so the current question never appears twice in its own prompt"
     position:
       x: 620
       y: 420

@@ -9,7 +9,7 @@ that changes what viewers see or hear, so the video can be revised later without
 - **Follow-up to:** [`mcp-multi-tenant`](../mcp-multi-tenant/LOG.md) (same server, same character)
 - **Render:** `node render.mjs mcp-testing` → `out/mcp-testing/mcp-testing.mp4`
 
-## Current version — v1 (2026-10-04) · 4:37
+## Current version — v2 (2026-10-05) · 7:30
 
 Becky returns. Her assistant can now edit Acme's CRM, and she has fears. Each test layer answers one of
 them, and each card is titled with her question:
@@ -18,7 +18,12 @@ them, and each card is titled with her question:
 |---|---|---|
 | 01 Contract tests (every commit, no LLM) | — | direct calls with crafted tokens; 401/403/429/unknown tool |
 | 01 Tenant isolation | "Can another company see our data?" | checked in the **database**, not the response; gate 100% |
-| 02 Tool-use quality | "Will it do the right thing?" | every client model; search **then** create (order matters); confirm deletes; gate on the weakest model ≥ 95% |
+| 02 Tool-use quality | "Will it do the right thing?" | server correct vs. models using it correctly; the right answer is written down before the test runs |
+| 02 A golden test case | — | request · seeded data · expected calls (tool, key args, order) · forbidden calls |
+| 02 Scoring the calls | — | four checks: tool selection, arguments (schema + key values), order, no redundancy; pass = all four |
+| 02 Same request, different data | — | Dana missing → search + create; Dana exists → search only; seeded data makes it deterministic |
+| 02 Deletes need consent | — | turn 1: search, then ask (no tool call); turn 2 after "yes": delete by exact id |
+| 02 The tool-use gate | — | per-model scores; the weakest model blocks; the fix is a clearer tool description; re-run → 97% |
 | 03 Security | "What if someone plants a trick?" | booby-trapped records, so injection arrives via tool results; cross-tenant org_id; PII |
 | 03 Judging attacks | — | judge reads the reply + a database check of what happened; over-refusal also fails; 0 violations |
 | 04 Load & noisy neighbor | "Will someone else slow us down?" | 10× flood → 429s; quiet tenants' p95 rises ≤ 10% |
@@ -29,6 +34,19 @@ Then the release report pops up next to Becky (✓ ✓ ✓ ✓) and she turns ha
 "Contracts · Tool use · Security · Load · Production".
 
 ## History
+
+### v2 — how the right tool call is determined (2026-10-05) · 7:30
+- **Feedback:** the tool-use step "doesn't explain well how the right tool call gets determined, it just says
+  it is getting tested, but doesn't explain details".
+- One tool-use scene became six, each its own YouTube chapter. They show the anatomy of a golden test case, the four
+  scoring checks, why seeded data makes the expected answer deterministic (same request, two worlds),
+  the two-turn delete-with-consent case, and the per-model gate with a worked failure and its fix
+  (a clearer `create_contact` description). The release report's "97% (weakest model)" now follows from
+  that story.
+- Template notes on Tool-Use Tasks and Right Tool, Right Args were updated to match: golden cases with
+  seeded data and forbidden calls, and the four-check pass rule.
+- The YouTube description's bullets were updated, and the chapters regenerated (17 chapters).
+- Trade-off: the video grew from 4:37 to about 7:30, nearly all of it in the tool-use section, as requested.
 
 ### v1 (2026-10-04)
 - **Request:** a follow-up video on how to test the MCP architecture, as an evaluation deep dive.

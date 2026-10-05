@@ -2209,7 +2209,7 @@ nodes:
     config:
       source: file
       path: tests/mcp/tool-tasks.jsonl
-    note: "Each case: a request and the calls a good client makes, e.g. 'add Dana Kim if she's missing' → search_contacts, then create_contact only if not found; 'delete Dana' → ask the user first"
+    note: "Each case is a golden example: the request, the seeded data, the expected calls (tool, key argument values, order), and forbidden calls. 'Add Dana Kim if she's missing' with no Dana seeded → search_contacts, then create_contact; with Dana seeded → search only. 'Delete Dana' → no delete until the user confirms"
     position:
       x: 460
       y: 460
@@ -2251,7 +2251,7 @@ nodes:
       orderMatters: true
       redundantCalls: true
       matchStrategy: exact
-    note: "Order matters: create before search is a duplicate waiting to happen"
+    note: "A task passes only if all four hold: the expected tools and nothing forbidden; arguments valid against the schema with the key values right; the right order (search before create); no redundant calls"
     position:
       x: 1300
       y: 460

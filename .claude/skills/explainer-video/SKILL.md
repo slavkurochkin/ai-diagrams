@@ -58,5 +58,10 @@ format, and the commands. Existing videos live in `tools/explainer-video/videos/
 - Voice: Kokoro `af_heart`. The user rejected macOS `say` voices.
 - Unclear concepts get a checklist card rather than a longer caption. Earlier gaps included token origin
   ("the server doesn't create tokens") and what a monitor counts.
+- **Show how, not just that.** Saying a step "is tested" or "is checked" isn't enough: show what decides
+  the outcome, with a worked example. The user flagged the first testing video for saying tool calls get
+  tested without explaining how the right call is determined. The fix showed the anatomy of a golden test case, the scoring
+  checks, a counter-example (same request with different seeded data), and a failure with its fix. Apply this
+  to every evaluator, gate, judge, or check a video covers.
 - Before a full render, describe the story and the cards to the user, and confirm the direction if it's a
   new video.

@@ -15,7 +15,8 @@ Becky is back. In this follow-up to our multi-tenant MCP server walkthrough, eac
 
 What you'll learn:
 • Contract tests with no model in the loop: 401, 403, 429, and tenant isolation checked in the database
-• Tool-use evals across Claude, GPT, and Gemini, and why you gate on the weakest model
+• How the “right” tool call is defined: golden test cases, seeded data, expected and forbidden calls
+• Scoring tool calls: tool selection, arguments, order, and redundancy, and why you gate on the weakest model
 • Red-teaming with poisoned data: prompt injection that arrives through tool results
 • Noisy-neighbor load tests: one tenant floods, the others shouldn't notice
 • Judging live tool calls in production, and a release gate that blocks on any failure
@@ -26,13 +27,18 @@ Chapters
 0:34 Contract tests
 1:04 Tenant isolation
 1:29 Tool-use quality
-2:08 Security
-2:31 Judging attacks
-2:58 Load & noisy neighbor
-3:19 Production
-3:47 The release decision
-4:03 Back to Becky
-4:23 Summary
+1:55 What “right” means
+2:37 Scoring the calls
+3:20 Same request, different data
+3:52 Deletes need consent
+4:25 Gating on the weakest model
+5:01 Security
+5:24 Judging attacks
+5:51 Load & noisy neighbor
+6:12 Production
+6:40 The release decision
+6:56 Back to Becky
+7:16 Summary
 ```
 
 ## Tags

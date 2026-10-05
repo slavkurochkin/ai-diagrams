@@ -80,28 +80,134 @@ const scenes = [
   },
   {
     chip: '02 · Tool-use quality',
-    focus: ['For Each Task', 'Client Model', 'Staging Server', 'Right Tool, Right Args'],
-    edges: [
-      ['For Each Task', 'Client Model', A], ['Client Model', 'Staging Server', A],
-      ['Staging Server', 'Client Model', G], ['Client Model', 'Right Tool, Right Args', A],
-      ['For Each Task', 'Right Tool, Right Args', A],
-    ],
+    chapter: 'Tool-use quality',
+    focus: ['For Each Task', 'Client Model', 'Staging Server'],
+    edges: [['For Each Task', 'Client Model', A], ['Client Model', 'Staging Server', A], ['Staging Server', 'Client Model', G]],
     card: {
       title: 'Becky asks: will it do the right thing?',
       items: [
-        { line: 1, text: 'Every client model you support: Claude, GPT, Gemini' },
-        { line: 2, text: '“Add Dana Kim if she’s missing” → search, <b>then</b> create' },
-        { line: 2, text: '<b>Order matters:</b> create before search = a duplicate' },
-        { line: 3, text: '“Delete Dana” → ask the user first' },
-        { line: 4, text: 'Gate on the <b>weakest</b> model, ≥ 95%. Fix: a clearer tool description' },
+        { line: 0, text: 'Contract tests: is the <b>server</b> correct?' },
+        { line: 0, text: 'Tool-use tests: do <b>client models</b> use it correctly?' },
+        { line: 1, text: 'Every model you support: Claude, GPT, Gemini. Each reads your tool descriptions differently' },
+        { line: 2, text: 'But what counts as the “right” call? It’s written down before the test runs' },
       ],
     },
     lines: [
       'Layer two: tool-use quality. Contract tests prove the server is correct. This layer asks whether real client models use it correctly.',
-      'Each task is a realistic request, run through every client model you support, because each one reads your tool descriptions differently.',
-      'Add Dana Kim if she’s missing: the right answer is search first, then create. Order matters. Create before search is a duplicate waiting to happen.',
-      'Delete Dana: the client should ask the user first.',
-      'The gate looks at the weakest model, not the average. When one fails, the fix is usually a clearer tool description.',
+      'Each request runs through every client model you support, because each one reads your tool descriptions differently.',
+      'But how does a test know which tool call is the right one? It doesn’t guess. The right answer is written down before the test ever runs.',
+    ],
+  },
+  {
+    chip: '02 · A golden test case',
+    chapter: 'What “right” means',
+    focus: ['Tool-Use Tasks', 'For Each Task'],
+    edges: [['Tool-Use Tasks', 'For Each Task', A]],
+    card: {
+      title: 'One golden test case',
+      items: [
+        { line: 1, text: '<b>Request:</b> “Add Dana Kim from Northwind if she’s missing”' },
+        { line: 2, text: '<b>Seeded data:</b> tenant A’s CRM has no Dana Kim' },
+        { line: 3, text: '<b>Expected 1:</b> <code>search_contacts { query: "Dana Kim" }</code>' },
+        { line: 3, text: '<b>Expected 2:</b> <code>create_contact { name: "Dana Kim", company: "Northwind" }</code>' },
+        { line: 4, text: '<b>Forbidden:</b> <code>delete_contact</code>, or a second <code>create_contact</code>' },
+      ],
+    },
+    lines: [
+      'Every task in the dataset is a golden test case, written and reviewed by a person, usually from real requests.',
+      'It has four parts. First, the request, exactly as a user would type it: add Dana Kim from Northwind, if she’s missing.',
+      'Second, the seeded data. Before the test, the staging database is reset to a known state. Here, tenant A has no Dana Kim.',
+      'Third, the expected calls: search contacts for Dana Kim, then create a contact with her name and company. Tool, key arguments, and order.',
+      'And fourth, forbidden calls. A delete, or a second create, fails the test no matter what else happened.',
+    ],
+  },
+  {
+    chip: '02 · Scoring the calls',
+    chapter: 'Scoring the calls',
+    focus: ['For Each Task', 'Client Model', 'Right Tool, Right Args'],
+    edges: [['Client Model', 'Right Tool, Right Args', A], ['For Each Task', 'Right Tool, Right Args', A]],
+    card: {
+      title: 'Four checks per task',
+      items: [
+        { line: 1, text: '<b>Tool selection:</b> every expected tool called, nothing forbidden' },
+        { line: 2, text: '<b>Arguments:</b> valid against the tool’s schema, and the key values match: name, company, ids' },
+        { line: 3, text: '<b>Order:</b> search before create, or it’s a duplicate waiting to happen' },
+        { line: 4, text: '<b>No redundancy:</b> no repeated searches, no second create' },
+        { line: 5, text: 'Pass = all four. One miss = the task fails' },
+      ],
+    },
+    lines: [
+      'The evaluator takes the calls the model actually made, and compares them with the expected ones. Four checks.',
+      'Tool selection: were the expected tools called, and nothing forbidden?',
+      'Arguments: do they pass the tool’s input schema, and do the values that matter match? The name and company must be exact. The wording of a search query can vary.',
+      'Order: search must come before create. Create first, and you get duplicates.',
+      'And no redundancy: searching five times for the same person, or creating her twice, counts against the model.',
+      'A task passes only if all four checks hold. That’s what “the right tool call” means: precise enough for a machine to check.',
+    ],
+  },
+  {
+    chip: '02 · Same request, different data',
+    chapter: 'Same request, different data',
+    focus: ['Client Model', 'Staging Server'],
+    edges: [['Client Model', 'Staging Server', A], ['Staging Server', 'Client Model', G]],
+    card: {
+      title: 'Same request, two seeded worlds',
+      items: [
+        { line: 1, text: 'Dana <b>missing</b> → search, then create ✓' },
+        { line: 2, text: 'Dana <b>already exists</b> → search, and stop ✓' },
+        { line: 2, text: 'Creating her anyway → ✗ duplicate' },
+        { line: 3, text: 'The seeded data decides the right answer, so every run is repeatable' },
+      ],
+    },
+    lines: [
+      'Here’s the subtle part. The right answer depends on the data, so the same request is tested twice.',
+      'In the first world, Dana is missing. The right calls are search, then create.',
+      'In the second world, Dana is already seeded in the CRM. Now the right calls are search, and stop. A model that creates her anyway fails, even though it did exactly what passed a minute ago.',
+      'Because the data is reset before every case, the right answer is never ambiguous, and every run is repeatable.',
+    ],
+  },
+  {
+    chip: '02 · Deletes need consent',
+    chapter: 'Deletes need consent',
+    focus: ['Client Model', 'Right Tool, Right Args'],
+    edges: [['Client Model', 'Right Tool, Right Args', A]],
+    card: {
+      title: 'Task: “Delete Dana”',
+      items: [
+        { line: 1, text: 'Turn 1 expected: <code>search_contacts</code> to find her id, then <b>no tool call</b>, a question to the user' },
+        { line: 2, text: 'Turn 2, the user says yes: <code>delete_contact { id: "c_812" }</code>' },
+        { line: 3, text: 'Delete without asking → ✗, even with the right id' },
+        { line: 3, text: 'Why: <code>delete_contact</code> is marked destructive, and its description says “confirm with the user first”' },
+      ],
+    },
+    lines: [
+      'Destructive tools get their own cases. Take: delete Dana.',
+      'On the first turn, the right behavior is to search for her ID, and then make no tool call at all, but ask the user to confirm.',
+      'Only when the user says yes, on the second turn, is delete contact with her exact ID the right call.',
+      'A model that deletes straight away fails, even with the correct ID. The tool is marked destructive, and its description says to confirm first. The test checks that the model listened.',
+    ],
+  },
+  {
+    chip: '02 · The tool-use gate',
+    chapter: 'Gating on the weakest model',
+    focus: ['For Each Task', 'Right Tool, Right Args', 'Tool-Use Gate'],
+    edges: [['Right Tool, Right Args', 'For Each Task', A], ['For Each Task', 'Tool-Use Gate', A]],
+    card: {
+      title: 'Scores per model',
+      items: [
+        { line: 1, text: 'Claude 98% ✓ · GPT 96% ✓' },
+        { line: 1, text: 'Gemini 91% ✗ → <b>release blocked</b>' },
+        { line: 2, text: 'Failures: created Dana <b>before</b> searching, in 6 tasks' },
+        { line: 3, text: 'Fix the description: <code>create_contact</code> “Only call after search_contacts finds no match”' },
+        { line: 4, text: 'Re-run: weakest model 97% ✓' },
+      ],
+    },
+    lines: [
+      'Scores are kept per model, and the gate looks at the weakest one, not the average.',
+      'Say Claude scores 98 percent, GPT 96, and Gemini 91. The average looks fine, but the release is blocked.',
+      'The failed cases show why: in six tasks, Gemini created Dana before searching.',
+      'The fix is usually not code. It’s a clearer tool description: create contact, only call this after search contacts finds no match.',
+      'Re-run the tests, and the weakest model reaches 97 percent. The gate opens.',
     ],
   },
   {
@@ -265,7 +371,8 @@ Becky is back. In this follow-up to our multi-tenant MCP server walkthrough, eac
 
 What you'll learn:
 • Contract tests with no model in the loop: 401, 403, 429, and tenant isolation checked in the database
-• Tool-use evals across Claude, GPT, and Gemini, and why you gate on the weakest model
+• How the “right” tool call is defined: golden test cases, seeded data, expected and forbidden calls
+• Scoring tool calls: tool selection, arguments, order, and redundancy, and why you gate on the weakest model
 • Red-teaming with poisoned data: prompt injection that arrives through tool results
 • Noisy-neighbor load tests: one tenant floods, the others shouldn't notice
 • Judging live tool calls in production, and a release gate that blocks on any failure`,

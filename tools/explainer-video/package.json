@@ -8,6 +8,7 @@
     "render": "node render.mjs"
   },
   "devDependencies": {
+    "@modelcontextprotocol/inspector": "^2.9.0",
     "playwright": "1.57.0"
   }
 }

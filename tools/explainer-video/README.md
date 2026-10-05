@@ -14,6 +14,12 @@ The output is a 1080p MP4.
 | [`mcp-multi-tenant`](videos/mcp-multi-tenant/LOG.md) | Multi-Tenant MCP Server | Becky, sales rep at Acme |
 | [`conversational-rag`](videos/conversational-rag/LOG.md) | Conversational RAG | Leo, Cloudly customer |
 | [`mcp-testing`](videos/mcp-testing/LOG.md) | MCP Server Test Strategy | Becky returns (follow-up to `mcp-multi-tenant`) |
+| [`mcp-hands-on-1`](videos/mcp-hands-on-1/LOG.md)…[`4`](videos/mcp-hands-on-4/LOG.md) | MCP Inspector + demo server (`app.mjs`) | Becky, trying it herself |
+
+There are two renderers:
+- **`render.mjs`** tours a diagram template in the AgentFlow app.
+- **`app.mjs`** records a *hands-on* episode. It drives a real app (the MCP Inspector) against a real server,
+  with real terminal commands; see below.
 
 ## Setup (once)
 
@@ -90,6 +96,28 @@ The character's `look` takes:
 
 The default look is Becky.
 
+## Hands-on episodes (`app.mjs`)
+
+`node app.mjs <id> [--stills …] [--frames N] [--meta]` uses the same narration, transcript, and YouTube
+pipeline as `render.mjs`. Each run:
+1. starts the demo server (`acme-crm-mcp`, override with `ACME_DIR`) and the pinned MCP Inspector fresh
+2. resets the database
+3. mints `setup.tokens`
+4. writes the Inspector's server list from `setup.servers`
+5. plays the scenario
+
+Extra scene keys (documented in the header of `app.mjs`):
+- `do`: timed actions: click, type, paste, press, run, clear
+- `highlight`: rings with labels and optional dimming
+- `terminal`: show the terminal panel (`left` / `right` / `full`)
+- `cardPos` / `cardTop` / `cardFrom`: where and when the card appears
+
+Targets are visible-only matches (`text=…`, `label=…`, `placeholder=…`, `role=[…]`, `switch=<server>`, or CSS).
+A failed action is reported and saved as `out/<id>/failed-<t>s.png`.
+
+Stills fast-forward through the actions, with proportional real pauses and a 2.5 s settle, so they match
+the video. Layout is 1280×720 captured at 1.5× (1920×1080 output).
+
 ## Conventions (learned the hard way)
 
 - **Explain the diagram; don't sell the template.** No "load the template" calls to action. The intro says
@@ -102,6 +130,10 @@ The default look is Becky.
 - **Narration must match the template.** Review the template before scripting. If the video would have to
   explain around a flaw, fix the template first.
 - **Always look at stills before a full render.**
+- **Hands-on: the screen must agree with the voice.** Terminal output and UI state are real, so read every
+  still against its caption. Timing-dependent results (rate-limit refills, reconnects) should run in one
+  command or with enough narration to cover them. Never narrate a result you haven't seen in a still.
+  If a live result can't be produced (for example no API key), say so on screen instead of faking it.
 - **Every video ships with a YouTube title and description.** Title ≤ 100 characters. The description is a
   hook question, the character's story in a sentence, then "What you'll learn" bullets. Chapters are generated;
   never write them by hand.

@@ -12,6 +12,11 @@ format, and the commands. Existing videos live in `tools/explainer-video/videos/
 - `youtube.md`: generated on every render
 - `LOG.md`: history, feedback, and decisions. **Read the log before changing an existing video.**
 
+There are two kinds of video:
+- **Diagram tours** use `render.mjs` and a template in the AgentFlow app.
+- **Hands-on episodes** use `app.mjs` and the real MCP Inspector, the demo server in
+  `~/Documents/dev/acme-crm-mcp`, and real terminal commands. See the README's "Hands-on episodes" section.
+
 ## Workflow
 
 1. **Check prerequisites.**
@@ -49,6 +54,19 @@ format, and the commands. Existing videos live in `tools/explainer-video/videos/
 7. **Hand over and log.** Give the user the video path, plus the YouTube title and description from `youtube.md`.
    Add a dated entry to `LOG.md` with the version, length, what changed, the user's feedback, and the reason.
    Commit `video.mjs`, `transcript.md`, `youtube.md`, and `LOG.md` together, but only when the user asks.
+
+## Hands-on lessons
+
+These are specific to `app.mjs`:
+- **Probe before scripting.** Run the real flow once (Playwright, or the Inspector CLI) and look at what the
+  app actually shows. Real behavior is often the best material: OAuth discovery after a 401, step-up after a
+  403, and tool errors that say "OK".
+- **Every still is checked against its caption.** If the output disagrees with the narration, fix the
+  command or the narration; never ship the mismatch.
+- **Give actions time.** A header swap plus reconnect takes about 7 s, so the narration must cover it, or the
+  next scene's clicks run too early.
+- **Failures leave a screenshot** in `out/<id>/failed-*.png`. Look at it before guessing.
+- **Check the output resolution** with `ffprobe` after the first full render.
 
 ## User preferences (from feedback)
 

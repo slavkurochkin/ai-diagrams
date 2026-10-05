@@ -28,8 +28,9 @@ npm-debug.log*
 # Vite cache
 .vite/
 
-# Memory (Claude Code internal)
-.claude/
+# Memory (Claude Code internal); project skills are shared
+.claude/*
+!.claude/skills/
 memory/
 
 PLAN.md

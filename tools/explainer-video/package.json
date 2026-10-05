@@ -1,0 +1,13 @@
+{
+  "name": "explainer-video",
+  "private": true,
+  "type": "module",
+  "description": "Narrated explainer videos for AgentFlow diagram templates",
+  "scripts": {
+    "setup": "./setup.sh",
+    "render": "node render.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.57.0"
+  }
+}

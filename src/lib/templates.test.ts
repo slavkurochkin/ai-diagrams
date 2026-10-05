@@ -117,7 +117,16 @@ describe('Conversational RAG template', () => {
     expect(handleTo(memory.id, 'history', rewriter.id, 'memory')).toBe(true)
     expect(handleTo(rewriter.id, 'response', embedder.id, 'text')).toBe(true)
     expect(handleTo(rewriter.id, 'response', retriever.id, 'query')).toBe(true)
-    expect(flow.edges.some((e) => e.source === question.id && (e.target === embedder.id || e.target === retriever.id))).toBe(false)
+    // The question text never reaches retrieval raw; the session metadata (identity) is not the question
+    expect(flow.edges.some((e) => e.source === question.id && e.sourceHandle === 'payload' && (e.target === embedder.id || e.target === retriever.id))).toBe(false)
+  })
+
+  it('searches only documents the current user may read', () => {
+    const question = node('User Question'), retriever = flow.nodes.find((n) => n.data.nodeType === 'retriever')!
+    expect(handleTo(question.id, 'metadata', retriever.id, 'filter')).toBe(true)
+    expect(String(retriever.data.config.metadataFilter)).toMatch(/access_groups/)
+    // Identity goes to the access filter only — never into a prompt or a model
+    expect(flow.edges.filter((e) => e.source === question.id && e.sourceHandle === 'metadata').map((e) => `${e.target}.${e.targetHandle}`)).toEqual([`${retriever.id}.filter`])
   })
 
   it('retrieves from a vector store and answers only from retrieved context', () => {
@@ -151,7 +160,7 @@ describe('Conversational RAG template', () => {
     const llm = node('Answer LLM'), answer = node('Answer')
 
     // the raw question goes only to the input guard; blocked messages get a refusal
-    expect(flow.edges.filter((e) => e.source === question.id).map((e) => e.target)).toEqual([inputGuard.id])
+    expect(flow.edges.filter((e) => e.source === question.id && e.sourceHandle === 'payload').map((e) => e.target)).toEqual([inputGuard.id])
     expect(handleTo(inputGuard.id, 'blocked', node('Polite Refusal').id)).toBe(true)
 
     // the answer reaches the user and memory only through the output guard
@@ -250,5 +259,120 @@ describe('Multi-Tenant MCP Server template', () => {
     expect(handleTo(byType('router').id, 'default', endpoint.id), 'unknown tools').toBe(true)
     expect(handleTo(endpoint.id, 'responses', byType('monitor').id), 'monitor watches responses').toBe(true)
     expect(endpoint.data.config.exposeResources).toBe(false)
+  })
+})
+
+describe('Conversational RAG Eval template', () => {
+  it('tests the same pipeline the Conversational RAG template ships', () => {
+    const shipped = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag')!.yaml)
+    const evaluated = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
+    const byLabel = (flow: ParsedFlow, label: string) => flow.nodes.find((n) => n.data.label === label)
+    const pipeline = ['Query Rewriter', 'Query Embedder', 'Retriever', 'Knowledge Base', 'Reranker', 'Prompt Builder', 'Answer LLM', 'Recent Turns', 'Conversation Summary']
+    for (const label of pipeline) {
+      const a = byLabel(shipped, label)
+      const b = byLabel(evaluated, label)
+      expect(a, `${label} in Conversational RAG`).toBeDefined()
+      expect(b, `${label} in the eval`).toBeDefined()
+      expect(b!.data.nodeType, label).toBe(a!.data.nodeType)
+      expect(b!.data.config, `${label} config drifted from the shipped pipeline`).toEqual(a!.data.config)
+    }
+  })
+
+  it('never lets the answer key reach the pipeline under test', () => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
+    const id = (label: string) => flow.nodes.find((n) => n.data.label === label)!.id
+    const pipeline = new Set(['Query Rewriter', 'Query Embedder', 'Retriever', 'Reranker', 'Prompt Builder', 'Answer LLM', 'Recent Turns', 'Conversation Summary'].map(id))
+    // Everything downstream of the answer key: the raw turn record and the expected-value extractors.
+    const answerKey = new Set([id('For Each Turn'), id('Turn: Expected Rewrite'), id('Turn: Reference & Relevant Docs')])
+    // Walk forward from the answer key, stopping at scorers (eval nodes) — nothing may reach the pipeline.
+    const frontier = [...answerKey]
+    const seen = new Set(frontier)
+    while (frontier.length) {
+      const from = frontier.pop()!
+      for (const e of flow.edges.filter((x) => x.source === from)) {
+        if (from === id('For Each Turn') && e.sourceHandle !== 'item') continue // `results` is run-level, not the key
+        const target = flow.nodes.find((n) => n.id === e.target)!
+        expect(pipeline.has(target.id), `answer key reaches ${target.data.label}`).toBe(false)
+        if (target.data.label === 'Turn: User Message') continue // the one field the pipeline may see
+        if (getNodeDefinition(target.data.nodeType)!.category === 'eval') continue
+        if (!seen.has(target.id)) { seen.add(target.id); frontier.push(target.id) }
+      }
+    }
+  })
+
+  it('judges conversations from a transcript, on the same 0–1 scale as every turn score', () => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
+    const convo = flow.nodes.find((n) => n.data.nodeType === 'multiTurnEval')!
+    const into = flow.edges.find((e) => e.target === convo.id && e.targetHandle === 'conversation')!
+    expect(flow.nodes.find((n) => n.id === into.source)!.data.nodeType).toBe('state')
+    for (const judge of flow.nodes.filter((n) => n.data.nodeType === 'llmJudge')) {
+      expect(judge.data.config.scoringScale, judge.data.label).toBe('0-1')
+    }
+  })
+
+  it('wires the pipeline exactly as the shipped template does', () => {
+    const shipped = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag')!.yaml)
+    const evaluated = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
+    const pipeline = new Set(['Query Rewriter', 'Query Embedder', 'Retriever', 'Knowledge Base', 'Reranker', 'Prompt Builder', 'Answer LLM', 'Recent Turns', 'Conversation Summary'])
+    const internalEdges = (flow: ParsedFlow) => {
+      const label = (id: string) => flow.nodes.find((n) => n.id === id)!.data.label
+      return flow.edges
+        .filter((e) => pipeline.has(label(e.source)) && pipeline.has(label(e.target)))
+        .map((e) => `${label(e.source)}.${e.sourceHandle} → ${label(e.target)}.${e.targetHandle}`)
+        .sort()
+    }
+    // Guards are left out of the eval, so the answer writes memory directly instead of via the output guard.
+    const guardSubstitutes = new Set(['Answer LLM.response → Recent Turns.input', 'Answer LLM.response → Conversation Summary.input'])
+    expect(internalEdges(evaluated).filter((e) => !guardSubstitutes.has(e))).toEqual(internalEdges(shipped))
+  })
+
+  it('keeps conversations apart, separates retriever from reranker, and never averages latency into quality', () => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
+    const byLabel = (label: string) => flow.nodes.find((n) => n.data.label === label)!
+    expect(byLabel('Conversation Transcript').data.config.scope).toBe('session')
+
+    const candidates = byLabel('Candidate Recall (top 20)')
+    const into = (node: typeof candidates, handle: string) =>
+      flow.nodes.find((n) => n.id === flow.edges.find((e) => e.target === node.id && e.targetHandle === handle)!.source)!.data.label
+    expect(into(candidates, 'contexts')).toBe('Retriever')
+    expect(into(byLabel('Retrieval & Grounding'), 'contexts')).toBe('Reranker')
+
+    const gates = flow.nodes.filter((n) => n.data.nodeType === 'thresholdGate')
+    expect(gates.map((g) => g.data.config.metric).sort()).toEqual(['access_violations', 'latency_within_budget', 'quality'])
+    // Latency is measured from the turn's message, not just the answer.
+    const latencySources = flow.edges.filter((e) => e.target === byLabel('Turn Latency').id).map((e) => flow.nodes.find((n) => n.id === e.source)!.data.label)
+    expect(latencySources).toEqual(expect.arrayContaining(['Turn: User Message', 'Answer LLM']))
+  })
+
+  it('fails the release on any access leak, checked at retrieval and in the answer', () => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
+    const byLabel = (label: string) => flow.nodes.find((n) => n.data.label === label)!
+    const source = (target: string, handle: string) =>
+      flow.nodes.find((n) => n.id === flow.edges.find((e) => e.target === byLabel(target).id && e.targetHandle === handle)!.source)!.data.label
+
+    const gate = byLabel('Access Gate').data.config
+    expect([gate.metric, gate.operator, gate.threshold]).toEqual(['access_violations', '<=', 0])
+    expect(source('No Restricted Docs Retrieved', 'output')).toBe('Retriever') // before reranking
+    expect(source('No Canary in Answer', 'output')).toBe('Answer LLM')
+    expect(byLabel('No Canary in Answer').data.config.checkType).toBe('not-contains')
+    // The pipeline is told who is asking, as in production
+    expect(source('Retriever', 'filter')).toBe('Conversation: User & Access Groups')
+  })
+
+  it('replays turns in order so memory builds up as it does live', () => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
+    expect(flow.nodes.find((n) => n.data.label === 'For Each Turn')!.data.config.mode).toBe('sequential')
+  })
+})
+
+describe('RAG evaluators get relevance labels', () => {
+  it.each(['rag-eval', 'conversational-rag-eval'])('%s wires Relevant Docs when retrieval metrics are on', (templateId) => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === templateId)!.yaml)
+    for (const node of flow.nodes.filter((n) => n.data.nodeType === 'ragEvaluator')) {
+      const c = node.data.config
+      if (c.recallAtK || c.precisionAtK || c.mrr || c.ndcgAtK) {
+        expect(flow.edges.some((e) => e.target === node.id && e.targetHandle === 'relevantDocs'), node.data.label).toBe(true)
+      }
+    }
   })
 })

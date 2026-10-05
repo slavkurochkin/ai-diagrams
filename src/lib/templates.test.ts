@@ -180,6 +180,45 @@ describe('Conversational RAG template', () => {
   })
 })
 
+describe('MCP Server Test Strategy template', () => {
+  const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'mcp-server-test-strategy')!.yaml)
+  const node = (label: string) => flow.nodes.find((n) => n.data.label === label)!
+  const edge = (from: string, to: string) => flow.edges.some((e) => e.source === from && e.target === to)
+  // every node reachable downstream of `start`, ignoring loopbacks back into the loop
+  const downstream = (start: string) => {
+    const seen = new Set([start])
+    const queue = [start]
+    while (queue.length) {
+      const id = queue.shift()!
+      for (const e of flow.edges) if (e.source === id && !seen.has(e.target)) { seen.add(e.target); queue.push(e.target) }
+    }
+    return [...seen].map((id) => flow.nodes.find((n) => n.id === id)!)
+  }
+
+  it('runs contract tests without any model, and checks tenant isolation in the database', () => {
+    const lane = downstream(node('Contract Cases').id)
+    expect(lane.some((n) => ['llm', 'agent', 'llmJudge', 'safetyEval'].includes(n.data.nodeType)), 'no LLM in contract tests').toBe(false)
+    expect(node('Tenant Isolation').data.config.checkType).toBe('state-check')
+    expect(Number(node('Contract Gate').data.config.threshold)).toBe(1)
+  })
+
+  it('checks tool order and attacks through poisoned tool results with a database check', () => {
+    expect(node('Right Tool, Right Args').data.config.orderMatters).toBe(true)
+    expect(node('Attack Generator').data.config.promptInjection).toBe(true)
+    expect(edge(node('Staging Server (poisoned data)').id, node('No Cross-Tenant Effect').id)).toBe(true)
+    expect(node('No Cross-Tenant Effect').data.config.checkType).toBe('state-check')
+  })
+
+  it('blocks the release when any gate fails', () => {
+    const gates = flow.nodes.filter((n) => n.data.nodeType === 'thresholdGate')
+    const block = node('Block Release')
+    expect(gates).toHaveLength(4)
+    for (const gate of gates) {
+      expect(flow.edges.some((e) => e.source === gate.id && e.sourceHandle === 'fail' && e.target === block.id), gate.data.label).toBe(true)
+    }
+  })
+})
+
 describe('Multi-Tenant MCP Server template', () => {
   it('routes every tool, returns every result to the endpoint, and audits every write', () => {
     const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'multi-tenant-mcp-server')!.yaml)

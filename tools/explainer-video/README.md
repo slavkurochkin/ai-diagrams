@@ -14,6 +14,7 @@ The output is a 1080p MP4.
 | [`mcp-multi-tenant`](videos/mcp-multi-tenant/LOG.md) | Multi-Tenant MCP Server | Becky, sales rep at Acme |
 | [`conversational-rag`](videos/conversational-rag/LOG.md) | Conversational RAG | Leo, Cloudly customer |
 | [`mcp-testing`](videos/mcp-testing/LOG.md) | MCP Server Test Strategy | Becky returns (follow-up to `mcp-multi-tenant`) |
+| [`conversational-rag-eval`](videos/conversational-rag-eval/LOG.md) | Conversational RAG Eval | Priya, AI engineer at Cloudly (follow-up to `conversational-rag`) |
 | [`mcp-hands-on-1`](videos/mcp-hands-on-1/LOG.md)…[`5`](videos/mcp-hands-on-5/LOG.md) | MCP Inspector + demo server (`app.mjs`) | Becky, trying it herself |
 
 There are two renderers:

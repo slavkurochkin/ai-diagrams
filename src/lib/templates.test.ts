@@ -380,6 +380,13 @@ describe('Conversational RAG Eval template', () => {
     }
   })
 
+  it('keeps its hand-placed layout (the explainer video is framed on it)', () => {
+    const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
+    expect(flow.hasExplicitPositions).toBe(true)
+    const spots = flow.nodes.map((n) => `${n.position.x},${n.position.y}`)
+    expect(new Set(spots).size, 'two nodes share a position').toBe(spots.length)
+  })
+
   it('replays turns in order so memory builds up as it does live', () => {
     const flow = parse(FLOW_TEMPLATES.find((t) => t.id === 'conversational-rag-eval')!.yaml)
     expect(flow.nodes.find((n) => n.data.label === 'For Each Turn')!.data.config.mode).toBe('sequential')

@@ -29,6 +29,13 @@ To get the live version, add the key and re-render this episode.
 
 ## History
 
+### v2 — live eval (2026-10-05)
+- The user added an API key, so the eval scene now runs `npm run eval:tools` for real against
+  `claude-opus-5-5`.
+- In the probe run, all 5 golden-case turns passed (100%, gate PASS); the model searched by name and email
+  in some cases, which the scorer's one-extra-search allowance permits.
+- The narration still describes the gate without quoting a score, because each render is a new run.
+
 ### v1 (2026-10-05)
 - Rendered without an API key on this machine.
 - The demo's eval now loads `.env` and turns the SDK's raw "Could not resolve authentication method"

@@ -1,6 +1,6 @@
 # From Clicking to Automation — transcript
 
-Generated from `video.mjs` on every render. Total 2:47 · voice `af_heart` at 1.0× · template "MCP Inspector CLI + acme-crm-mcp tests".
+Generated from `video.mjs` on every render. Total 2:48 · voice `af_heart` at 1.0× · template "MCP Inspector CLI + acme-crm-mcp tests".
 
 ## 0:00 · Intro
 
@@ -44,11 +44,11 @@ Generated from `video.mjs` on every render. Total 2:47 · voice `af_heart` at 1.
 
 ## 2:12 · 05 · Running the eval
 
-- **2:13** Running the eval itself calls a real Claude model, so it needs an API key. This machine doesn’t have one, and the run stops right there with a clear message.
-- **2:23** With a key, each case runs through every client model you support, every turn is scored, and the weakest model gates the release. It costs a few cents a run.
+- **2:13** And this is a real run. Each case goes through a real Claude model, connected to this server like any client, with the database reset to the case’s seeded data.
+- **2:24** Every turn’s tool calls are scored on the four checks, and the summary at the bottom is the gate: the weakest model has to reach ninety five percent, or the release is blocked.
 
-## 2:34 · Summary
+## 2:35 · Summary
 
-- **2:35** Click. Script. Test. Evaluate.
-- **2:37** From a first 401 to a release gate: that’s how you get to know an MCP server, and how you keep trusting it.
+- **2:36** Click. Script. Test. Evaluate.
+- **2:39** From a first 401 to a release gate: that’s how you get to know an MCP server, and how you keep trusting it.
   - _Becky:_ Now I trust it, and I can prove it. 😄

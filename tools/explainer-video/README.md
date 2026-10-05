@@ -14,7 +14,7 @@ The output is a 1080p MP4.
 | [`mcp-multi-tenant`](videos/mcp-multi-tenant/LOG.md) | Multi-Tenant MCP Server | Becky, sales rep at Acme |
 | [`conversational-rag`](videos/conversational-rag/LOG.md) | Conversational RAG | Leo, Cloudly customer |
 | [`mcp-testing`](videos/mcp-testing/LOG.md) | MCP Server Test Strategy | Becky returns (follow-up to `mcp-multi-tenant`) |
-| [`mcp-hands-on-1`](videos/mcp-hands-on-1/LOG.md)…[`4`](videos/mcp-hands-on-4/LOG.md) | MCP Inspector + demo server (`app.mjs`) | Becky, trying it herself |
+| [`mcp-hands-on-1`](videos/mcp-hands-on-1/LOG.md)…[`5`](videos/mcp-hands-on-5/LOG.md) | MCP Inspector + demo server (`app.mjs`) | Becky, trying it herself |
 
 There are two renderers:
 - **`render.mjs`** tours a diagram template in the AgentFlow app.

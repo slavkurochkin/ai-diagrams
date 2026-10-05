@@ -27,7 +27,7 @@ Chapters
 1:08 The contract tests
 1:40 Golden cases for AI clients
 2:12 Running the eval
-2:34 Summary
+2:35 Summary
 ```
 
 ## Tags

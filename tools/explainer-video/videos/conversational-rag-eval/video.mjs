@@ -376,6 +376,7 @@ export default {
     },
   },
   speak: [[/\bF1\b/g, 'F one'], [/\bMRR\b/g, 'M R R'], [/\bNDCG\b/g, 'N D C G'], [/\bRAG\b/g, 'rag'], [/\b0\.85\b/g, 'zero point eight five'], [/\b99\.9\b/g, 'ninety-nine point nine']],
+  thumbnail: { text: 'Test your RAG **before** users do', frame: 452, bg: 320, crop: [960, 90, 920, 420], mark: { circle: [17, 280, 218, 26] }, badge: 'Leak caught', mood: 'frustrated', pose: 'hands-on-head' },
   youtube: {
     title: 'How to Evaluate a Conversational RAG Assistant: Follow-Ups, Grounding, Leaks & Latency',
     description: `

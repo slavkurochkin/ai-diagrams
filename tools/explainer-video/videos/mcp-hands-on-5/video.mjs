@@ -115,6 +115,7 @@ export default {
   character: { label: 'Becky', startMood: 'happy', look: { tag: 'Becky · trying it herself' } },
   setup: { servers: {} },
   speak: [[/\bMCP\b/g, 'M C P'], [/\bID\b/g, 'I D'], [/\bCRM\b/g, 'C R M']],
+  thumbnail: { text: 'Will Claude **delete** it?', frame: 90, crop: [235, 425, 1110, 215], mark: { circle: [5, 135, 1095, 30] }, badge: 'Asks first ✓', mood: 'surprised', pose: 'hands-on-head', fx: 'exclaim' },
   youtube: {
     title: 'Claude Meets a Real MCP Server: Search First, Ask Before Deleting (Hands-on MCP, Ep. 5)',
     description: `

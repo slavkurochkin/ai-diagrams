@@ -51,9 +51,37 @@ There are two kinds of video:
    Re-check specific moments with `--stills 81,130.5`, using times from `transcript.md`.
 6. **Render in the background:** `node render.mjs <id>`. It takes about 2× the video length.
    Copy the result to `~/Desktop/` and `open` it.
-7. **Hand over and log.** Give the user the video path, plus the YouTube title and description from `youtube.md`.
+7. **Make the thumbnail.** Every video needs one. Add a `thumbnail` block to `video.mjs`, then run
+   `node thumbnail.mjs <id>` → `videos/<id>/thumbnail.jpg` (1280×720 JPEG, about 120 KB). It uses the rendered
+   mp4, or preview stills from the renderer if there is none; `node thumbnail.mjs --all` redoes every video. The full option list is in the header of `thumbnail.mjs`.
+   - **Layout (user-approved, 2026-10-06):** a dimmed frame from the video as the background, a yellow frame,
+     the headline top right, the character large in the bottom-left corner, and a **hero card**. The hero card
+     is a sharp, tilted crop of the one moment that matters, with a red circle and/or ✗/✓ stamp on the key
+     detail, the series tag, and a yellow sticker (`badge`).
+   - **Text:** 3–6 words, a question or a promise. It names the title's topic, but repeats at most one or two of
+     its words: the two sit side by side on YouTube ("Trust the **AI judge?**" for "LLM-as-a-Judge Explained";
+     not "Automate your MCP tests" for "Automating MCP Server Tests"). Use `**word**` for amber, and `\u00a0`
+     to keep words together across the line break.
+   - **Hero:** `frame` (seconds) plus `crop: [x, y, w, h]` in the 1920×1080 frame. Pick the concrete proof of the
+     hook: the invented claim, the `"matches": 0`, the wall of 429s, Claude's "Should I go ahead?". Find
+     coordinates by grabbing the frame with ffmpeg and reading it. `mark` is in crop pixels:
+     `circle: [x, y, w, h]`, `cross: [x, y]`, or `check: [x, y]`. Keep crops tight so the text is readable.
+   - **Background:** `bg` (seconds) picks a different moment for the background. Use it in diagram tours,
+     where the character is drawn on the canvas, or she appears twice.
+   - **Emotion:** strong and readable, and different on every video in a series. Combine:
+     - `mood`: frustrated, neutral, curious, happy, surprised, angry, disappointed, or suspicious.
+     - `pose`: hands-on-head (pulling hair), facepalm, thumbs-up, or thinking. There is no pointing pose: a lone
+       finger read as a middle finger.
+     - `fx`: anger, question, exclaim, sparkles, or tear.
+
+     Match the hook: angry with anger for "Did the AI make it up?", shocked with hands-on-head and exclaim for
+     "Will Claude delete it?", disappointed with facepalm for "Clicking doesn't scale".
+   - **Check** every thumbnail at full size and as a small tile, and the series side by side. Text must be
+     readable at 300 px wide, and nothing may sit in the bottom-right corner, where YouTube draws the duration.
+     Copy the thumbnail to `~/Desktop/` alongside the video.
+8. **Hand over and log.** Give the user the video and thumbnail paths, plus the YouTube title and description from `youtube.md`.
    Add a dated entry to `LOG.md` with the version, length, what changed, the user's feedback, and the reason.
-   Commit `video.mjs`, `transcript.md`, `youtube.md`, and `LOG.md` together, but only when the user asks.
+   Commit `video.mjs`, `transcript.md`, `youtube.md`, `thumbnail.jpg`, and `LOG.md` together, but only when the user asks.
 
 ## Hands-on lessons
 

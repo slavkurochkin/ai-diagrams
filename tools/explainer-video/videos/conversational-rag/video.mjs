@@ -312,6 +312,7 @@ export default {
     },
   },
   speak: [[/\bRAG\b/g, 'rag'], [/\bIDs\b/g, 'I Ds'], [/\bID\b/g, 'I D']],
+  thumbnail: { text: 'What about **monthly ones?**', frame: 250, bg: 68, crop: [1415, 80, 470, 340], mark: { circle: [23, 165, 422, 73] }, badge: 'Follow-ups, solved', mood: 'surprised', fx: 'question' },
   youtube: {
     title: 'Conversational RAG Explained: How AI Assistants Answer Follow-Up Questions From Your Docs',
     description: `

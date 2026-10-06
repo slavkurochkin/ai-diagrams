@@ -249,6 +249,7 @@ export default {
   summary: ['Authenticate', 'Limit', 'Route', 'Isolate', 'Audit', 'Observe'],
   character: { label: 'Becky', anchor: 'MCP Clients', startMood: 'frustrated', look: {} },
   speak: [],
+  thumbnail: { text: 'One MCP server, **many tenants**', frame: 205, crop: [630, 610, 570, 130], mark: { circle: [332, 96, 213, 22] }, badge: 'Row-level security', mood: 'curious', pose: 'thinking' },
   youtube: {
     title: 'How a Multi-Tenant MCP Server Works: OAuth, Rate Limits, Tool Routing & Tenant Isolation',
     description: `

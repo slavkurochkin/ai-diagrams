@@ -231,6 +231,7 @@ export default {
   },
   displayOutput: (out) => out.replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, (t) => `${t.slice(0, 28)}…${t.slice(-8)}  (${t.length} chars)`),
   speak: [[/\bMCP\b/g, 'M C P'], [/\b401\b/g, 'four oh one'], [/\b403\b/g, 'four oh three'], [/\bCRM\b/g, 'C R M'], [/org_id/g, 'org I D'], [/\bID\b/g, 'I D'], [/\bc 201\b/g, 'C two oh one'], [/\bcurl\b/g, 'curl'], [/WWW-Authenticate/g, 'W W W authenticate'], [/app user/g, 'app user']],
+  thumbnail: { text: 'Why did it say **403?**', frame: 160, crop: [230, 195, 640, 160], mark: { circle: [12, 38, 190, 24] }, badge: 'insufficient_scope', mood: 'suspicious', fx: 'question' },
   youtube: {
     title: 'MCP Server Security, Live: Tenants, Scopes, 403s, and Bad Tokens (Hands-on MCP, Ep. 2)',
     description: `

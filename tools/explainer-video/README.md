@@ -17,6 +17,7 @@ The output is a 1080p MP4.
 | [`conversational-rag-eval`](videos/conversational-rag-eval/LOG.md) | Conversational RAG Eval | Priya, AI engineer at Cloudly (follow-up to `conversational-rag`) |
 | [`retrieval-metrics`](videos/retrieval-metrics/LOG.md) | RAG Eval Visualizer, live (`app.mjs`, AgentFlow mode) | Priya returns (metrics series 1) |
 | [`llm-judge`](videos/llm-judge/LOG.md) | LLM Judge Visualizer, live (`app.mjs`, AgentFlow mode) | Priya returns (metrics series 2) |
+| [`generation-metrics`](videos/generation-metrics/LOG.md) | Generation Metrics Visualizer, live (`app.mjs`, AgentFlow mode) | Priya returns (metrics series 3) |
 | [`mcp-hands-on-1`](videos/mcp-hands-on-1/LOG.md)…[`5`](videos/mcp-hands-on-5/LOG.md) | MCP Inspector + demo server (`app.mjs`) | Becky, trying it herself |
 
 There are two renderers:
@@ -47,7 +48,12 @@ Needs `ffmpeg` and `uv` (`brew install ffmpeg uv`). Caches go in `.cache/` and r
    ```sh
    node render.mjs <id>                        # → out/<id>/<id>.mp4
    ```
-5. Add an entry to `videos/<id>/LOG.md`: what changed, why, and any feedback that drove it.
+5. **Thumbnail:**
+   ```sh
+   node thumbnail.mjs <id>                     # → videos/<id>/thumbnail.jpg, 1280×720 (uses the mp4, or preview stills)
+   node thumbnail.mjs --all                    # every video with a thumbnail block
+   ```
+6. Add an entry to `videos/<id>/LOG.md`: what changed, why, and any feedback that drove it.
 
 Every run rewrites two files:
 - `videos/<id>/transcript.md`: timestamps, captions, character lines, and card text.
@@ -67,6 +73,8 @@ export default {
   speak: [[/\bRAG\b/g, 'rag']],               // pronunciation fixes (captions keep the original text)
   voice: 'af_heart', speed: 1.0,              // optional; Kokoro voice
   youtube: { title, description, tags },      // required; chapters are appended automatically
+  thumbnail: { text: 'Did the AI **make it up?**', frame: 92, crop: [x, y, w, h], mark: { circle: [x, y, w, h] }, badge: 'Faithfulness 0.50', mood: 'angry', fx: 'anger' },
+                                              // required; see thumbnail.mjs for every option
   scenes: [
     {
       chip: '03 · Retrieval',                 // top-left label
@@ -148,10 +156,12 @@ the video. Layout is 1280×720 captured at 1.5× (1920×1080 output).
 | File | What it does |
 |---|---|
 | `render.mjs` | narration → timeline → in-page director → frames → ffmpeg; writes the transcript |
-| `character.js` | SVG character: looks, expressions, blink, bounce, speech, consent and assistant pop-ups |
+| `thumbnail.mjs` | YouTube thumbnail: dimmed frame, headline, the character with an emotion, and a hero card (sharp crop + red mark + sticker) |
+| `character.js` | SVG character: looks, expressions, blink, bounce, speech, consent and assistant pop-ups; thumbnail poses and effects |
 | `tts.py` | Kokoro TTS (run through `uv`, isolated Python 3.12) |
 | `setup.sh` | one-time setup |
 | `videos/<id>/video.mjs` | the scenario |
 | `videos/<id>/transcript.md` | generated transcript |
 | `videos/<id>/youtube.md` | generated YouTube title, description, chapters, and tags |
+| `videos/<id>/thumbnail.jpg` | generated YouTube thumbnail (`thumbnail.mjs`) |
 | `videos/<id>/LOG.md` | version history, feedback, decisions |

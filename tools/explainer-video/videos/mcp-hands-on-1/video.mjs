@@ -240,6 +240,7 @@ export default {
   // long tokens are shown shortened in the terminal; the real value is still what gets pasted
   displayOutput: (out) => out.replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, (t) => `${t.slice(0, 28)}…${t.slice(-8)}  (${t.length} chars)`),
   speak: [[/\bMCP\b/g, 'M C P'], [/\b401\b/g, 'four oh one'], [/\b405\b/g, 'four oh five'], [/\bCRM\b/g, 'C R M'], [/org_id/g, 'org I D'], [/\bID\b/g, 'I D']],
+  thumbnail: { text: 'Where’s **Dana?**', frame: 212, crop: [610, 125, 630, 235], mark: { circle: [120, 137, 150, 23] }, badge: 'Other tenant', mood: 'surprised', fx: 'question' },
   youtube: {
     title: 'MCP Inspector Tutorial: Connect to a Real Multi-Tenant MCP Server (Hands-on MCP, Ep. 1)',
     description: `

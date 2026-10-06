@@ -16,6 +16,11 @@
     neutral: { browIn: 0, browOut: 0, eye: 1, smile: 0, mTop: 0, mBot: 1.5, corner: 0, blush: 0, sweat: 0 },
     curious: { browIn: -5, browOut: -7, eye: 1.12, smile: 0, mTop: -1, mBot: 6, corner: 0, blush: 0.2, sweat: 0 },
     happy: { browIn: -4, browOut: -2, eye: 1, smile: 1, mTop: 3, mBot: 22, corner: -3, blush: 1, sweat: 0 },
+    // stronger expressions, mostly for thumbnails
+    surprised: { browIn: -13, browOut: -13, eye: 1.4, smile: 0, mTop: -10, mBot: 16, corner: 3, blush: 0, sweat: 0 },
+    angry: { browIn: 14, browOut: -8, eye: 0.75, smile: 0, mTop: 0, mBot: 3, corner: 8, blush: 0, sweat: 0 },
+    disappointed: { browIn: -7, browOut: 5, eye: 0.5, smile: 0, mTop: -2, mBot: 0, corner: 7, blush: 0, sweat: 0 },
+    suspicious: { browIn: 6, browOut: 3, eye: 0.42, smile: 0, mTop: 1, mBot: 3, corner: 2, blush: 0, sweat: 0 },
   };
 
   const css = document.createElement('style');
@@ -61,17 +66,20 @@
     root.insertBefore(svg, root.firstChild);
 
     if (L.hairStyle === 'long') el('path', { d: 'M60,132 C52,58 208,58 200,132 L210,262 C182,276 78,276 50,262 Z', fill: HAIR }, svg); // hair, back
-    el('path', { d: 'M34,340 C34,272 78,250 130,250 C182,250 226,272 226,340 Z', fill: L.top }, svg);                 // torso
+    // neck first, so the clothes cover its base; a band of shadow under the chin ties it to the head
+    el('path', { d: 'M110,186 L150,186 L152,276 L108,276 Z', fill: L.neck }, svg);                                   // neck
+    el('path', { d: 'M110,190 C122,214 138,214 150,190 L150,204 C138,224 122,224 110,204 Z', fill: 'rgba(0,0,0,.14)' }, svg); // chin shadow
+    el('path', { d: 'M30,340 C30,266 76,244 130,244 C184,244 230,266 230,340 Z', fill: L.top }, svg);                 // torso
     if (L.outfit === 'blazer') {
-      el('path', { d: 'M106,252 L130,296 L154,252 Z', fill: '#f8fafc' }, svg);                                      // shirt
+      el('path', { d: 'M104,246 L130,294 L156,246 Z', fill: '#f8fafc' }, svg);                                      // shirt
+      el('path', { d: 'M108,246 L130,272 L152,246 Z', fill: L.neck }, svg);                                         // neckline
       el('path', { d: 'M96,256 L130,330 L112,258 Z M164,256 L130,330 L148,258 Z', fill: L.topShade }, svg);         // lapels
     } else {
-      el('path', { d: 'M92,262 C100,286 160,286 168,262 C160,254 100,254 92,262 Z', fill: L.topShade }, svg);       // hoodie collar
+      el('path', { d: 'M94,254 C102,282 158,282 166,254 C156,262 104,262 94,254 Z', fill: L.topShade }, svg);       // hoodie collar, around the neck
       el('path', { d: 'M116,276 L112,316 M144,276 L148,316', stroke: '#f8fafc', 'stroke-width': 3, 'stroke-linecap': 'round' }, svg); // strings
       el('circle', { cx: 112, cy: 318, r: 3.5, fill: '#f8fafc' }, svg);
       el('circle', { cx: 148, cy: 318, r: 3.5, fill: '#f8fafc' }, svg);
     }
-    el('rect', { x: 116, y: 196, width: 28, height: 60, rx: 12, fill: L.neck }, svg);                                 // neck
     el('circle', { cx: 73, cy: 146, r: 11, fill: SKIN }, svg);                                                       // ears
     el('circle', { cx: 187, cy: 146, r: 11, fill: SKIN }, svg);
     if (L.earrings) {
@@ -104,6 +112,7 @@
     }
     const sweat = el('path', { d: 'M190,92 C183,104 183,111 190,113 C197,111 197,104 190,92 Z', fill: '#7dd3fc' }, svg);
 
+    root._look = L;
     root._parts = { svg, cheekL, cheekR, eyeL, eyeR, arcL, arcR, browL, browR, mouth, sweat, pop: root.querySelector('.pop') };
     parent.appendChild(root);
     return root;
@@ -137,5 +146,59 @@
     p.pop.style.transform = `scale(${(st.popScale || 1) * (0.9 + 0.1 * st.pop.show)})`;
   }
 
-  window.__character = { mount, render, MOODS };
+  // Arm poses, drawn over the figure (thumbnails): the figure has no arms otherwise.
+  const POSES = {
+    'hands-on-head': [ // pulling their hair
+      { arm: 'M58,312 C26,250 30,188 66,150', hand: [62, 138, 18] },
+      { arm: 'M202,312 C234,250 230,188 194,150', hand: [198, 138, 18] },
+    ],
+    facepalm: [{ arm: 'M206,312 C228,250 204,186 156,130', hand: [142, 126, 0], palm: true }],
+    'thumbs-up': [{ arm: 'M212,318 C236,292 230,262 210,252', hand: [204, 246, 18], thumb: true }],
+    thinking: [{ arm: 'M204,316 C218,266 190,236 152,218', hand: [142, 212, 16] }],
+  };
+
+  function pose(root, name) {
+    const parts = POSES[name];
+    if (!parts) return;
+    const L = root._look, svg = root._parts.svg;
+    svg.style.overflow = 'visible';
+    for (const p of parts) {
+      el('path', { d: p.arm, stroke: L.topShade, 'stroke-width': 34, fill: 'none', 'stroke-linecap': 'round' }, svg);
+      el('path', { d: p.arm, stroke: L.top, 'stroke-width': 28, fill: 'none', 'stroke-linecap': 'round' }, svg);
+      const [cx, cy, r] = p.hand;
+      if (p.palm) el('ellipse', { cx, cy, rx: 30, ry: 19, fill: L.skin, stroke: L.nose, 'stroke-width': 2, transform: `rotate(-12 ${cx} ${cy})` }, svg);
+      else el('circle', { cx, cy, r, fill: L.skin, stroke: L.nose, 'stroke-width': 2 }, svg);
+      if (p.thumb) el('rect', { x: cx - 6, y: cy - 40, width: 12, height: 30, rx: 6, fill: L.skin, stroke: L.nose, 'stroke-width': 2 }, svg);
+    }
+    if (name === 'hands-on-head') { // a few strands pulled loose
+      for (const d of ['M54,118 C40,96 48,80 36,64', 'M70,112 C64,90 74,78 66,60', 'M206,118 C220,96 212,80 224,64', 'M190,112 C196,90 186,78 194,60']) {
+        el('path', { d, stroke: L.hair, 'stroke-width': 5, fill: 'none', 'stroke-linecap': 'round' }, svg);
+      }
+    }
+  }
+
+  // Effects around the head (thumbnails).
+  function fx(root, names) {
+    const svg = root._parts.svg;
+    svg.style.overflow = 'visible';
+    const text = (x, y, size, fill, str, rot = 0) => {
+      const t = el('text', { x, y, 'font-size': size, 'font-weight': 900, fill, stroke: '#0b1020', 'stroke-width': 3, 'paint-order': 'stroke',
+        'font-family': 'Geist, Inter, system-ui, sans-serif', transform: `rotate(${rot} ${x} ${y})` }, svg);
+      t.textContent = str;
+    };
+    for (const n of [].concat(names || [])) {
+      if (n === 'anger') {
+        el('ellipse', { cx: 130, cy: 140, rx: 58, ry: 66, fill: 'rgba(239,68,68,.22)' }, svg); // red face
+        for (const d of ['M50,56 Q60,68 72,60', 'M76,52 Q66,64 76,76', 'M52,82 Q62,72 72,84', 'M46,60 Q58,70 48,82']) { // top-left, clear of text on the right
+          el('path', { d, stroke: '#ef4444', 'stroke-width': 6, fill: 'none', 'stroke-linecap': 'round' }, svg);
+        }
+      }
+      if (n === 'question') { text(96, 56, 74, '#fcd34d', '?', -10); text(150, 34, 50, '#fcd34d', '?', 12); } // above the head
+      if (n === 'exclaim') { text(108, 50, 84, '#f87171', '!', -8); text(150, 36, 60, '#f87171', '!', 10); }
+      if (n === 'sparkles') for (const [x, y, s] of [[150, 40, 46], [40, 80, 34], [96, 30, 28]]) text(x, y, s, '#fcd34d', '✦');
+      if (n === 'tear') el('path', { d: 'M158,156 C152,168 152,176 158,178 C164,176 164,168 158,156 Z', fill: '#7dd3fc' }, svg);
+    }
+  }
+
+  window.__character = { mount, render, pose, fx, MOODS };
 })();

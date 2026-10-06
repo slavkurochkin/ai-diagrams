@@ -162,15 +162,15 @@ const scenes = [
     summary: true,
     char: { pops: [{ line: 1, kind: 'say', text: 'Thanks! 😄' }] },
     lines: [
-      'Precision. Recall. F1. At k. MRR. NDCG.',
-      'Six numbers, one example, and now you know what each one is telling you.',
+      'Precision at k. Recall at k. F1. MRR. NDCG.',
+      'Five numbers, one example, and now you know what each one is telling you.',
     ],
   },
 ];
 
 export default {
   title: { kicker: 'Metrics series · 1', heading: 'Retrieval Metrics, Explained', sub: 'Precision@k, Recall@k, F1, MRR and NDCG, worked out on one example' },
-  summary: ['Precision', 'Recall', 'F1', '@k', 'MRR', 'NDCG'],
+  summary: ['Precision@k', 'Recall@k', 'F1@k', 'MRR', 'NDCG@k'], // @k is a cutoff on the metrics, not a metric of its own
   character: {
     label: 'Priya',
     startMood: 'curious',
@@ -196,6 +196,7 @@ export default {
     ],
   },
   speak: [[/\bF1\b/g, 'F one'], [/\bMRR\b/g, 'M R R'], [/\bNDCG\b/g, 'N D C G'], [/\bRAG\b/g, 'rag']],
+  thumbnail: { text: 'Precision or **recall?**', frame: 45, crop: [486, 230, 480, 160], mark: { circle: [0, 30, 86, 120] }, badge: 'Recall@5 = 50%', mood: 'curious', pose: 'thinking', fx: 'question' },
   youtube: {
     title: 'Retrieval Metrics Explained: Precision@k, Recall@k, F1, MRR and NDCG (Worked Example)',
     description: `

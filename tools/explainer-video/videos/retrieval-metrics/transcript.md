@@ -74,6 +74,6 @@ Generated from `video.mjs` on every render. Total 4:05 · voice `af_heart` at 1.
 
 ## 3:52 · Summary
 
-- **3:54** Precision. Recall. F1. At k. MRR. NDCG.
-- **3:58** Six numbers, one example, and now you know what each one is telling you.
+- **3:54** Precision at k. Recall at k. F1. MRR. NDCG.
+- **3:59** Five numbers, one example, and now you know what each one is telling you.
   - _Priya:_ Thanks! 😄

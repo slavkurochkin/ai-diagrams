@@ -56,12 +56,14 @@ function Stepper({
         <button
           type="button"
           onClick={() => onChange(Math.max(min, value - 1))}
+          aria-label={`Decrease ${label.replace(/\s+/g, ' ').trim()}`}
           className="w-6 h-6 rounded flex items-center justify-center text-white/50 hover:bg-white/10 hover:text-white transition-colors text-sm font-bold"
         >−</button>
         <span className="w-7 text-center text-[14px] font-semibold text-white tabular-nums">{value}</span>
         <button
           type="button"
           onClick={() => onChange(Math.min(max, value + 1))}
+          aria-label={`Increase ${label.replace(/\s+/g, ' ').trim()}`}
           className="w-6 h-6 rounded flex items-center justify-center text-white/50 hover:bg-white/10 hover:text-white transition-colors text-sm font-bold"
         >+</button>
       </div>
@@ -130,28 +132,29 @@ export default function RAGEvalPanel({ open, onClose, initialK = 5 }: RAGEvalPan
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -6 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-6 pointer-events-none"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
           >
-            <div className="pointer-events-auto w-full max-w-2xl max-h-[90vh] flex flex-col bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="pointer-events-auto w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
 
               {/* Header */}
-              <div className="flex items-start justify-between px-5 py-4 border-b border-white/8 shrink-0">
+              <div className="flex items-start justify-between px-5 py-3 border-b border-white/8 shrink-0">
                 <div>
                   <h2 className="text-[14px] font-semibold text-white">RAG Evaluation Visualizer</h2>
                   <p className="text-[11px] text-white/40 mt-0.5">
-                    Toggle retrieved chunks to see how Precision@K, Recall@K, MRR and NDCG@K change
+                    Toggle retrieved chunks to see how Precision@K, Recall@K, F1@K, MRR and NDCG@K change
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={onClose}
+                  aria-label="Close visualizer"
                   className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
                 >
                   <X size={15} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto min-h-0 p-5 flex flex-col gap-6">
+              <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 flex flex-col gap-4">
 
                 {/* Controls */}
                 <div className="flex items-end gap-8">
@@ -173,7 +176,7 @@ export default function RAGEvalPanel({ open, onClose, initialK = 5 }: RAGEvalPan
                 </div>
 
                 {/* Retrieved docs */}
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2" data-section="retrieved">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-medium text-white/60 uppercase tracking-wider">
                       Retrieved chunks / docs
@@ -191,7 +194,7 @@ export default function RAGEvalPanel({ open, onClose, initialK = 5 }: RAGEvalPan
                         whileTap={{ scale: 0.94 }}
                         className={`
                           relative flex flex-col items-center gap-1 w-14
-                          rounded-xl px-1 py-2
+                          rounded-xl px-1 py-1.5
                           border transition-all duration-150 cursor-pointer
                           ${rel
                             ? 'bg-emerald-900/50 border-emerald-500/50 text-emerald-300'
@@ -199,6 +202,8 @@ export default function RAGEvalPanel({ open, onClose, initialK = 5 }: RAGEvalPan
                           }
                         `}
                         title={rel ? 'Relevant — click to mark as not relevant' : 'Not relevant — click to mark as relevant'}
+                        aria-label={`Rank ${i + 1}: ${rel ? 'relevant' : 'not relevant'}`}
+                        aria-pressed={rel}
                       >
                         <span className="text-[10px] text-white/40 font-medium">#{i + 1}</span>
                         <div className="w-7 h-7 rounded-lg flex items-center justify-center"
@@ -227,7 +232,7 @@ export default function RAGEvalPanel({ open, onClose, initialK = 5 }: RAGEvalPan
 
                 {/* Missed relevant docs */}
                 {missed > 0 && (
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2" data-section="missed">
                     <span className="text-[11px] font-medium text-white/40 uppercase tracking-wider">
                       Relevant docs missed  <span className="text-white/25 normal-case font-normal">
                         ({missed} of {totalRelevant} relevant docs not retrieved)
@@ -237,7 +242,7 @@ export default function RAGEvalPanel({ open, onClose, initialK = 5 }: RAGEvalPan
                       {Array.from({ length: Math.min(missed, 20) }, (_, i) => (
                         <div
                           key={i}
-                          className="flex flex-col items-center gap-1 w-14 rounded-xl px-1 py-2 border border-dashed border-white/15"
+                          className="flex flex-col items-center gap-1 w-14 rounded-xl px-1 py-1.5 border border-dashed border-white/15"
                         >
                           <span className="text-[10px] text-white/20 font-medium">M{i + 1}</span>
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/5">
@@ -259,7 +264,7 @@ export default function RAGEvalPanel({ open, onClose, initialK = 5 }: RAGEvalPan
                 <div className="h-px bg-white/8" />
 
                 {/* Metrics table */}
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                   <span className="text-[11px] font-medium text-white/60 uppercase tracking-wider">Metrics</span>
 
                   {[
@@ -303,7 +308,7 @@ export default function RAGEvalPanel({ open, onClose, initialK = 5 }: RAGEvalPan
                       explain: 'Penalises relevant results appearing at lower ranks',
                     },
                   ].map(({ name, value, fraction, color, explain }) => (
-                    <div key={name} className="flex flex-col gap-1.5">
+                    <div key={name} className="flex flex-col gap-1.5" data-metric={name.replace(/@.*/, '').toLowerCase()}>
                       <div className="flex items-baseline justify-between gap-4">
                         <div className="flex items-baseline gap-3">
                           <span className="text-[13px] font-semibold text-white w-28 shrink-0">{name}</span>

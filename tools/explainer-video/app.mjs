@@ -17,6 +17,10 @@
 //   cardTop:   top offset in px for right/left cards (default 66), to keep a button the cursor needs visible
 //   cardFrom:  line index at which the card appears (default: scene start), when it would cover early clicks
 // Targets: 'text=…', 'label=…', 'placeholder=…', 'role=["button",{"name":"…"}]', 'switch=<server id>', or CSS.
+//
+// setup.app: 'agentflow' drives the AgentFlow app itself (APP_URL, default http://localhost:5173) instead of the
+// MCP Inspector: nothing is started, and setup.prelude — [{ act: 'click', target, times? }] — runs hidden before
+// recording (open a template, select a node, open a panel, put it in its starting state).
 import { chromium } from 'playwright';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -32,6 +36,7 @@ const ACME_DIR = process.env.ACME_DIR || setup.acmeDir || join(homedir(), 'Docum
 const VIEW = { width: 1280, height: 720 }; // laid out at 1280×720, captured at 1.5× → 1920×1080
 
 // ── 1. fresh environment ──────────────────────────────────────────────────────
+const AGENTFLOW = setup.app === 'agentflow';
 const children = [];
 const cleanup = () => { for (const c of children) { try { process.kill(-c.pid, 'SIGTERM'); } catch {} } };
 process.on('exit', cleanup);
@@ -54,37 +59,53 @@ function start(cmd, args, opts, ready) {
   });
 }
 
+let serverLog = '', inspectorLog = '', startUrl;
+const vars = { ROOT }; // ROOT: this tool's folder (its pinned Inspector), for terminal commands
+const fill = (text) => String(text ?? '').replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
+if (AGENTFLOW) {
+  startUrl = process.env.APP_URL || 'http://localhost:5173';
+  if (!(await fetch(startUrl).then((r) => r.ok, () => false))) {
+    console.error(`AgentFlow isn't running at ${startUrl}. Start it with \`npm run dev\` in the repo root.`);
+    process.exit(1);
+  }
+} else {
 const busy = await fetch('http://localhost:8787/healthz').then(() => true, () => false);
 if (busy) {
   console.error('Port 8787 is in use. Stop your acme-crm-mcp dev server first: the renderer starts a fresh one,\nso rate-limit state and data are always the same.');
   process.exit(1);
 }
 spawnSync('npm', ['run', 'db:reset'], { cwd: ACME_DIR, stdio: 'ignore' });
-const serverLog = await start('npm', ['run', 'dev'], { cwd: ACME_DIR }, /MCP server/);
+serverLog = await start('npm', ['run', 'dev'], { cwd: ACME_DIR }, /MCP server/);
 
 // tokens minted up front (setup.tokens: { VAR: 'client-id' }), usable as {{VAR}} in the catalog and in actions
-const vars = { ROOT }; // ROOT: this tool's folder (its pinned Inspector), for terminal commands
 for (const [name, client] of Object.entries(setup.tokens ?? {})) {
   vars[name] = spawnSync('npm', ['run', '-s', 'token', '--', client], { cwd: ACME_DIR, encoding: 'utf8' }).stdout.trim();
 }
-const fill = (text) => String(text ?? '').replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
 
 const home = join(OUT_DIR, 'inspector-home');
 rmSync(home, { recursive: true, force: true });
 mkdirSync(home, { recursive: true });
 writeFileSync(join(home, 'mcp.json'), fill(JSON.stringify({ mcpServers: setup.servers ?? {} }, null, 2)));
-const inspectorLog = await start('npx', ['mcp-inspector', '--catalog', join(home, 'mcp.json')], {
+inspectorLog = await start('npx', ['mcp-inspector', '--catalog', join(home, 'mcp.json')], {
   cwd: ROOT,
   env: { ...process.env, MCP_AUTO_OPEN_ENABLED: 'false', MCP_STORAGE_DIR: home, MCP_INSPECTOR_SECRET_STORE: 'memory' },
 }, /MCP_INSPECTOR_API_TOKEN=[a-f0-9]+/);
-const inspectorUrl = inspectorLog.match(/http:\/\/127\.0\.0\.1:\d+\?MCP_INSPECTOR_API_TOKEN=[a-f0-9]+/)[0];
+startUrl = inspectorLog.match(/http:\/\/127\.0\.0\.1:\d+\?MCP_INSPECTOR_API_TOKEN=[a-f0-9]+/)[0];
+}
 
 // ── 2. browser + overlay ──────────────────────────────────────────────────────
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: VIEW, deviceScaleFactor: 1.5 });
 page.setDefaultTimeout(5000); // scheduled actions fail fast (and are reported) instead of stalling the render
-await page.goto(inspectorUrl);
+await page.goto(startUrl);
 await page.waitForTimeout(1500);
+// hidden set-up before recording (AgentFlow: open a template, select a node, open a panel, set its state)
+for (const step of setup.prelude ?? []) {
+  for (let n = 0; n < (step.times ?? 1); n++) {
+    await locate(step.target).click({ timeout: 8000 });
+    await page.waitForTimeout(step.wait ?? 250);
+  }
+}
 await page.addScriptTag({ path: join(ROOT, 'character.js') });
 await page.addScriptTag({ path: join(ROOT, 'lib', 'overlay.js') });
 await page.evaluate(({ TL, CFG }) => window.__overlay.init(TL, CFG), {

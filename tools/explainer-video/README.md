@@ -15,12 +15,14 @@ The output is a 1080p MP4.
 | [`conversational-rag`](videos/conversational-rag/LOG.md) | Conversational RAG | Leo, Cloudly customer |
 | [`mcp-testing`](videos/mcp-testing/LOG.md) | MCP Server Test Strategy | Becky returns (follow-up to `mcp-multi-tenant`) |
 | [`conversational-rag-eval`](videos/conversational-rag-eval/LOG.md) | Conversational RAG Eval | Priya, AI engineer at Cloudly (follow-up to `conversational-rag`) |
+| [`retrieval-metrics`](videos/retrieval-metrics/LOG.md) | RAG Eval Visualizer, live (`app.mjs`, AgentFlow mode) | Priya returns (metrics series 1) |
 | [`mcp-hands-on-1`](videos/mcp-hands-on-1/LOG.md)…[`5`](videos/mcp-hands-on-5/LOG.md) | MCP Inspector + demo server (`app.mjs`) | Becky, trying it herself |
 
 There are two renderers:
 - **`render.mjs`** tours a diagram template in the AgentFlow app.
 - **`app.mjs`** records a *hands-on* episode. It drives a real app (the MCP Inspector) against a real server,
-  with real terminal commands; see below.
+  with real terminal commands; see below. With `setup.app: 'agentflow'` it drives the AgentFlow app itself
+  (e.g. the RAG Eval Visualizer), running a hidden `setup.prelude` of clicks before recording.
 
 ## Setup (once)
 

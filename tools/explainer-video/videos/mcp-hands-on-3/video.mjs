@@ -218,6 +218,7 @@ export default {
   },
   displayOutput: (out) => out.replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, (t) => `${t.slice(0, 28)}…${t.slice(-8)}  (${t.length} chars)`),
   speak: [[/\bMCP\b/g, 'M C P'], [/\b429s?\b/g, (m) => (m.endsWith('s') ? 'four twenty-nines' : 'four twenty-nine')], [/\b200\b/g, 'two hundred'], [/\bID\b/g, 'I D'], [/\bIDs\b/g, 'I Ds'], [/\bc 201\b/g, 'C two oh one']],
+  thumbnail: { text: 'Let’s **break** an MCP server', frame: 35, crop: [20, 195, 900, 205], mark: { circle: [21, 120, 365, 26] }, badge: 'HTTP 429', mood: 'angry', fx: 'anger' },
   youtube: {
     title: 'Breaking an MCP Server on Purpose: 429s, Bad Input, Cross-Tenant Deletes (Hands-on MCP, Ep. 3)',
     description: `

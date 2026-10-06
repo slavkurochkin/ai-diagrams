@@ -155,6 +155,7 @@ export default {
   },
   displayOutput: (out) => out.replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, (t) => `${t.slice(0, 28)}…${t.slice(-8)}  (${t.length} chars)`),
   speak: [[/\bMCP\b/g, 'M C P'], [/\b401\b/g, 'four oh one'], [/\b403\b/g, 'four oh three'], [/\bJSON\b/g, 'jason']],
+  thumbnail: { text: 'Clicking doesn’t **scale**', frame: 55, crop: [20, 480, 900, 235], mark: { circle: [40, 168, 230, 30], check: [310, 183] }, badge: 'exit code 0', mood: 'disappointed', pose: 'facepalm' },
   youtube: {
     title: 'Automating MCP Server Tests: Inspector CLI, Contract Tests, Tool-Use Evals (Hands-on MCP, Ep. 4)',
     description: `

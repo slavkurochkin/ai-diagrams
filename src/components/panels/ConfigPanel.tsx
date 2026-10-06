@@ -12,6 +12,7 @@ import RAGEvalPanel from './RAGEvalPanel'
 import WERPanel from './WERPanel'
 import LatencyPanel from './LatencyPanel'
 import JudgePanel from './JudgePanel'
+import GenerationEvalPanel from './GenerationEvalPanel'
 import { exampleTimingsFromConfig } from '../latency/LatencyOverlay'
 import { stageBudgetsFromConfig } from '../latency/LatencyWaterfall'
 import type { Normalization } from '../../lib/wer'
@@ -334,6 +335,7 @@ export default function ConfigPanel() {
   const [werOpen, setWerOpen] = useState(false)
   const [latencyOpen, setLatencyOpen] = useState(false)
   const [judgeOpen, setJudgeOpen] = useState(false)
+  const [genEvalOpen, setGenEvalOpen] = useState(false)
   const [portsSectionOpen, setPortsSectionOpen] = useState(false)
 
   return (
@@ -779,6 +781,19 @@ export default function ConfigPanel() {
                 <BarChart2 size={13} />
                 Visualize Precision / Recall
               </button>
+              <button
+                type="button"
+                onClick={() => setGenEvalOpen(true)}
+                className="
+                  mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
+                  text-[12px] font-medium
+                  bg-emerald-900/40 border border-emerald-700/40 text-emerald-200
+                  hover:bg-emerald-800/50 hover:text-white transition-colors
+                "
+              >
+                <BarChart2 size={13} />
+                Visualize Faithfulness / Relevancy
+              </button>
             </div>
           )}
 
@@ -1210,6 +1225,9 @@ export default function ConfigPanel() {
 
       {/* LLM Judge Visualizer */}
       <JudgePanel open={judgeOpen} onClose={() => setJudgeOpen(false)} />
+
+      {/* Generation Metrics Visualizer (faithfulness, answer relevancy, context recall / precision) */}
+      <GenerationEvalPanel open={genEvalOpen} onClose={() => setGenEvalOpen(false)} />
 
       {/* WER Visualizer — edits the selected ASR Eval node's example */}
       <WERPanel

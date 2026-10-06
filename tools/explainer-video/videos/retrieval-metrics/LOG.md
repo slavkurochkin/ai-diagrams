@@ -9,7 +9,7 @@ that changes what viewers see or hear, so the video can be revised later without
 - **Follow-up to:** [`conversational-rag-eval`](../conversational-rag-eval/LOG.md) (Priya returns; that video's bridge scene promised this one)
 - **Render:** `node app.mjs retrieval-metrics` → `out/retrieval-metrics/retrieval-metrics.mp4` (needs `npm run dev` running)
 
-## Current version — v1 (2026-10-05) · 4:05
+## Current version — v2 (2026-10-06) · 4:06
 
 Priya's eval report is full of numbers, and she works them out on one running example: Leo's "What about
 monthly ones?". Two relevant documents exist, and the retriever returns 5 chunks with only rank 1 relevant.
@@ -25,9 +25,21 @@ Everything happens live in the visualizer:
 | 06 NDCG | hits at ranks 4 and 5, then at ranks 1 and 2 | P 40%, R 100% both times; NDCG ≈ 0.50 → 1.0 |
 | Which metric when | the card on a clean canvas | recall@20 on candidates, precision@5 on the prompt, F1, MRR vs. NDCG |
 
-The outro is "Precision · Recall · F1 · @k · MRR · NDCG".
+The outro is "Precision@k · Recall@k · F1@k · MRR · NDCG@k": five metrics, with @k shown as part of the ones it cuts off.
 
 ## History
+
+### v2 (2026-10-06)
+- **Feedback:** "the ending with list of metrics should be 4, at K is not a metric on its own, it is part of
+  other metrics".
+- **Decision:** dropping @k leaves five metrics, not four. The user chose to keep five with @k attached:
+  "Precision@k · Recall@k · F1@k · MRR · NDCG@k".
+- **Changes:**
+  - The summary chips changed to that list.
+  - The summary narration is now "Precision at k. Recall at k. F1. MRR. NDCG.", and "Six numbers" became
+    "Five numbers".
+- **Unchanged:** the rest of the video, apart from re-recording. The RAG Evaluator's settings panel now has a
+  second "Visualize Faithfulness / Relevancy" button, but no scene shows that panel.
 
 ### v1 (2026-10-05)
 - **Request:** a metrics deep dive. The conversational-rag-eval video only named recall and precision, and said

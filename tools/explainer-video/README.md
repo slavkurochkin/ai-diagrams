@@ -16,6 +16,7 @@ The output is a 1080p MP4.
 | [`mcp-testing`](videos/mcp-testing/LOG.md) | MCP Server Test Strategy | Becky returns (follow-up to `mcp-multi-tenant`) |
 | [`conversational-rag-eval`](videos/conversational-rag-eval/LOG.md) | Conversational RAG Eval | Priya, AI engineer at Cloudly (follow-up to `conversational-rag`) |
 | [`retrieval-metrics`](videos/retrieval-metrics/LOG.md) | RAG Eval Visualizer, live (`app.mjs`, AgentFlow mode) | Priya returns (metrics series 1) |
+| [`llm-judge`](videos/llm-judge/LOG.md) | LLM Judge Visualizer, live (`app.mjs`, AgentFlow mode) | Priya returns (metrics series 2) |
 | [`mcp-hands-on-1`](videos/mcp-hands-on-1/LOG.md)…[`5`](videos/mcp-hands-on-5/LOG.md) | MCP Inspector + demo server (`app.mjs`) | Becky, trying it herself |
 
 There are two renderers:

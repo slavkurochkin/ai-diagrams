@@ -11,6 +11,7 @@ import type { ConfigField } from '../../types/nodes'
 import RAGEvalPanel from './RAGEvalPanel'
 import WERPanel from './WERPanel'
 import LatencyPanel from './LatencyPanel'
+import JudgePanel from './JudgePanel'
 import { exampleTimingsFromConfig } from '../latency/LatencyOverlay'
 import { stageBudgetsFromConfig } from '../latency/LatencyWaterfall'
 import type { Normalization } from '../../lib/wer'
@@ -332,6 +333,7 @@ export default function ConfigPanel() {
   const [ragEvalOpen, setRagEvalOpen] = useState(false)
   const [werOpen, setWerOpen] = useState(false)
   const [latencyOpen, setLatencyOpen] = useState(false)
+  const [judgeOpen, setJudgeOpen] = useState(false)
   const [portsSectionOpen, setPortsSectionOpen] = useState(false)
 
   return (
@@ -799,6 +801,25 @@ export default function ConfigPanel() {
             </div>
           )}
 
+          {/* ── LLM Judge Visualizer button ─────────────────────────────────── */}
+          {selectedNode.data.nodeType === 'llmJudge' && (
+            <div className="px-4 pb-3">
+              <button
+                type="button"
+                onClick={() => setJudgeOpen(true)}
+                className="
+                  w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
+                  text-[12px] font-medium
+                  bg-violet-900/40 border border-violet-700/40 text-violet-200
+                  hover:bg-violet-800/50 hover:text-white transition-colors
+                "
+              >
+                <BarChart2 size={13} />
+                Visualize LLM Judge
+              </button>
+            </div>
+          )}
+
           {/* ── Latency Visualizer button ─────────────────────────────────── */}
           {(selectedNode.data.nodeType === 'voiceLatencyEval' || selectedNode.data.nodeType === 'responseLatencyEval') && (
             <div className="px-4 pb-3">
@@ -1186,6 +1207,9 @@ export default function ConfigPanel() {
           />
         )
       })()}
+
+      {/* LLM Judge Visualizer */}
+      <JudgePanel open={judgeOpen} onClose={() => setJudgeOpen(false)} />
 
       {/* WER Visualizer — edits the selected ASR Eval node's example */}
       <WERPanel

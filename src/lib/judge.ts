@@ -10,6 +10,8 @@ export interface Criterion {
   label: string
   /** Relative importance; a criterion with weight 3 counts three times as much as weight 1. */
   weight: number
+  /** What the judge is told this criterion means. */
+  definition: string
 }
 
 export interface Verdict {
@@ -29,11 +31,34 @@ export const QUESTION = 'What about monthly ones?'
 export const CONTEXT_NOTE = 'Earlier turn: the refund policy for annual plans.'
 export const REFERENCE = 'Monthly plans can be cancelled anytime, with no further charges. Partial months are not refunded. [doc 2]'
 
+// ── The golden dataset (the answer key) ──────────────────────────────────────
+
+/** One golden example: what the judge compares an answer against. */
+export const GOLDEN_EXAMPLE = {
+  id: 'refund-017',
+  conversation: ['Leo: Can I get a refund on my annual plan?', 'Bot: Yes, within 30 days of purchase. [doc 1]'],
+  question: QUESTION,
+  reference: REFERENCE,
+  mustInclude: ['cancel anytime', 'no further charges', 'partial months not refunded'],
+  source: 'doc 2 · Billing policy, §3 Monthly plans',
+  tags: ['follow-up question', 'billing'],
+  writtenBy: 'Support lead, reviewed by a second person',
+}
+
+/** How a golden dataset gets built, step by step. */
+export const GOLDEN_STEPS: { title: string; detail: string }[] = [
+  { title: 'Collect real questions', detail: 'From production logs and support tickets, not invented at a desk. Short on real traffic? A model can draft questions from the docs, but a person keeps or rejects each one.' },
+  { title: 'Pick a balanced mix', detail: 'Common questions, hard ones, follow-ups, and questions the docs can’t answer (the right reply is “I don’t know”). 50–200 to start.' },
+  { title: 'Experts write the answer key', detail: 'Someone who knows the domain writes the reference answer from the source docs, with the facts it must include. A second person reviews it.' },
+  { title: 'People label sample answers', detail: 'Two people mark real model answers pass or fail on their own, then settle disagreements. These labels are what you check the judge against.' },
+  { title: 'Split, version, keep adding', detail: 'One part to tune the judge, a held-out part to test it. Version the set, and add every failure you find in production.' },
+]
+
 export const CRITERIA: Criterion[] = [
-  { id: 'correct', label: 'Correct', weight: 3 },
-  { id: 'grounded', label: 'Cites a source', weight: 2 },
-  { id: 'complete', label: 'Complete', weight: 1 },
-  { id: 'concise', label: 'Concise', weight: 1 },
+  { id: 'correct', label: 'Correct', weight: 3, definition: 'Agrees with the reference answer; nothing contradicts it' },
+  { id: 'grounded', label: 'Cites a source', weight: 2, definition: 'Cites a document that supports what it says' },
+  { id: 'complete', label: 'Complete', weight: 1, definition: 'Includes every must-include fact' },
+  { id: 'concise', label: 'Concise', weight: 1, definition: 'No filler beyond what answers the question' },
 ]
 
 export const ANSWERS: CandidateAnswer[] = [
@@ -100,6 +125,26 @@ export function rubricScore(answer: CandidateAnswer, enabled: Record<string, boo
   const total = active.reduce((s, c) => s + c.weight, 0)
   if (total === 0) return 0
   return active.reduce((s, c) => s + (answer.verdicts[c.id]?.pass ? c.weight : 0), 0) / total
+}
+
+/** The prompt the judge model receives: the golden example, the answer, and the rubric. */
+export function judgePrompt(answer: CandidateAnswer, enabled: Record<string, boolean>, criteria = CRITERIA): string {
+  const rubric = criteria.filter((c) => enabled[c.id]).map((c) => `- ${c.id}: ${c.definition}`).join('\n')
+  return [
+    `Question: "${QUESTION}"`,
+    `Reference answer: ${REFERENCE}`,
+    `Answer to grade: ${answer.text}`,
+    'For each criterion, reply pass or fail with a one-line reason:',
+    rubric,
+  ].join('\n')
+}
+
+/** What the judge model sends back: one verdict per criterion, as JSON. Weights are applied by code, not the model. */
+export function judgeReply(answer: CandidateAnswer, enabled: Record<string, boolean>, criteria = CRITERIA): string {
+  const lines = criteria
+    .filter((c) => enabled[c.id])
+    .map((c) => `  "${c.id}": { "pass": ${answer.verdicts[c.id].pass}, "reason": "${answer.verdicts[c.id].reason}" }`)
+  return `{\n${lines.join(',\n')}\n}`
 }
 
 export const PASS_MARK = 0.75
@@ -185,6 +230,8 @@ export interface Agreement {
   falsePass: number
   bothFail: number
   agreement: number
+  /** Agreement expected by chance: a judge guessing at random, but saying "pass" as often as this one does. */
+  chance: number
   /** Cohen's kappa: agreement corrected for what chance alone would give. */
   kappa: number
   disagreements: string[]
@@ -206,5 +253,64 @@ export function agreementWithHumans(judge: Record<string, boolean>, items = LABE
   const judgePass = (bothPass + falsePass) / n
   const pe = humanPass * judgePass + (1 - humanPass) * (1 - judgePass)
   const kappa = pe === 1 ? 0 : (po - pe) / (1 - pe)
-  return { bothPass, missed, falsePass, bothFail, agreement: po, kappa, disagreements }
+  return { bothPass, missed, falsePass, bothFail, agreement: po, chance: pe, kappa, disagreements }
 }
+
+// ── Synthetic test data ──────────────────────────────────────────────────────
+
+/** The document chunk a model drafts test questions from. */
+export const SOURCE_CHUNK = {
+  source: 'doc 2 · Billing policy, §3 Monthly plans',
+  text: 'Monthly plans can be cancelled at any time. Cancellation takes effect at the end of the current billing period. Partial months are not refunded.',
+}
+
+export interface SyntheticQuestion {
+  question: string
+  /** How it was generated. */
+  method: string
+  keep: boolean
+  /** The reviewer's note. */
+  review: string
+}
+
+/** What a model drafts from SOURCE_CHUNK, and what a person decides about each one. */
+export const SYNTHETIC_QUESTIONS: SyntheticQuestion[] = [
+  { question: 'Can monthly plans be cancelled at any time?', method: 'From the doc', keep: false, review: 'Copies the doc’s wording, so retrieval finds it too easily. Reworded to sound like a user.' },
+  { question: 'If I cancel halfway through the month, do I get the rest back?', method: 'Reworded like a user', keep: true, review: 'Kept: how real users ask.' },
+  { question: 'Is there a 14-day refund on monthly plans?', method: 'Trap', keep: true, review: 'Kept: the right answer is “no”. Catches confident guesses.' },
+  { question: 'Can I pause my monthly plan instead?', method: '“Docs don’t say”', keep: true, review: 'Kept: the right answer is “I don’t know”.' },
+  { question: 'Explain the monthly cancellation policy.', method: 'From the doc', keep: false, review: 'No user writes like this. Rejected.' },
+]
+
+/** Judge pass rates on real vs. synthetic questions: a big gap means the synthetic set is too easy. */
+export const REAL_VS_SYNTHETIC = { real: 0.78, synthetic: 0.94 }
+
+// ── Statistics ───────────────────────────────────────────────────────────────
+
+/** Standard deviation of these runs: the square root of the average squared distance from the mean. */
+export function stdDev(xs: number[]): number {
+  const mean = xs.reduce((s, x) => s + x, 0) / xs.length
+  return Math.sqrt(xs.reduce((s, x) => s + (x - mean) ** 2, 0) / xs.length)
+}
+
+/** How much the average of n runs wobbles: one run's standard deviation ÷ √n. */
+export function stdDevOfAverage(sd: number, n: number): number {
+  return sd / Math.sqrt(n)
+}
+
+/**
+ * Margin of error for a proportion p measured on n items: 2 × √(p(1 − p) ÷ n). The 2 (1.96, rounded) gives about
+ * 95% confidence. Normal approximation: rough for small n, which is the point of showing it.
+ */
+export function marginOfError(p: number, n: number): number {
+  return 2 * Math.sqrt((p * (1 - p)) / n)
+}
+
+// ── Judge biases ─────────────────────────────────────────────────────────────
+
+export const JUDGE_BIASES: { name: string; what: string; fix: string }[] = [
+  { name: 'Position', what: 'prefers the answer it reads first', fix: 'judge both orders' },
+  { name: 'Length', what: 'prefers longer answers', fix: 'a “concise” criterion; compare equal lengths' },
+  { name: 'Self-preference', what: 'prefers answers from its own model family', fix: 'judge with a different model family' },
+  { name: 'Leniency', what: 'passes too much, often from confident tone', fix: 'strict rubric, checked against people' },
+]

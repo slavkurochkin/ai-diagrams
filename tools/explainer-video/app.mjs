@@ -35,7 +35,7 @@
 // labels the terminal window (default ~/acme-crm-mcp).
 //
 // setup.app: 'web' records a local web app plus the terminal, both in setup.dir (DEMO_DIR): setup.before — shell
-// commands — runs first (e.g. to reset state), then setup.serve — { cmd, ready, url } — starts the app and waits for
+// commands — runs first (e.g. to reset state), then setup.serve — { cmd, ready, url, env? } — starts the app and waits for
 // `ready` (a regex string) in its output. The video starts on a plain backdrop; a goto action opens the app.
 // setup.css is injected on every page load (e.g. to zoom the app). The cursor hides while a terminal is shown.
 import { chromium } from 'playwright';
@@ -90,7 +90,7 @@ if (TERMINAL) {
     if (r.status !== 0) { console.error(`setup.before failed: ${cmd}\n${r.stderr}`); process.exit(1); }
   }
   const [cmd, ...args] = setup.serve.cmd.split(' ');
-  serverLog = await start(cmd, args, { cwd: RUN_DIR }, new RegExp(setup.serve.ready));
+  serverLog = await start(cmd, args, { cwd: RUN_DIR, env: { ...process.env, ...setup.serve.env } }, new RegExp(setup.serve.ready));
   startUrl = null; // a plain backdrop until the first goto (the app may have nothing to show yet)
 } else if (AGENTFLOW) {
   startUrl = process.env.APP_URL || 'http://localhost:5173';

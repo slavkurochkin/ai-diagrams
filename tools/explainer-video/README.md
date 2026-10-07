@@ -21,6 +21,7 @@ The output is a 1080p MP4.
 | [`mcp-hands-on-1`](videos/mcp-hands-on-1/LOG.md)…[`5`](videos/mcp-hands-on-5/LOG.md) | MCP Inspector + demo server (`app.mjs`) | Becky, trying it herself |
 | [`rag-eval-hands-on`](videos/rag-eval-hands-on/LOG.md) | cloudly-support-rag demo + DeepEval, terminal only (`app.mjs`, terminal mode) | Nina, QA engineer at Cloudly |
 | [`rag-eval-promptfoo`](videos/rag-eval-promptfoo/LOG.md) | cloudly-support-rag demo + Promptfoo viewer, live (`app.mjs`, web mode) | Nina, QA engineer at Cloudly |
+| [`rag-eval-ci`](videos/rag-eval-ci/LOG.md) | the same demo in GitHub Actions: real PR runs in Promptfoo's viewer (`app.mjs`, web mode) | Nina returns |
 
 There are two renderers:
 - **`render.mjs`** tours a diagram template in the AgentFlow app.

@@ -19,12 +19,17 @@ The output is a 1080p MP4.
 | [`llm-judge`](videos/llm-judge/LOG.md) | LLM Judge Visualizer, live (`app.mjs`, AgentFlow mode) | Priya returns (metrics series 2) |
 | [`generation-metrics`](videos/generation-metrics/LOG.md) | Generation Metrics Visualizer, live (`app.mjs`, AgentFlow mode) | Priya returns (metrics series 3) |
 | [`mcp-hands-on-1`](videos/mcp-hands-on-1/LOG.md)…[`5`](videos/mcp-hands-on-5/LOG.md) | MCP Inspector + demo server (`app.mjs`) | Becky, trying it herself |
+| [`rag-eval-hands-on`](videos/rag-eval-hands-on/LOG.md) | cloudly-support-rag demo + DeepEval, terminal only (`app.mjs`, terminal mode) | Nina, QA engineer at Cloudly |
+| [`rag-eval-promptfoo`](videos/rag-eval-promptfoo/LOG.md) | cloudly-support-rag demo + Promptfoo viewer, live (`app.mjs`, web mode) | Nina, QA engineer at Cloudly |
 
 There are two renderers:
 - **`render.mjs`** tours a diagram template in the AgentFlow app.
 - **`app.mjs`** records a *hands-on* episode. It drives a real app (the MCP Inspector) against a real server,
   with real terminal commands; see below. With `setup.app: 'agentflow'` it drives the AgentFlow app itself
   (e.g. the RAG Eval Visualizer), running a hidden `setup.prelude` of clicks before recording.
+  With `setup.app: 'terminal'` it records a terminal-only episode: commands run in `setup.dir` (or `DEMO_DIR`)
+  against a plain backdrop.
+  With `setup.app: 'web'` it starts a local web app (`setup.serve`) next to the terminal, e.g. Promptfoo's viewer.
 
 ## Setup (once)
 
@@ -84,7 +89,7 @@ export default {
       card: { title, items: [{ line: 0, text: 'html' }] },        // right-hand checklist; items light up with their line
       char: {
         moods: [{ line, delay?, mood }],      // frustrated | neutral | curious | happy
-        pops: [{ line, delay?, kind: 'say' | 'assistant' | 'consent', text, who? }], // who: assistant pop-up header
+        pops: [{ line, delay?, kind: 'say' | 'assistant' | 'consent', text, who?, until? }], // who: assistant pop-up header; until: line it closes at
         approve: { line, delay? },            // flips the consent prompt to "✓ Approved"
       },
       lines: ['Narration, one TTS clip per line, shown as the caption.'],

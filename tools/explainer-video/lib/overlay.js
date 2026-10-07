@@ -42,7 +42,7 @@
     #ov-term .bar i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
     #ov-term .bar span { margin-left: 8px; color: #94a3b8; font: 500 11px ui-monospace, Menlo, monospace; }
     #ov-term pre { margin: 0; padding: 10px 12px; height: calc(100% - 26px); overflow: hidden; color: #e2e8f0;
-      font: 400 12.5px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
+      font: 400 12.5px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
     #ov-term .p { color: #34d399; } #ov-term .c { color: #f8fafc; font-weight: 600; } #ov-term .o { color: #cbd5e1; }
     #ov-term .caret { display: inline-block; width: 7px; height: 14px; background: #e2e8f0; vertical-align: -2px; }
   `;
@@ -61,7 +61,8 @@
   function init(tl, cfg) {
     TL = tl; CFG = cfg;
     const hl = mk('ov-hl');
-    const term = mk('ov-term', '<div class="bar"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i><span>~/acme-crm-mcp</span></div><pre></pre>');
+    const term = mk('ov-term', '<div class="bar"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i><span></span></div><pre></pre>');
+    term.querySelector('.bar span').textContent = cfg.terminalTitle || '~/acme-crm-mcp';
     const card = mk('ov-card');
     const pip = mk('ov-pip');
     const cap = mk('ov-cap'), chip = mk('ov-chip');
@@ -130,7 +131,9 @@
     if (pj >= 0) {
       const e = pops[pj];
       const html = e.kind === 'assistant' ? `<div class="bubble assistant"><div class="who">✦ ${e.who || 'Assistant'}</div>${e.text}</div>` : `<div class="bubble">${e.text}</div>`;
-      pop = { key: `${i}-${pj}`, html, show: Math.max(0, Math.min(1, (t - at(s, e)) / 0.3, (s.end - 0.2 - t) / 0.3)) };
+      // until: a line index at which the pop closes (default: the end of the scene)
+      const end = e.until !== undefined && e.until < s.lines.length ? at(s, { line: e.until }) : s.end;
+      pop = { key: `${i}-${pj}`, html, show: Math.max(0, Math.min(1, (t - at(s, e)) / 0.3, (end - 0.2 - t) / 0.3)) };
     }
     window.__character.render(person, {
       from: moodEv[Math.max(0, mi - 1)].mood, to: mev.mood, k: mi === 0 ? 1 : ease(since / 0.6),
@@ -148,7 +151,7 @@
 
     // cursor + click ripple
     els.cursor.style.transform = `translate(${d.cursor.x - 3}px, ${d.cursor.y - 2}px)`;
-    els.cursor.style.opacity = s.title ? '0' : '1';
+    els.cursor.style.opacity = s.title || CFG.hideCursor || (CFG.hideCursorOnTerminal && s.terminal) ? '0' : '1';
     els.ripple.style.transform = `translate(${d.cursor.x - 17}px, ${d.cursor.y - 17}px) scale(${d.clickPulse ? 1 : 0.4})`;
     els.ripple.style.opacity = d.clickPulse ? '1' : '0';
 
@@ -157,6 +160,7 @@
     if (term) {
       const pos = term.pos || 'right';
       const box = pos === 'full' ? { left: 150, top: 100, width: 980, height: 460 }
+        : pos === 'wide' ? { left: 14, top: 100, width: 862, height: 420 } // beside a right-hand card
         : pos === 'left' ? { left: 14, top: 100, width: 600, height: 380 } : { left: 666, top: 100, width: 600, height: 380 };
       Object.assign(els.term.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
       const parts = d.terminal.lines.map((l) => `<span class="p">$</span> <span class="c">${esc(l.cmd)}</span>\n${l.output ? `<span class="o">${esc(l.output)}</span>\n` : ''}`);

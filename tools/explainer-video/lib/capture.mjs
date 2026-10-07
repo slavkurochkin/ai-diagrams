@@ -12,7 +12,12 @@ export async function capture(ctx, page, renderAt) {
   const view = page.viewportSize();
   const scale = ctx.captureScale ?? 1;
   const clip = { x: 0, y: 0, width: view.width, height: view.height, scale };
-  const shoot = async () => Buffer.from((await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 94, clip })).data, 'base64');
+  const shoot = async () => {
+    // the clip is in document coordinates: follow the viewport when the page has scrolled
+    const { cssVisualViewport: v } = await cdp.send('Page.getLayoutMetrics');
+    Object.assign(clip, { x: v.pageX, y: v.pageY });
+    return Buffer.from((await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 94, clip })).data, 'base64');
+  };
 
   if (STILLS) {
     const ts = STILLS === 'scenes' ? timeline.map((s) => (s.lines[0].start + s.lines[0].end) / 2) : STILLS.split(',').map(Number);

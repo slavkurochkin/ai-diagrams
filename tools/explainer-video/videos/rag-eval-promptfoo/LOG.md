@@ -14,7 +14,7 @@ that changes what viewers see or hear, so the video can be revised later without
 - **Render:** `node app.mjs rag-eval-promptfoo` → `out/rag-eval-promptfoo/rag-eval-promptfoo.mp4`
 - **Replaces** [`rag-eval-hands-on`](../rag-eval-hands-on/LOG.md) (DeepEval, terminal only); see v1 below for why.
 
-## Current version — v2 (2026-10-06) · 4:43
+## Current version — v3 (2026-10-07) · 4:49
 
 Nina, a QA engineer at Cloudly, must check a change to the help-chat assistant. One idea per scene, in plain words
 before anything technical:
@@ -48,6 +48,14 @@ Before shipping a render, check frames from the mp4 at:
 - 4:12: three runs in the history
 
 ## History
+
+### v3 (2026-10-07)
+- **Request:** "encourage viewers who watched video till the end to like and subscribe to help channel grow".
+- **Added:** one last narration line, "If this helped, give it a like, and subscribe. Next up: running these tests on
+  every pull request.", with Nina's bubble "Like & subscribe for the next one! 👍". The same line closes the YouTube
+  description.
+- **Thumbnail:** the headline is now "Test Your AI with **Promptfoo**" and the badge "Leak caught ✗". The user said the
+  generic words wouldn't drive traffic.
 
 ### v2 (2026-10-06)
 - **Request:** "should we add some highlights like we have in other videos?", pointing at the amber ring with a label

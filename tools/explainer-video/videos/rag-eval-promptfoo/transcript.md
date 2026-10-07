@@ -1,6 +1,6 @@
 # Testing an AI Assistant with Promptfoo — transcript
 
-Generated from `video.mjs` on every render. Total 4:42 · voice `af_heart` at 1.0× · template "cloudly-support-rag demo + Promptfoo".
+Generated from `video.mjs` on every render. Total 4:48 · voice `af_heart` at 1.0× · template "cloudly-support-rag demo + Promptfoo".
 
 ## 0:00 · Intro
 
@@ -108,3 +108,5 @@ Generated from `video.mjs` on every render. Total 4:42 · voice `af_heart` at 1.
 
 - **4:30** A test is a question plus checks. Code checks are free and exact. A judge catches what exact words can’t.
 - **4:37** Run them on every change, and secrets stay secret.
+- **4:40** If this helped, give it a like, and subscribe. Next up: running these tests on every pull request.
+  - _Nina:_ Like & subscribe for the next one! 👍

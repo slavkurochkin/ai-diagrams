@@ -269,10 +269,14 @@ const scenes = [
   {
     chip: 'Summary',
     summary: true,
-    char: { moods: [{ line: 0, mood: 'happy' }] },
+    char: {
+      moods: [{ line: 0, mood: 'happy' }],
+      pops: [{ line: 2, delay: 0.3, kind: 'say', text: 'Like & subscribe for the next one! 👍' }],
+    },
     lines: [
       'A test is a question plus checks. Code checks are free and exact. A judge catches what exact words can’t.',
       'Run them on every change, and secrets stay secret.',
+      'If this helped, give it a like, and subscribe. Next up: running these tests on every pull request.',
     ],
   },
 ];
@@ -312,7 +316,9 @@ What you'll learn:
 • What one test is: a question plus checks (two code checks and an LLM judge)
 • What a golden dataset is, and why the assistant never sees the answer key
 • Reading results in Promptfoo's viewer: every check, with its reason
-• Why a forbidden-phrase check missed a reworded leak, and how the LLM judge caught it`,
+• Why a forbidden-phrase check missed a reworded leak, and how the LLM judge caught it
+
+If this helped, like and subscribe. Next up: running these tests on every pull request.`,
     tags: ['Promptfoo', 'LLM evaluation', 'RAG', 'AI testing', 'LLM as a judge', 'golden dataset', 'Claude', 'AI assistant', 'data leak', 'QA', 'tutorial'],
   },
   scenes,

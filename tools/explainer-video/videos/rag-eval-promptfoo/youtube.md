@@ -20,6 +20,8 @@ What you'll learn:
 • Reading results in Promptfoo's viewer: every check, with its reason
 • Why a forbidden-phrase check missed a reworded leak, and how the LLM judge caught it
 
+If this helped, like and subscribe. Next up: running these tests on every pull request.
+
 Chapters
 0:00 Intro
 0:14 What the assistant does

@@ -49,3 +49,9 @@ A visual canvas for designing and animating AI system diagrams — pipelines, RA
 - **Frontend**: React, ReactFlow, Framer Motion, Tailwind CSS
 - **Backend**: Express (proxied via Vite in dev)
 - **AI**: OpenAI API (explain, design review, eval suggestions)
+
+## Explainer videos
+
+The narrated videos of these templates (and the hands-on episodes) are made with a separate toolkit, now in its
+own private repo: [`slavkurochkin/explainer-videos`](https://github.com/slavkurochkin/explainer-videos)
+(`~/Documents/dev/explainer-videos`). It drives this app at `http://localhost:5173` for diagram tours.

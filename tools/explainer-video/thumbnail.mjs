@@ -16,7 +16,7 @@
 //     badge: 'Faithfulness 0.50',           // optional yellow sticker on the hero: one striking number or phrase
 //     bg: 30,                               // optional: another moment for the background
 //     mood: 'angry',                        // frustrated | neutral | curious | happy | surprised | angry | disappointed | suspicious
-//     pose: 'hands-on-head',                // optional arms: hands-on-head | facepalm | thumbs-up | thinking
+//     pose: 'hands-on-head',                // optional arms: hands-on-head | facepalm | thinking (no finger or thumb poses: they read as a middle finger)
 //     fx: 'anger',                          // optional effects: anger | question | exclaim | sparkles | tear
 //   }
 // YouTube draws the duration over the bottom-right corner: no text there (the hero card may run under it).

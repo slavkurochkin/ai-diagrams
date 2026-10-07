@@ -146,14 +146,14 @@
     p.pop.style.transform = `scale(${(st.popScale || 1) * (0.9 + 0.1 * st.pop.show)})`;
   }
 
-  // Arm poses, drawn over the figure (thumbnails): the figure has no arms otherwise.
+  // Arm poses, drawn over the figure (thumbnails): the figure has no arms otherwise. No single raised finger or
+  // thumb: at thumbnail size a lone digit on a round fist reads as a middle finger.
   const POSES = {
     'hands-on-head': [ // pulling their hair
       { arm: 'M58,312 C26,250 30,188 66,150', hand: [62, 138, 18] },
       { arm: 'M202,312 C234,250 230,188 194,150', hand: [198, 138, 18] },
     ],
     facepalm: [{ arm: 'M206,312 C228,250 204,186 156,130', hand: [142, 126, 0], palm: true }],
-    'thumbs-up': [{ arm: 'M212,318 C236,292 230,262 210,252', hand: [204, 246, 18], thumb: true }],
     thinking: [{ arm: 'M204,316 C218,266 190,236 152,218', hand: [142, 212, 16] }],
   };
 
@@ -168,7 +168,6 @@
       const [cx, cy, r] = p.hand;
       if (p.palm) el('ellipse', { cx, cy, rx: 30, ry: 19, fill: L.skin, stroke: L.nose, 'stroke-width': 2, transform: `rotate(-12 ${cx} ${cy})` }, svg);
       else el('circle', { cx, cy, r, fill: L.skin, stroke: L.nose, 'stroke-width': 2 }, svg);
-      if (p.thumb) el('rect', { x: cx - 6, y: cy - 40, width: 12, height: 30, rx: 6, fill: L.skin, stroke: L.nose, 'stroke-width': 2 }, svg);
     }
     if (name === 'hands-on-head') { // a few strands pulled loose
       for (const d of ['M54,118 C40,96 48,80 36,64', 'M70,112 C64,90 74,78 66,60', 'M206,118 C220,96 212,80 224,64', 'M190,112 C196,90 186,78 194,60']) {

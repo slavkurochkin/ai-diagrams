@@ -70,12 +70,12 @@ There are two kinds of video:
      where the character is drawn on the canvas, or she appears twice.
    - **Emotion:** strong and readable, and different on every video in a series. Combine:
      - `mood`: frustrated, neutral, curious, happy, surprised, angry, disappointed, or suspicious.
-     - `pose`: hands-on-head (pulling hair), facepalm, thumbs-up, or thinking. There is no pointing pose: a lone
-       finger read as a middle finger.
+     - `pose`: hands-on-head (pulling hair), facepalm, or thinking. There are no pointing or thumbs-up poses: at
+       thumbnail size a lone finger or thumb read as a middle finger, twice.
      - `fx`: anger, question, exclaim, sparkles, or tear.
 
      Match the hook: angry with anger for "Did the AI make it up?", shocked with hands-on-head and exclaim for
-     "Will Claude delete it?", disappointed with facepalm for "Clicking doesn't scale".
+     "Will Claude delete it?", disappointed with facepalm for "Stop testing MCP by hand".
    - **Check** every thumbnail at full size and as a small tile, and the series side by side. Text must be
      readable at 300 px wide, and nothing may sit in the bottom-right corner, where YouTube draws the duration.
      Copy the thumbnail to `~/Desktop/` alongside the video.

@@ -362,7 +362,7 @@ export default {
   summary: ['Contracts', 'Tool use', 'Security', 'Load', 'Production'],
   character: { label: 'Becky', anchor: 'Release Report', side: 'right', startMood: 'frustrated', look: {} },
   speak: [[/\bp95\b/g, 'p ninety-five'], [/\b121st\b/g, 'hundred and twenty first'], [/\bGPT\b/g, 'G P T']],
-  thumbnail: { text: '**5 layers** of MCP tests', frame: 135, crop: [1415, 90, 465, 455], mark: { circle: [25, 394, 427, 41] }, mood: 'happy', pose: 'thumbs-up', fx: 'sparkles' },
+  thumbnail: { text: '**5 layers** of MCP tests', frame: 135, crop: [1415, 90, 465, 455], mark: { check: [400, 120] }, badge: 'Golden dataset', mood: 'happy', fx: 'sparkles' },
   youtube: {
     title: 'How to Test an MCP Server: 5 Layers From Contract Tests to Production Evals',
     description: `

@@ -3068,7 +3068,7 @@ nodes:
       indexName: knowledge-base
       topK: 20
       similarityThreshold: 0.75
-    note: "Point at a frozen eval snapshot of the index, so score changes come from the pipeline, not new documents. Restricted test documents each contain a canary: a distinctive made-up fact (e.g. an unusual number like '61 days') that any faithful answer would have to state. Reference codes are not enough: models paraphrase and drop them"
+    note: "Point at a frozen eval snapshot of the documents (the index under test is built from it), so score changes come from the pipeline, not new documents. Restricted test documents each contain a canary: a distinctive made-up fact (e.g. an unusual number like '61 days') that any faithful answer would have to state. Reference codes are not enough: models paraphrase and drop them"
     position:
       x: 1680
       y: 380
